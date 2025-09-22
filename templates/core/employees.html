@@ -44,18 +44,45 @@
         <h1 class="text-center mb-5">Nuestro Equipo</h1>
         <div class="row">
             
-            <!-- Cards -->
+       <div class="row">
+            <!-- Ejemplo de tarjeta con datos dinámicos de Django -->
+            {% for empleado in empleados %}
             <div class="col-md-6 col-lg-4">
-                <div class="card employee-card ">
+                <div class="card employee-card">
                     <div class="card-img-placeholder">
-                        <a href="{% url 'employees_detail' %}" class="initials">JD</a>
+                        {% if empleado.foto %}
+                            <img src="{{ empleado.foto.url }}" alt="{{ empleado.user.get_full_name }}" class="profile-img">
+                        {% else %}
+                            <a href="{% url 'employees_detail' %}" class="initials">
+                                {{ empleado.user.first_name|first }}{{ empleado.user.last_name|first }}
+                            </a>
+                        {% endif %}
                     </div>
                     <div class="card-body text-center">
-                        <h5 class="employee-name">John Doe</h5>
-                        <p class="employee-position">Web Designer</p>
+                        <h5 class="employee-name">
+                            {{ empleado.user.first_name }} {{ empleado.user.last_name }}
+                        </h5>
+                        <p class="employee-position">{{ empleado.puesto.nombre }}</p>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-building"></i> {{ empleado.departamento.nombre }}
+                            </small>
+                        </div>
+                        <div class="mt-2">
+                            <a href="{% url 'employees_detail' %}" class="btn btn-sm btn-outline-primary">
+                                Ver Detalles
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
+            {% empty %}
+            <div class="col-12 text-center">
+                <div class="alert alert-info">
+                    No hay empleados registrados.
+                </div>
+            </div>
+            {% endfor %}
 
         
         </div>

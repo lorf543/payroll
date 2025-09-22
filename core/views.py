@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
+from .models import Empleado
 
 # Create your views here.
 
@@ -8,7 +9,11 @@ def home_view(request):
 
 @login_required(login_url='home')
 def employees_view(request):
-    return render(request,'core/employees.html')
+    empleados = Empleado.objects.all()
+
+    
+    context = {'empleados':empleados}
+    return render(request,'core/employees.html', context)
 
 @login_required(login_url='home')
 @login_required
