@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+
+{% block content %}
+
+    <style>
+        .employee-card {
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+            margin-bottom: 20px;
+
+        }
+        .employee-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+        .employee-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .employee-position {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .card-img-placeholder {
+            height: 120px;
+            background-color: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+        .initials {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #495057;
+        }
+    </style>
+
+<div class="container">
+        <h1 class="text-center mb-5">Nuestro Equipo</h1>
+        <div class="row">
+            
+            <!-- Cards -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card employee-card ">
+                    <div class="card-img-placeholder">
+                        <a href="{% url 'employees_detail' %}" class="initials">JD</a>
+                    </div>
+                    <div class="card-body text-center">
+                        <h5 class="employee-name">John Doe</h5>
+                        <p class="employee-position">Web Designer</p>
+                    </div>
+                </div>
+            </div>
+
+        
+        </div>
+    </div>
+
+{% endblock content %}

@@ -1,0 +1,54 @@
+{% extends "account/auth_base.html" %}
+
+{% block content %}
+        <div class="card auth-card" id="login-card">
+            <div class="card-body p-4">
+                <div class="auth-header">
+                    <div class="auth-icon">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <h2>Sign In</h2>
+                    <p class="text-muted">Access your account</p>
+                </div>
+                
+                <!-- Django Allauth Login Form -->
+                <form method="POST" action="{% url 'account_login' %}">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="id_login" class="form-label">Username or Email</label>
+                        <input type="text" class="form-control" id="id_login" name="login" 
+                               placeholder="Enter your username or email" required autofocus>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="id_password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="id_password" name="password" 
+                               placeholder="Enter your password" required>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="id_remember" name="remember">
+                        <label class="form-check-label" for="id_remember">Remember me</label>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
+                    </div>
+                </form>
+                
+                <div class="auth-footer">
+                    <p class="mb-0">Don't have an account? <a href="{% url 'account_signup' %}">Sign up</a></p>
+                    <p><a href="{% url 'account_reset_password' %}">Forgot your password?</a></p>
+                </div>
+            </div>
+        </div>
+{% endblock content %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+
+{% block content %}
+<div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card profile-card">
+                    <div class="profile-header text-center">
+                        {% comment %} <img src="https://via.placeholder.com/100" alt="Profile" class="profile-img mb-3"> {% endcomment %}
+                        <h3>John Doe</h3>
+                        <p>Web Developer</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h4 class="section-title">Overview</h4>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Education
+                                        <span class="text-muted">Master's Degree</span>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Experience
+                                        <span class="text-muted">5 Years</span>
+                                    </li>
+                                </ul>
+
+                                <div class="divider"></div>
+
+                                <h4 class="section-title">Employee ID</h4>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Phone
+                                        <span class="text-muted">9876543210</span>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Email
+                                        <span class="text-muted">johndoe@example.com</span>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Birthday
+                                        <span class="text-muted">24th July</span>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Gender
+                                        <span class="text-muted">Male</span>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h4 class="section-title">Address</h4>
+                                <div class="card mb-4">
+                                    <div class="card-body">
+                                        <p class="card-text">1861 Bayonne Ave, Manchester Township, NJ, 08759</p>
+                                    </div>
+                                </div>
+
+                                <h4 class="section-title">Skills</h4>
+                                <div class="mb-4">
+                                    <div class="skill-badge">IOS</div>
+                                    <div class="skill-badge">Android</div>
+                                    <div class="skill-badge">HTML</div>
+                                    <div class="skill-badge">CSS</div>
+                                    <div class="skill-badge">CodeIgniter</div>
+                                    <div class="skill-badge">PHP</div>
+                                    <div class="skill-badge">Javascript</div>
+                                    <div class="skill-badge">Wordpress</div>
+                                    <div class="skill-badge">jQuery</div>
+                                </div>
+
+                                <h4 class="section-title">Employee ID</h4>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">FT-0001</h5>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
