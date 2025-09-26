@@ -1,29 +1,34 @@
-<nav class="navbar navbar-expand-lg bg-body-tertiary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{% url 'home' %}">
-                <i class="bi bi-cash-coin"></i> Sistema de Nómina
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top" aria-label="Main navigation">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="{% url 'home' %}" aria-label="Home">
+      <i class="bi bi-cash-coin me-2"></i>
+      Sistema de Nómina
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-person-circle"></i> {{request.user.first_name}}
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav"> 
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{request.user}}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            {% comment %} <li><a class="dropdown-item" href="#">Mi Perfil</a></li>
-                            <li><a class="dropdown-item" href="#">Configuración</a></li> {% endcomment %}
-                            {% comment %} <li><hr class="dropdown-divider"></li> {% endcomment %}
-                            {% if request.user.is_authenticated %}
-                                <li><a class="dropdown-item" href="{% url 'account_logout' %}">Cerrar Sesión</a></li>
-                            {% else %}
-                                <li><a class="dropdown-item" href="{% url 'account_login' %}">Login</a></li>
-                            {% endif %}
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-        </div>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+              <li><a class="dropdown-item" href="{% url 'employees_detail' %}">Mi Perfil</a></li>
+              <li><a class="dropdown-item" href="#">Configuración</a></li>
+              <li><hr class="dropdown-divider" /></li>
+              {% if request.user.is_authenticated %}
+              <li>
+                <a class="dropdown-item" href="{% url 'account_logout' %}">Cerrar Sesión</a>
+              </li>
+              {% else %}
+              <li>
+                <a class="dropdown-item" href="{% url 'account_login' %}">Login</a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+        </ul>
+      </div>
+  </div>
 </nav>

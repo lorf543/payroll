@@ -1,86 +1,261 @@
 {% extends "base.html" %}
 
-
 {% block content %}
 <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <div class="card profile-card">
-                    <div class="profile-header text-center">
-                        {% comment %} <img src="https://via.placeholder.com/100" alt="Profile" class="profile-img mb-3"> {% endcomment %}
-                        <h3>John Doe</h3>
-                        <p>Web Developer</p>
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card profile-card shadow-lg">
+                <!-- Encabezado del perfil -->
+                <div class="profile-header text-center py-4 bg-gradient-primary text-white">
+                    <div class="profile-avatar mx-auto mb-3">
+                        <span class="initials">JD</span>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h4 class="section-title">Overview</h4>
-                                <ul class="list-group list-group-flush">
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Education
-                                        <span class="text-muted">Master's Degree</span>
-                                    </li>
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Experience
-                                        <span class="text-muted">5 Years</span>
-                                    </li>
-                                </ul>
-
-                                <div class="divider"></div>
-
-                                <h4 class="section-title">Employee ID</h4>
-                                <ul class="list-group list-group-flush">
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Phone
-                                        <span class="text-muted">9876543210</span>
-                                    </li>
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Email
-                                        <span class="text-muted">johndoe@example.com</span>
-                                    </li>
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Birthday
-                                        <span class="text-muted">24th July</span>
-                                    </li>
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Gender
-                                        <span class="text-muted">Male</span>
-                                    </li>
-                                </ul>
-                            </div>
-
-                            <div class="col-md-6">
-                                <h4 class="section-title">Address</h4>
-                                <div class="card mb-4">
-                                    <div class="card-body">
-                                        <p class="card-text">1861 Bayonne Ave, Manchester Township, NJ, 08759</p>
+                    <h2 class="mb-1">John Doe</h2>
+                    <p class="mb-2">Web Developer Senior</p>
+                    <div class="employee-status">
+                        <span class="badge bg-success">Activo</span>
+                        <span class="badge bg-light text-dark ms-2">ID: FT-0001</span>
+                    </div>
+                </div>
+                
+                <div class="card-body p-4">
+                    <div class="row">
+                        <!-- Columna izquierda: Información personal -->
+                        <div class="col-md-6">
+                            <div class="section-block mb-4">
+                                <h4 class="section-title d-flex align-items-center mb-3">
+                                    <i class="bi bi-person-circle me-2"></i>Información Personal
+                                </h4>
+                                <div class="info-list">
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Educación</span>
+                                        <span class="info-value text-muted">Maestría en Ciencias</span>
                                     </div>
-                                </div>
-
-                                <h4 class="section-title">Skills</h4>
-                                <div class="mb-4">
-                                    <div class="skill-badge">IOS</div>
-                                    <div class="skill-badge">Android</div>
-                                    <div class="skill-badge">HTML</div>
-                                    <div class="skill-badge">CSS</div>
-                                    <div class="skill-badge">CodeIgniter</div>
-                                    <div class="skill-badge">PHP</div>
-                                    <div class="skill-badge">Javascript</div>
-                                    <div class="skill-badge">Wordpress</div>
-                                    <div class="skill-badge">jQuery</div>
-                                </div>
-
-                                <h4 class="section-title">Employee ID</h4>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h5 class="card-title">FT-0001</h5>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Experiencia</span>
+                                        <span class="info-value text-muted">5 Años</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Teléfono</span>
+                                        <span class="info-value text-muted">(987) 654-3210</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Email</span>
+                                        <span class="info-value text-muted">johndoe@example.com</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Cumpleaños</span>
+                                        <span class="info-value text-muted">24 de Julio</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2">
+                                        <span class="info-label fw-medium">Género</span>
+                                        <span class="info-value text-muted">Masculino</span>
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Columna derecha: Dirección y habilidades -->
+                        <div class="col-md-6">
+                            <div class="section-block mb-4">
+                                <h4 class="section-title d-flex align-items-center mb-3">
+                                    <i class="bi bi-geo-alt me-2"></i>Dirección
+                                </h4>
+                                <div class="card address-card border-0 bg-light-custom">
+                                    <div class="card-body p-3">
+                                        <p class="card-text mb-0">
+                                            <i class="bi bi-house-door me-2"></i>
+                                            1861 Bayonne Ave, Manchester Township, NJ, 08759
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="section-block mb-4">
+                                <h4 class="section-title d-flex align-items-center mb-3">
+                                    <i class="bi bi-tools me-2"></i>Habilidades
+                                </h4>
+                                <div class="skills-container">
+                                    <span class="skill-badge">iOS</span>
+                                    <span class="skill-badge">Android</span>
+                                    <span class="skill-badge">HTML</span>
+                                    <span class="skill-badge">CSS</span>
+                                    <span class="skill-badge">CodeIgniter</span>
+                                    <span class="skill-badge">PHP</span>
+                                    <span class="skill-badge">JavaScript</span>
+                                    <span class="skill-badge">WordPress</span>
+                                    <span class="skill-badge">jQuery</span>
+                                </div>
+                            </div>
+
+                            <div class="section-block">
+                                <h4 class="section-title d-flex align-items-center mb-3">
+                                    <i class="bi bi-card-checklist me-2"></i>Información Laboral
+                                </h4>
+                                <div class="info-list">
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Departamento</span>
+                                        <span class="info-value text-muted">Tecnología</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Fecha de Ingreso</span>
+                                        <span class="info-value text-muted">15/03/2019</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2">
+                                        <span class="info-label fw-medium">Salario Base</span>
+                                        <span class="info-value text-muted">$4,500/mes</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección de acciones -->
+                    <div class="profile-actions mt-4 pt-3 border-top">
+                        <div class="d-flex justify-content-center gap-3">
+                            <button class="btn btn-primary">
+                                <i class="bi bi-pencil me-2"></i>Editar Perfil
+                            </button>
+                            <button class="btn btn-outline-primary">
+                                <i class="bi bi-printer me-2"></i>Imprimir Perfil
+                            </button>
+                            <button class="btn btn-outline-secondary">
+                                <i class="bi bi-envelope me-2"></i>Enviar Mensaje
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+
+<style>
+    /* Estilos específicos para el perfil */
+    .profile-card {
+        border-radius: 12px;
+        overflow: hidden;
+        border: none;
+    }
+    
+    .profile-header {
+        background: linear-gradient(135deg, var(--secondary-color), var(--accent-color));
+        position: relative;
+    }
+    
+    .profile-header::after {
+        content: '';
+        position: absolute;
+        bottom: -10px;
+        left: 0;
+        width: 100%;
+        height: 20px;
+        background: white;
+        border-radius: 20px 20px 0 0;
+    }
+    
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .profile-avatar .initials {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: white;
+    }
+    
+    .employee-status {
+        margin-top: 10px;
+    }
+    
+    .section-block {
+        margin-bottom: 2rem;
+    }
+    
+    .section-title {
+        color: var(--primary-color);
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    
+    .info-list .info-item {
+        transition: background-color 0.2s;
+    }
+    
+    .info-list .info-item:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+        border-radius: 4px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    .address-card {
+        border-radius: 8px;
+        transition: transform 0.2s;
+    }
+    
+    .address-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .skills-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .skill-badge {
+        background-color: var(--light-bg);
+        color: var(--primary-color);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        border: 1px solid var(--border-color);
+        transition: all 0.2s;
+    }
+    
+    .skill-badge:hover {
+        background-color: var(--secondary-color);
+        color: white;
+        transform: translateY(-2px);
+        cursor: default;
+    }
+    
+    .profile-actions .btn {
+        border-radius: 6px;
+        padding: 8px 20px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .profile-actions .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .profile-actions .d-flex {
+            flex-direction: column;
+            gap: 10px !important;
+        }
+        
+        .profile-actions .btn {
+            width: 100%;
+        }
+        
+        .profile-header {
+            padding: 2rem 1rem !important;
+        }
+    }
+</style>
 {% endblock content %}
