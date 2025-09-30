@@ -41,12 +41,20 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
-    
+    'crispy_forms',
+    'crispy_bootstrap5',
+    'django.contrib.humanize',
+    'import_export',
     
     'core',
     'payroll',
     'accounts',
 ]
+
+
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+
+CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -71,12 +79,14 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.employee_context',
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = 'payroll.wsgi.application'
+
 
 
 # Database

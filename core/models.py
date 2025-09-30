@@ -2,10 +2,15 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
-from decimal import Decimal
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
+from decimal import Decimal
+
+
+
+class Cliant(models.Model):
+    pass
 
 class Department(models.Model):
     name = models.CharField(max_length=100)
@@ -23,7 +28,7 @@ class Department(models.Model):
 class Position(models.Model):
     CONTRACT_TYPE_CHOICES = [
         ('full_time', 'Full Time'),
-        ('part_time', 'Part Time'),
+        ('part_time', 'Part Time'), 
         ('temporary', 'Temporary'),
         ('intern', 'Intern'),
     ]
@@ -31,7 +36,9 @@ class Position(models.Model):
     name = models.CharField(max_length=100)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     description = models.TextField(blank=True, null=True)
-    base_salary = models.DecimalField(max_digits=10, decimal_places=2)
+    fixed_rate = models.BooleanField(blank=True, null=True)
+    hour_rate = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
+    base_salary = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
     contract_type = models.CharField(max_length=20, choices=CONTRACT_TYPE_CHOICES, default='full_time')
     benefits = models.TextField(blank=True, null=True)
 
@@ -59,6 +66,7 @@ class Employee(models.Model):
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
+    identification = models.CharField(max_length=50)
     employee_code = models.CharField(max_length=20, unique=True)
     position = models.ForeignKey(Position, on_delete=models.SET_NULL, null=True)
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True)
@@ -70,8 +78,17 @@ class Employee(models.Model):
     address = models.TextField(blank=True, null=True)
     city = models.CharField(max_length=100, blank=True, null=True)
     country = models.CharField(max_length=100, blank=True, null=True)
-    postal_code = models.CharField(max_length=10, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    
+    
+    #Profile
+    bio = models.TextField(blank=True)
+    education = models.CharField(max_length=50, null=True, blank=True)
+    phone = models.CharField(max_length=50, null=True, blank=True)
+    email = models.EmailField(max_length=60, null=True, blank=True)
+    skills = models.CharField(max_length=250, null=True, blank=True)
+    
+    #custom_base_salary
 
     # Banking info for payroll
     bank_name = models.CharField(max_length=100, blank=True, null=True)
@@ -85,10 +102,20 @@ class Employee(models.Model):
         if self.user:
             return self.user.get_full_name()
         return "Employee without user"
+    
+    @property
+    def skills_list(self):
+        if not self.skills:
+            return []
+        return [skill.strip() for skill in self.skills.split(',') if skill.strip()]
+    
 
     class Meta:
         verbose_name = "Employee"
         verbose_name_plural = "Employees"
+
+
+
 
 
 class PaymentConcept(models.Model):
@@ -145,7 +172,7 @@ class PayPeriod(models.Model):
     pay_date = models.DateField()
     frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES)
     is_closed = models.BooleanField(default=False)
-
+    
     def __str__(self):
         return f"{self.name} ({self.start_date} - {self.end_date})"
 
@@ -166,24 +193,20 @@ class Payment(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     period = models.ForeignKey(PayPeriod, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
-    pay_date = models.DateField()
+    pay_date = models.DateField(blank=True, null=True)
+
     gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_earnings = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     isr = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     afp = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     sfs = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    
     total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     comments = models.TextField(blank=True, null=True)
-
-    def calculate_totals(self):
-        details = self.details.all()
-        self.total_earnings = sum([d.amount for d in details if d.concept.type == 'earning'], Decimal('0'))
-        self.total_deductions = sum([d.amount for d in details if d.concept.type == 'deduction'], Decimal('0'))
-        self.net_salary = self.gross_salary + self.total_earnings - self.total_deductions
-        self.save()
-
+        
     def __str__(self):
         return f"Payroll {self.period} - {self.employee}"
 
@@ -191,92 +214,29 @@ class Payment(models.Model):
         verbose_name = "Payment"
         verbose_name_plural = "Payments"
         unique_together = ['employee', 'period']
+    
 
 
-# class PayrollDetail(models.Model):
-#     payroll_record = models.ForeignKey(PayrollRecord, on_delete=models.CASCADE, related_name='details')
-#     concept = models.ForeignKey(PaymentConcept, on_delete=models.CASCADE)
-#     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
-#     amount = models.DecimalField(max_digits=10, decimal_places=2)
-#     description = models.TextField(blank=True, null=True)
+@receiver(pre_save, sender=Payment)
+def calculate_totals_signal(sender, instance, **kwargs):
+    if not instance.gross_salary:
+        return
 
-#     def __str__(self):
-#         return f"{self.concept.name}: ${self.amount}"
+    # Constants
+    AFP_RATE = Decimal('0.0287')  # 2.87%
+    SFS_RATE = Decimal('0.0304')  # 3.04%
 
-#     class Meta:
-#         verbose_name = "Payroll Detail"
-#         verbose_name_plural = "Payroll Details"
+    # Calculate mandatory deductions
+    instance.afp = instance.gross_salary * AFP_RATE
+    instance.sfs = instance.gross_salary * SFS_RATE
 
+    # No details → so no additional earnings/deductions
+    additional_earnings = Decimal('0')
+    additional_deductions = Decimal('0')
 
-# class Attendance(models.Model):
-#     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-#     date = models.DateField()
-#     check_in = models.TimeField()
-#     check_out = models.TimeField()
-#     hours_worked = models.DecimalField(max_digits=4, decimal_places=2, default=0)
-#     overtime_hours = models.DecimalField(max_digits=4, decimal_places=2, default=0)
-#     comments = models.TextField(blank=True, null=True)
+    # Update totals
+    instance.total_earnings = additional_earnings
+    instance.total_deductions = instance.afp + instance.sfs + additional_deductions
+    instance.net_salary = instance.gross_salary + additional_earnings - instance.total_deductions
+    
 
-#     def save(self, *args, **kwargs):
-#         if self.check_in and self.check_out:
-#             from datetime import datetime
-#             start = datetime.combine(self.date, self.check_in)
-#             end = datetime.combine(self.date, self.check_out)
-#             if end < start:
-#                 end = datetime.combine(self.date, self.check_out)
-
-#             diff = end - start
-#             hours = diff.total_seconds() / 3600
-
-#             self.hours_worked = min(hours, 8)
-#             self.overtime_hours = max(hours - 8, 0)
-
-#         super().save(*args, **kwargs)
-
-#     def __str__(self):
-#         return f"Attendance {self.employee} - {self.date}"
-
-#     class Meta:
-#         verbose_name = "Attendance"
-#         verbose_name_plural = "Attendances"
-#         unique_together = ['employee', 'date']
-
-
-# class Incident(models.Model):
-#     TYPE_CHOICES = [
-#         ('late', 'Late'),
-#         ('absence', 'Absence'),
-#         ('leave', 'Leave'),
-#         ('sick_leave', 'Sick Leave'),
-#         ('vacation', 'Vacation'),
-#     ]
-
-#     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-#     type = models.CharField(max_length=20, choices=TYPE_CHOICES)
-#     date = models.DateField()
-#     end_date = models.DateField(null=True, blank=True)
-#     justified = models.BooleanField(default=False)
-#     comments = models.TextField(blank=True, null=True)
-#     evidence = models.FileField(upload_to='incidents/', blank=True, null=True)
-
-#     def __str__(self):
-#         return f"{self.get_type_display()} - {self.employee} - {self.date}"
-
-#     class Meta:
-#         verbose_name = "Incident"
-#         verbose_name_plural = "Incidents"
-
-
-@receiver(post_save, sender=User)
-def create_employee_from_user(sender, instance, created, **kwargs):
-    if created and not hasattr(instance, 'employee'):
-        from datetime import datetime
-        code = f"EMP{datetime.now().strftime('%Y%m%d')}{instance.id:04d}"
-
-        Employee.objects.create(
-            user=instance,
-            employee_code=code,
-            hire_date=datetime.now().date(),
-            birth_date=datetime(1990, 1, 1).date(),
-            gender='O'
-        )

@@ -1,3 +1,5 @@
+{% load humanize %}
+
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12">
@@ -11,26 +13,26 @@
         <div class="col-md-3">
             <div class="card summary-card">
                 <div class="number">
-                    {% if last_payment %}${{ last_payment.net_salary }}{% else %}--{% endif %}
+                    {% if last_payment %}${{ last_payment.net_salary|intcomma  }}{% else %}--{% endif %}
                 </div>
                 <div class="label">Most Recent Payment</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card summary-card">
-                <div class="number">${{ total_year|floatformat:2 }}</div>
+                <div class="number">${{ total_year|intcomma }}</div>
                 <div class="label">Total This Year</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card summary-card">
-                <div class="number">{{ total_payments }}</div>
+                <div class="number">{{ total_payments|intcomma }}</div>
                 <div class="label">Payments</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card summary-card">
-                <div class="number">${{ avg_monthly|floatformat:2 }}</div>
+                <div class="number">${{ avg_monthly|floatformat:2|intcomma }}</div>
                 <div class="label">Monthly Average</div>
             </div>
         </div>
@@ -100,26 +102,26 @@
                     
                     <div class="row mb-3">
                         <div class="col-6"><strong>Gross Salary:</strong></div>
-                        <div class="col-6 text-end">${{ last_payment.gross_salary }}</div>
+                        <div class="col-6 text-end">${{ last_payment.gross_salary|intcomma  }}</div>
                     </div>
 
                     <div class="row mb-3">
                         <div class="col-6"><strong>ISR (Income Tax):</strong></div>
-                        <div class="col-6 text-end">-${{ last_payment.isr }}</div>
+                        <div class="col-6 text-end">-${{ last_payment.isr|intcomma  }}</div>
                     </div>
 
                     <div class="row mb-3">
-                        <div class="col-6"><strong>AFP (Pension Fund):</strong></div>
-                        <div class="col-6 text-end">-${{ last_payment.AFP }}</div>
+                        <div class="col-6"><strong>AFP 2.87% (Pension Fund):</strong></div>
+                        <div class="col-6 text-end">-${{ last_payment.afp }}</div>
                     </div>
 
                     <div class="row mb-3">
-                        <div class="col-6"><strong>SFS (Health Insurance):</strong></div>
-                        <div class="col-6 text-end">-${{ last_payment.SFS }}</div>
+                        <div class="col-6"><strong>SFS 3.04% (Health Insurance):</strong></div>
+                        <div class="col-6 text-end">-${{ last_payment.sfs|intcomma  }}</div>
                     </div>
 
                     <div class="row mb-3">
-                        <div class="col-6"><strong>Other Deductions:</strong></div>
+                        <div class="col-6"><strong>Total Deductions:</strong></div>
                         <div class="col-6 text-end">-${{ last_payment.total_deductions }}</div>
                     </div>
 

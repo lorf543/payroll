@@ -1,4 +1,5 @@
 from django.contrib import admin
+from import_export import resources
 from .models import (
     Department, Position, Employee,
     PaymentConcept, PayPeriod,Payment
@@ -22,7 +23,7 @@ class PositionAdmin(admin.ModelAdmin):
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ("employee_code", "full_name", "position", "department", "hire_date", "is_active")
+    list_display = ("employee_code", "full_name", "position", "department", "hire_date", "is_active","identification")
     search_fields = ("employee_code", "user__first_name", "user__last_name", "position__name", "department__name")
     list_filter = ("department", "position", "is_active", "gender", "marital_status")
     ordering = ("employee_code",)

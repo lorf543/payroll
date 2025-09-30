@@ -349,7 +349,7 @@
     </style>
   </head>
   
-  <body hx-boost="true">
+  <body hx-boost="true" >
     <!-- Navegación -->
     {% include "components/navbar.html" %}
 
@@ -363,14 +363,7 @@
     <!-- Pie de página (opcional) -->
     <footer class="bg-dark text-white py-4 mt-auto">
       <div class="container">
-        <div class="row">
-          <div class="col-md-6">
-            <p class="mb-0">&copy; 2023 Sistema de Nómina. Todos los derechos reservados.</p>
-          </div>
-          <div class="col-md-6 text-md-end">
-            <p class="mb-0">Versión 1.0.0</p>
-          </div>
-        </div>
+          <p class="mb-0 text-center">&copy; 2025 Nomina Helium sys - Version 0.0.01</p>
       </div>
     </footer>
 
@@ -382,8 +375,21 @@
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
     
+    <!-- mask -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.8/jquery.inputmask.min.js"></script>
+    
     <!-- Scripts personalizados -->
     <script>
+
+      document.addEventListener('DOMContentLoaded', function() {
+        // Phone mask for US/Canada format
+          $('#id_phone').inputmask('(999) 999-9999', {
+              placeholder: '_',
+              clearIncomplete: true,
+              showMaskOnHover: true,
+              showMaskOnFocus: true
+          });
+      });
 
 
     // ---------------------- CSRF para HTMX ----------------------
@@ -392,80 +398,50 @@
         event.detail.headers['X-CSRFToken'] = csrfToken;
     });
 
-      // Inicialización de componentes cuando el DOM está listo
-      document.addEventListener('DOMContentLoaded', function() {
-        // Inicializar DataTables si existe alguna tabla con la clase 'dataTable'
-        if (document.querySelector('.dataTable')) {
-          $('.dataTable').DataTable({
-            language: {
-              url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json'
-            },
-            responsive: true
-          });
-        }
-        
-        // Inicializar gráficos si existen
-        initializeCharts();
-        
-        // Configurar eventos para botones de descarga
-        setupDownloadButtons();
-        
-        // Configurar tooltips de Bootstrap
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-          return new bootstrap.Tooltip(tooltipTriggerEl);
+        // Handle HTMX events to reinitialize Bootstrap components
+    document.addEventListener('DOMContentLoaded', function() {
+        initBootstrapComponents();
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        initBootstrapComponents();
+    });
+
+    document.body.addEventListener('htmx:load', function(evt) {
+        initBootstrapComponents();
+    });
+
+    function initBootstrapComponents() {
+        // Tooltips
+        var tooltips = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltips.map(function(tooltip) {
+            return new bootstrap.Tooltip(tooltip);
         });
-      });
-      
-      // Función para inicializar gráficos
-      function initializeCharts() {
-        // Gráfico de resumen anual
-        const annualChartCanvas = document.getElementById('annualChart');
-        if (annualChartCanvas) {
-          const ctx = annualChartCanvas.getContext('2d');
-          const annualChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
-              datasets: [{
-                label: 'Salario Neto ($)',
-                data: [4800, 4820, 4850, 4830, 4870, 4900, 4880, 4840, 4850, 0, 0, 0],
-                backgroundColor: 'rgba(52, 152, 219, 0.7)',
-                borderColor: 'rgba(52, 152, 219, 1)',
-                borderWidth: 1
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: {
-                    callback: function(value) {
-                      return '$' + value.toLocaleString();
-                    }
-                  }
-                }
-              },
-              plugins: {
-                legend: {
-                  display: false
-                },
-                tooltip: {
-                  callbacks: {
-                    label: function(context) {
-                      return 'Salario Neto: $' + context.parsed.y.toLocaleString();
-                    }
-                  }
-                }
-              }
-            }
-          });
+
+        // Dropdowns
+        var dropdowns = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
+        dropdowns.map(function(dropdown) {
+            return new bootstrap.Dropdown(dropdown);
+        });
+
+        // Modals
+        var modals = [].slice.call(document.querySelectorAll('.modal'));
+        modals.map(function(modal) {
+            return new bootstrap.Modal(modal);
+        });
+
+        console.log('Bootstrap components reinitialized');
+    }
+
+    // Disable boost for specific elements
+    document.addEventListener('click', function(e) {
+        if (e.target.matches('[data-no-boost]') || 
+            e.target.closest('[data-no-boost]') ||
+            e.target.matches('[data-bs-toggle]') ||
+            e.target.closest('[data-bs-toggle]')) {
+            htmx.off(e.target);
         }
-        
-        // Otros gráficos pueden inicializarse aquí
-      }
+    });
     
 
     </script>
