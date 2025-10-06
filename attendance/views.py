@@ -242,6 +242,9 @@ def get_payment_method_display(employee):
         
 
 def agent_status_dashboard(request):
+    if not request.user.is_authenticated:
+        return redirect('account_login')  # or your own login view name
+    
     employee = Employee.objects.get(user=request.user)
     today = timezone.localdate()
     start_of_day = timezone.make_aware(datetime.combine(today, time.min))
