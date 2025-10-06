@@ -6,11 +6,15 @@
       "providers": ["python"],
       "phases": {
         "setup": {
-          "nixPkgs": ["...", "nodejs"]
+          "nixPkgs": ["nodejs"]
         },
-        "npm:install": {
+        "install": {
           "dependsOn": ["setup"],
-          "cmds": ["npm ci"]
+          "cmds": ["npm install"]
+        },
+        "build": {
+          "dependsOn": ["install"],
+          "cmds": ["npm run build"]  
         }
       }
     }

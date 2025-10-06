@@ -34,6 +34,7 @@ CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "web-production-8d8b.up.railway
 # Application definition
 
 INSTALLED_APPS = [
+    'whitenoise.runserver_nostatic',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
