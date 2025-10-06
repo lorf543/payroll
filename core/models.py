@@ -36,7 +36,6 @@ class Position(models.Model):
     name = models.CharField(max_length=100)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     description = models.TextField(blank=True, null=True)
-    fixed_rate = models.BooleanField(blank=True, null=True)
     hour_rate = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
     base_salary = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
     contract_type = models.CharField(max_length=20, choices=CONTRACT_TYPE_CHOICES, default='full_time')
@@ -88,7 +87,8 @@ class Employee(models.Model):
     email = models.EmailField(max_length=60, null=True, blank=True)
     skills = models.CharField(max_length=250, null=True, blank=True)
     
-    #custom_base_salary
+    fixed_rate = models.BooleanField(blank=True, null=True)
+    custom_base_salary = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
 
     # Banking info for payroll
     bank_name = models.CharField(max_length=100, blank=True, null=True)
@@ -113,7 +113,6 @@ class Employee(models.Model):
     class Meta:
         verbose_name = "Employee"
         verbose_name_plural = "Employees"
-
 
 
 

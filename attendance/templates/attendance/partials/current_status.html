@@ -1,0 +1,14 @@
+<div id="current-status">
+    {% if current_status %}
+    <span class="badge status-{{ current_status.status }} px-3 py-2">
+        {{ current_status.get_status_display }}
+    </span>
+    <small class="text-muted d-block mt-1">
+        Since: <span id="live-time" data-start-time="{{ current_status.start_time|date:'c' }}">
+
+        </span>
+    </small>
+    {% else %}
+    <span class="badge status-offline px-3 py-2">Offline</span>
+    {% endif %}
+</div>

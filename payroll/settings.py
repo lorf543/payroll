@@ -27,6 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "https://miapp.up.railway.app"]
+
 
 # Application definition
 
@@ -49,6 +51,7 @@ INSTALLED_APPS = [
     'core',
     'payroll',
     'accounts',
+    'attendance',
 ]
 
 
@@ -178,7 +181,7 @@ ACCOUNT_LOGOUT_REDIRECT_URL = 'home'
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Santo_Domingo'
 
 USE_I18N = True
 

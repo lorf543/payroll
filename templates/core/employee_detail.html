@@ -58,34 +58,72 @@
                                     </div>
                                 </div>
                             </div>
-                                {% if request.user.id == employee.user.id or request.user.is_superuser %}
-                                    <div class="section-block mb-4">
-                                        <h4 class="section-title d-flex align-items-center mb-3">
-                                            <i class="bi bi-cash me-2"></i></i>Payment info
-                                        </h4>
-                                            <div class="info-list">
-                                                <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
-                                                    {% if not employee.position.fixed_rate %}
-                                                        <span class="info-label fw-medium">Hours</span>
-                                                        <span class="info-value text-muted">{{employee.position.hour_rate|intcomma}}</span>
-                                                    {% else %}
-                                                        <span class="info-label fw-medium">Fixed</span>
-                                                        <span class="info-value text-muted">{{employee.position.base_salary|intcomma}}</span>                                            
-                                                    {% endif %}
-                                                </div>
-                                                <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
-                                                    {% if not employee.position.fixed_rate %}
-                                                        <span class="info-label fw-medium">Base Salary</span>
-                                                        <span class="info-value text-muted">{{montly_payment_hour|intcomma}}</span>                                           
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                    </div>
-                                {% endif %}
                             
+                            <!-- 🔥 NUEVA SECCIÓN: Información de pago unificada -->
+                            {% if request.user.id == employee.user.id or request.user.is_superuser %}
+                                <div class="section-block mb-4">
+                                    <h4 class="section-title d-flex align-items-center mb-3">
+                                        <i class="bi bi-cash me-2"></i>Payment Information
+                                    </h4>
+                                    <div class="info-list">
+                                        <!-- Método de pago -->
+                                        <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                            <span class="info-label fw-medium">Payment Method</span>
+                                            <span class="info-value text-muted">
+                                                {% if employee.fixed_rate %}
+                                                    <span class="badge bg-warning text-dark">Fixed Salary</span>
+                                                {% else %}
+                                                    <span class="badge bg-info">Hourly Rate</span>
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Tarifa base -->
+                                        <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                            <span class="info-label fw-medium">Base Rate</span>
+                                            <span class="info-value text-muted">
+                                                {% if employee.fixed_rate %}
+                                                    {% if employee.custom_base_salary %}
+                                                        ${{ employee.custom_base_salary|intcomma }}/month
+                                                    {% elif employee.position.base_salary %}
+                                                        ${{ employee.position.base_salary|intcomma }}/month
+                                                    {% else %}
+                                                        ${{ employee.position.hour_rate|intcomma }}/hour (default)
+                                                    {% endif %}
+                                                {% else %}
+                                                    {% if employee.custom_base_salary %}
+                                                        ${{ employee.custom_base_salary|intcomma }}/hour
+                                                    {% else %}
+                                                        ${{ employee.position.hour_rate|intcomma }}/hour
+                                                    {% endif %}
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Proyección mensual -->
+                                        <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                            <span class="info-label fw-medium">Monthly Projection</span>
+                                            <span class="info-value text-success fw-bold">
+                                                ${{ payment_stats.monthly_earnings|intcomma }}
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Tipo de cálculo -->
+                                        <div class="info-item d-flex justify-content-between align-items-center py-2">
+                                            <span class="info-label fw-medium">Calculation Type</span>
+                                            <span class="info-value text-muted">
+                                                {% if payment_stats.pay_method == 'fixed_custom' %}Fixed Custom
+                                                {% elif payment_stats.pay_method == 'fixed_position' %}Fixed Position
+                                                {% elif payment_stats.pay_method == 'fixed_default' %}Fixed Default
+                                                {% elif payment_stats.pay_method == 'hourly_custom' %}Hourly Custom
+                                                {% else %}Hourly Position{% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                
+                                </div>
+                            {% endif %}
                         </div>
-
-                        
 
                         <!-- Columna derecha: Dirección y habilidades -->
                         <div class="col-md-6">

@@ -9,7 +9,7 @@
     </div>  
 
     <!-- Summary Cards -->
-    <div class="row mb-4">
+    <div class="row mb-4 gap-3 gap-sm-3 gap-md-0">
         <div class="col-md-3">
             <div class="card summary-card">
                 <div class="number">
@@ -20,13 +20,13 @@
         </div>
         <div class="col-md-3">
             <div class="card summary-card">
-                <div class="number">${{ total_year|intcomma }}</div>
+                <div class="number">${{ total_year|floatformat:2|intcomma }}</div>
                 <div class="label">Total This Year</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card summary-card">
-                <div class="number">{{ total_payments|intcomma }}</div>
+                <div class="number">{{ total_payments }}</div>
                 <div class="label">Payments</div>
             </div>
         </div>
@@ -63,7 +63,7 @@
                                 <tr>
                                     <td>{{ payment.pay_date|date:"m/d/Y" }}</td>
                                     <td>{{ payment.period.start_date|date:"m/d/Y" }} - {{ payment.period.end_date|date:"m/d/Y" }}</td>
-                                    <td>${{ payment.net_salary }}</td>
+                                    <td>${{ payment.net_salary|floatformat:2|intcomma }}</td>
                                     <td>{{ payment.employee.bank_name|default:"Bank Transfer" }}</td>
                                     <td>
                                         <span class="status-badge {% if payment.status == 'paid' %}paid{% else %}pending{% endif %}">
