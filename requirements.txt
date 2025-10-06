@@ -7,7 +7,9 @@ django-crispy-forms==2.4
 django-humanize==0.1.2
 django-import-export==4.3.10
 Faker==37.8.0
+gunicorn==23.0.0
 humanize==4.13.0
+packaging==25.0
 sqlparse==0.5.3
 tablib==3.8.0
 typing_extensions==4.15.0
