@@ -24,75 +24,44 @@ from datetime import datetime, time, timedelta
 # Create your views here.
 
 
-
-@login_required(login_url='account_login')
-def employee_payroll_dashboard(request):
-    """Dashboard para que empleados vean su historial, horas trabajadas y ganancias"""
-    employee = Employee.objects.get(user=request.user)
-    
-    # Fechas para los últimos 6 periodos de pago (quincenales)
-    today = timezone.localdate()
-    pay_periods = get_pay_periods(today, periods=6)
-    
-    payroll_data = []
-    for period in pay_periods:
-        period_data = calculate_pay_period_data(employee, period['start_date'], period['end_date'])
-        payroll_data.append(period_data)
-    
-    # Estadísticas del mes actual
-    current_month_start = today.replace(day=1)
-    current_month_end = (current_month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-    month_stats = calculate_pay_period_data(employee, current_month_start, current_month_end)
-    
-    # Historial diario de los últimos 7 días
-    recent_days = get_recent_daily_stats(employee, days=7)
-    
-    context = {
-        'employee': employee,
-        'payroll_data': payroll_data,
-        'month_stats': month_stats,
-        'recent_days': recent_days,
-        'current_period': pay_periods[0] if pay_periods else None,
-    }
-    
-    return render(request, 'attendance/payroll_dashboard.html', context)
+def get_last_day_of_month(date):
+    """Devuelve el último día del mes dado."""
+    next_month = date.replace(day=28) + timedelta(days=4)
+    return next_month - timedelta(days=next_month.day)
 
 def get_pay_periods(reference_date, periods=6):
-    """Genera periodos de pago quincenales"""
+    """Genera periodos de pago quincenales hacia atrás desde la fecha de referencia."""
     periods_list = []
-    
-    # Determinar el periodo actual (1-15 o 16-fin de mes)
+
+    # Determinar si estamos en la primera o segunda quincena
     if reference_date.day <= 15:
-        current_period_start = reference_date.replace(day=1)
-        current_period_end = reference_date.replace(day=15)
+        current_start = reference_date.replace(day=1)
+        current_end = reference_date.replace(day=15)
     else:
-        current_period_start = reference_date.replace(day=16)
-        # Último día del mes
-        next_month = current_period_start.replace(day=28) + timedelta(days=4)
-        current_period_end = next_month - timedelta(days=next_month.day)
-    
-    # Generar periodos hacia atrás
-    for i in range(periods):
-        period_start = current_period_start - timedelta(days=15 * i)
-        period_end = current_period_end - timedelta(days=15 * i)
-        
-        # Ajustar para meses anteriores
-        if period_start.day > 15:
-            period_start = period_start.replace(day=16)
-            period_end = period_end.replace(day=1) - timedelta(days=1)
-        else:
-            prev_month = period_start.replace(day=1) - timedelta(days=1)
-            period_start = prev_month.replace(day=16)
-            period_end = prev_month
-        
+        current_start = reference_date.replace(day=16)
+        current_end = get_last_day_of_month(reference_date)
+
+    # Generar los periodos hacia atrás
+    for _ in range(periods):
         periods_list.append({
-            'start_date': period_start,
-            'end_date': period_end,
-            'name': f"{period_start.strftime('%b %d')} - {period_end.strftime('%b %d, %Y')}",
-            'is_current': i == 0
+            'start_date': current_start,
+            'end_date': current_end,
+            'name': f"{current_start.strftime('%b %d')} - {current_end.strftime('%b %d, %Y')}",
+            'is_current': len(periods_list) == 0
         })
-    
-    return sorted(periods_list, key=lambda x: x['start_date'], reverse=True)
+
+        # Retroceder una quincena
+        if current_start.day == 16:
+            # Ir a la primera quincena del mismo mes
+            current_end = current_start.replace(day=15)
+            current_start = current_start.replace(day=1)
+        else:
+            # Ir a la segunda quincena del mes anterior
+            prev_month = (current_start.replace(day=1) - timedelta(days=1))
+            current_start = prev_month.replace(day=16)
+            current_end = get_last_day_of_month(prev_month)
+
+    return periods_list
 
 def calculate_pay_period_data(employee, start_date, end_date):
     """Calcula estadísticas para un periodo específico"""
@@ -103,7 +72,7 @@ def calculate_pay_period_data(employee, start_date, end_date):
     records = AgentStatus.objects.filter(
         agent=employee,
         start_time__range=(start_datetime, end_datetime)
-    )
+    ).order_by('-start_time')
     
     # Calcular tiempos
     total_payable = timedelta()
@@ -177,6 +146,40 @@ def get_recent_daily_stats(employee, days=7):
     return daily_stats
 
 
+@login_required(login_url='account_login')
+def employee_payroll_dashboard(request):
+    """Dashboard para que empleados vean su historial, horas trabajadas y ganancias"""
+    employee = Employee.objects.get(user=request.user)
+    
+    # Fechas para los últimos 6 periodos de pago (quincenales)
+    today = timezone.localdate()
+    pay_periods = get_pay_periods(today, periods=6)
+    
+    payroll_data = []
+    for period in pay_periods:
+        period_data = calculate_pay_period_data(employee, period['start_date'], period['end_date'])
+        payroll_data.append(period_data)
+    
+    # Estadísticas del mes actual
+    current_month_start = today.replace(day=1)
+    current_month_end = (current_month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    month_stats = calculate_pay_period_data(employee, current_month_start, current_month_end)
+    
+    # Historial diario de los últimos 7 días
+    recent_days = get_recent_daily_stats(employee, days=7)
+    
+    context = {
+        'employee': employee,
+        'payroll_data': payroll_data,
+        'month_stats': month_stats,
+        'recent_days': recent_days,
+        'current_period': pay_periods[0] if pay_periods else None,
+    }
+    
+    return render(request, 'attendance/payroll_dashboard.html', context)
+
+
+
 
 #agent_status.html
 
@@ -243,7 +246,7 @@ def get_payment_method_display(employee):
 
 def agent_status_dashboard(request):
     if not request.user.is_authenticated:
-        return redirect('account_login')  # or your own login view name
+        return redirect('account_login')
     
     employee = Employee.objects.get(user=request.user)
     today = timezone.localdate()
@@ -253,32 +256,24 @@ def agent_status_dashboard(request):
     records = AgentStatus.objects.filter(
         agent=employee,
         start_time__range=(start_of_day, end_of_day)
-    ).order_by('start_time')
+    )
 
-    total = timedelta()
-    break_time = timedelta()
-    lunch_time = timedelta()
-    payable = timedelta()
+    total = break_time = lunch_time = payable = timedelta()
     now = timezone.now()
-
     history = []
 
     for rec in records:
         end_time = rec.end_time or now
         duration = end_time - rec.start_time
-        duration_str = format_timedelta(duration)
 
-        # Acumular tiempos
         total += duration
-        
         if rec.status == 'break':
             break_time += duration
         elif rec.status == 'lunch':
             lunch_time += duration
-        elif rec.status == 'ready': 
+        elif rec.status == 'ready':
             payable += duration
 
-        # Agregar al historial
         history.append({
             'status': rec.status,
             'start_time': rec.start_time,
@@ -287,7 +282,6 @@ def agent_status_dashboard(request):
             'duration_str': format_timedelta(duration),
         })
 
-    # 🔥 NUEVO: Cálculo inteligente de pago
     daily_earnings, pay_method = calculate_employee_pay(employee, payable)
     payment_info = get_payment_method_display(employee)
 
@@ -296,7 +290,7 @@ def agent_status_dashboard(request):
         'current_status': records.filter(end_time__isnull=True).first(),
         'form': AgentStatusForm(),
         'daily_stats': {
-            'total': format_timedelta(payable),
+            'total': format_timedelta(total),
             'break': format_timedelta(break_time),
             'lunch': format_timedelta(lunch_time),
             'payable': format_timedelta(payable),
@@ -394,4 +388,61 @@ def attendance_dashboard(request):
     }
     
     return render(request, 'attendance/attendance_dashboard.html', context)
+
+
+
+
+@login_required
+def supervisor_dashboard(request):
+    """Dashboard para supervisores ver el estado de sus agentes"""
+    try:
+        # Obtener el empleado que es supervisor
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+        
+        # Obtener agentes asignados (team_members por la relación ForeignKey)
+        team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
+        
+        # Obtener estados actuales de los agentes
+        current_statuses = AgentStatus.objects.filter(
+            agent__in=team_members,
+            end_time__isnull=True  # Estados activos
+        ).select_related('agent')
+        
+        # Crear mapa de estados actuales por agente
+        agent_status_map = {status.agent_id: status for status in current_statuses}
+        
+        # Estadísticas del equipo
+        team_stats = {
+            'total_agents': team_members.count(),
+            'ready_count': current_statuses.filter(status='ready').count(),
+            'break_count': current_statuses.filter(status='break').count(),
+            'lunch_count': current_statuses.filter(status='lunch').count(),
+            'training_count': current_statuses.filter(status='training').count(),
+            'meeting_count': current_statuses.filter(status='meeting').count(),
+            'offline_count': current_statuses.filter(status='offline').count(),
+        }
+        
+        # Historial de hoy del equipo
+        today = timezone.localdate()
+        start_of_day = timezone.make_aware(datetime.combine(today, time.min))
+        
+        today_activity = AgentStatus.objects.filter(
+            agent__in=team_members,
+            start_time__gte=start_of_day
+        ).select_related('agent').order_by('-start_time')[:20]  # Últimas 20 actividades
+        
+        context = {
+            'supervisor': supervisor,
+            'team_members': team_members,
+            'agent_status_map': agent_status_map,
+            'team_stats': team_stats,
+            'today_activity': today_activity,
+            'current_time': timezone.now(),
+        }
+        
+        return render(request, 'attendance/supervisor_dashboard.html', context)
+        
+    except Employee.DoesNotExist:
+        # messages.error(request, "No tienes permisos de supervisor")
+        return redirect('agent_status_dashboard')
 

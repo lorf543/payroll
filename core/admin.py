@@ -6,6 +6,9 @@ from .models import (
 )
 
 
+
+
+
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
     list_display = ("name", "annual_budget", "description")

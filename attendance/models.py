@@ -117,7 +117,7 @@ class AgentStatus(models.Model):
     class Meta:
         verbose_name = "Agent Status"
         verbose_name_plural = "Agent Statuses"
-        ordering = ['-start_time']
+        ordering = ['end_time']
     
     def __str__(self):
         return f"{self.agent} - {self.status} ({self.start_time})"

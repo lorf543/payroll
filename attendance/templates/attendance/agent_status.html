@@ -179,16 +179,7 @@ function initializeStatusPreview() {
     }
 }
 
-// Inicialización DataTable
-function initializeHistoryTable() {
-    const table = document.getElementById('history-table');
-    if (!table) return;
-    $(table).DataTable({
-        order: [[1, 'asc']],
-        pageLength: 10,
-        // Opciones adicionales de DataTables que quieras
-    });
-}
+
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeLiveCounter();

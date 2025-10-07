@@ -49,6 +49,7 @@ class Position(models.Model):
         verbose_name_plural = "Positions"
 
 
+
 class Employee(models.Model):
     GENDER_CHOICES = [
         ('M', 'Male'),
@@ -63,6 +64,17 @@ class Employee(models.Model):
         ('widowed', 'Widowed'),
         ('common_law', 'Common Law'),
     ]
+
+    supervisor = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='team_members',
+        help_text="Supervisor directo del empleado"
+    )
+    is_supervisor = models.BooleanField(blank=True, null=True)
+
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     identification = models.CharField(max_length=50)
@@ -113,7 +125,6 @@ class Employee(models.Model):
     class Meta:
         verbose_name = "Employee"
         verbose_name_plural = "Employees"
-
 
 
 

@@ -380,7 +380,7 @@
       </style>
     </head>
     
-    <body hx-boost="true" >
+    <body>
       <!-- Navegación -->
       {% include "components/navbar.html" %}
 
@@ -402,6 +402,11 @@
             <li class="nav-item">
               <a class="nav-link text-white" hx-boost="false" href="{% url 'admin_dashboard' %}">
                 <i class="bi bi-speedometer2"></i> Admin - Dashboard
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link text-white" hx-boost="false" href="{% url 'supervisor_dashboard' %}">
+                <i class="bi bi-speedometer2"></i> supervisor - Dashboard
               </a>
             </li>
             {% comment %} <li class="nav-item">

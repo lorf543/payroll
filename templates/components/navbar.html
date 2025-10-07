@@ -1,35 +1,47 @@
-<nav class="navbar navbar-expand-lg navbar-dark fixed-top" aria-label="Main navigation">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="{% url 'agent_status_dashboard' %}" aria-label="Home">
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top" aria-label="Main navigation" hx-boost="false">
+  <div class="container-fluid" hx-boost="false">
+    <a class="navbar-brand" href="{% url 'agent_status_dashboard' %}" aria-label="Home" hx-boost="false">
       <i class="bi bi-cash-coin me-2"></i>
       Helium Nomina sys
     </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+    
+    <button class="navbar-toggler" type="button" 
+            data-bs-toggle="collapse" 
+            data-bs-target="#navbarNav" 
+            aria-controls="navbarNav" 
+            aria-expanded="false" 
+            aria-label="Toggle navigation"
+            hx-boost="false">
       <span class="navbar-toggler-icon"></span>
     </button>
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-person-circle"></i> {{request.user.first_name}}
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-              <li><a class="dropdown-item" href="{% url 'employees_detail' employee.id %}">Mi Perfil</a></li>
-              <li><a hx-boost="false" class="dropdown-item" href="{% url 'admin_dashboard' %}" aria-label="Go to Admin Dashboard">Admin Dashboard</a></li>
-              <li><a class="dropdown-item" href="{% url 'employees' %}" aria-label="View Employees">Employees</a></li>
-              <li><hr class="dropdown-divider" /></li>
-              {% if request.user.is_authenticated %}
-              <li>
-                <a class="dropdown-item" href="{% url 'account_logout' %}">Cerrar Sesión</a>
-              </li>
-              {% else %}
-              <li>
-                <a class="dropdown-item" href="{% url 'account_login' %}">Login</a>
-              </li>
-              {% endif %}
-            </ul>
-          </li>
-        </ul>
-      </div>
+    
+    <div class="collapse navbar-collapse" id="navbarNav" hx-boost="false">
+      <ul class="navbar-nav ms-auto" hx-boost="false">
+        <li class="nav-item dropdown" hx-boost="false">
+          <a class="nav-link dropdown-toggle" 
+             href="#" 
+             id="navbarDropdown" 
+             role="button" 
+             data-bs-toggle="dropdown" 
+             aria-expanded="false"
+             hx-boost="false">
+            <i class="bi bi-person-circle"></i> {{request.user.first_name}}
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end" 
+              aria-labelledby="navbarDropdown"
+              hx-boost="false">
+            <li><a class="dropdown-item" href="{% url 'employees_detail' employee.id %}" hx-boost="false">Mi Perfil</a></li>
+            <li><a class="dropdown-item" href="{% url 'admin_dashboard' %}" aria-label="Go to Admin Dashboard" hx-boost="false">Admin Dashboard</a></li>
+            <li><a class="dropdown-item" href="{% url 'employees' %}" aria-label="View Employees" hx-boost="false">Employees</a></li>
+            <li><hr class="dropdown-divider" hx-boost="false" /></li>
+            {% if request.user.is_authenticated %}
+            <li><a class="dropdown-item" href="{% url 'account_logout' %}" hx-boost="false">Cerrar Sesión</a></li>
+            {% else %}
+            <li><a class="dropdown-item" href="{% url 'account_login' %}" hx-boost="false">Login</a></li>
+            {% endif %}
+          </ul>
+        </li>
+      </ul>
+    </div>
   </div>
 </nav>

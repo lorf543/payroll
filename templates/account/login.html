@@ -1,56 +1,124 @@
 {% extends "account/auth_base.html" %}
 
 {% block content %}
-
-    <div class=" auth-card d-flex gap-4" id="login-card">
-            <div class="card-body p-4">
-                <div class="auth-header">
-                    <div class="auth-icon">
-                        <i class="bi bi-person"></i>
-                    </div>
-                    <h2>Sign In</h2>
-                    <p class="text-muted">Access your account</p>
-                </div>
-                
-                <!-- Django Allauth Login Form -->
-                <form method="POST" action="{% url 'account_login' %}">
-                    {% csrf_token %}
-                    
-                    {% if form.non_field_errors %}
-                    <div class="alert alert-danger">
-                        {% for error in form.non_field_errors %}
-                            {{ error }}
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                    
-                    <div class="mb-3">
-                        <label for="id_login" class="form-label">Username or Email</label>
-                        <input type="text" class="form-control" id="id_login" name="login" 
-                               placeholder="Enter your username or email" required autofocus>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="id_password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="id_password" name="password" 
-                               placeholder="Enter your password" required>
-                    </div>
-                    
-                    {% comment %} <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="id_remember" name="remember">
-                        <label class="form-check-label" for="id_remember">Remember me</label>
-                    </div> {% endcomment %}
-                    
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
-                    </div>
-                </form>
-                
-                {% comment %} <div class="auth-footer">
-                    <p class="mb-0">Don't have an account? <a href="{% url 'account_signup' %}">Sign up</a></p>
-                    <p><a href="{% url 'account_reset_password' %}">Forgot your password?</a></p>
-                </div> {% endcomment %}
+<div class="auth-card d-flex gap-4" id="login-card">
+    <div class="card-body p-4">
+        <div class="auth-header">
+            <div class="auth-icon">
+                <i class="bi bi-person"></i>
             </div>
+            <h2>Sign In</h2>
+            <p class="text-muted">Access your account</p>
         </div>
+        
+        <!-- Django Allauth Login Form -->
+        <form method="POST" action="{% url 'account_login' %}">
+            {% csrf_token %}
+            
+            <!-- Errores generales -->
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <!-- Campo Usuario/Email con errores específicos -->
+            <div class="mb-3">
+                <label for="id_login" class="form-label">Username or Email</label>
+                <input type="text" class="form-control {% if form.login.errors %}is-invalid{% endif %}" 
+                       id="id_login" name="login" 
+                       value="{{ form.login.value|default:'' }}"
+                       placeholder="Enter your username or email" required autofocus>
+                
+                <!-- Mostrar errores específicos del campo login -->
+                {% if form.login.errors %}
+                <div class="invalid-feedback">
+                    {% for error in form.login.errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Campo Password con errores específicos -->
+            <div class="mb-3">
+                <label for="id_password" class="form-label">Password</label>
+                <input type="password" class="form-control {% if form.password.errors %}is-invalid{% endif %}" 
+                       id="id_password" name="password" 
+                       placeholder="Enter your password" required>
+                
+                <!-- Mostrar errores específicos del campo password -->
+                {% if form.password.errors %}
+                <div class="invalid-feedback">
+                    {% for error in form.password.errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Campo Remember (opcional) -->
+            {% comment %} 
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id="id_remember" name="remember"
+                       {% if form.remember.value %}checked{% endif %}>
+                <label class="form-check-label" for="id_remember">Remember me</label>
+            </div>
+            {% endcomment %}
+            
+            <!-- Redirección si existe -->
+            {% if redirect_field_value %}
+            <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}" />
+            {% endif %}
+            
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
+            </div>
+        </form>
+        
+        <!-- Enlaces adicionales -->
+        {% comment %} 
+        <div class="auth-footer mt-3 text-center">
+            <p class="mb-2">
+                <a href="{% url 'account_reset_password' %}" class="text-decoration-none">Forgot your password?</a>
+            </p>
+            <p class="mb-0">
+                Don't have an account? 
+                <a href="{% url 'account_signup' %}" class="text-decoration-none fw-bold">Sign up</a>
+            </p>
+        </div>
+        {% endcomment %}
     </div>
+</div>
+
+<style>
+    /* Estilos adicionales para los errores */
+    .is-invalid {
+        border-color: #dc3545;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='m5.8 3.6.4.4.4-.4'/%3e%3cpath d='M6 7v1'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right calc(0.375em + 0.1875rem) center;
+        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    }
+    
+    .is-invalid:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .invalid-feedback {
+        display: block;
+        width: 100%;
+        margin-top: 0.25rem;
+        font-size: 0.875em;
+        color: #dc3545;
+    }
+    
+    .alert-danger {
+        border-radius: 0.5rem;
+        border: 1px solid #f5c2c7;
+    }
+</style>
 {% endblock content %}

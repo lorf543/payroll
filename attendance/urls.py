@@ -9,4 +9,6 @@ urlpatterns = [
     path('agent/<int:agent_id>/change-status/', views.change_agent_status, name='change_agent_status'),
 
     path('payroll-dashboard/', views.employee_payroll_dashboard, name='payroll_dashboard'),
+
+    path('supervisor-dashboard/', views.supervisor_dashboard, name='supervisor_dashboard'),
 ]

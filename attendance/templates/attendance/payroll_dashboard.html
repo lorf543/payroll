@@ -33,7 +33,7 @@
                             <div class="stat-label text-muted">Hours Worked</div>
                         </div>
                         <div class="stat-item text-center p-3">
-                            <div class="stat-value text-primary">${{ month_stats.earnings|floatformat:2 }}</div>
+                            <div class="stat-value text-primary">${{ month_stats.earnings|intcomma }}</div>
                             <div class="stat-label text-muted">Total Earned</div>
                         </div>
                         <div class="stat-item text-center p-3">
@@ -83,7 +83,7 @@
                                         <span class="fw-medium">{{ day.payable_hours|floatformat:1 }}h</span>
                                     </td>
                                     <td>
-                                        <span class="text-success fw-medium">${{ day.earnings|floatformat:2 }}</span>
+                                        <span class="text-success fw-medium">${{ day.earnings|intcomma }}</span>
                                     </td>
                                     <td>
                                         <span class="badge bg-secondary">{{ day.records_count }}</span>

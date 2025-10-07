@@ -52,17 +52,15 @@
             <div class="col-md-6 col-lg-4">
                 <div class="card employee-card">
                     <div class="card-img-placeholder">
-                        {% if employee.foto %}
-                            <img src="{{ employee.foto.url }}" alt="{{ employee.user.get_full_name }}" class="profile-img">
-                        {% else %}
+
                             <a href="{% url 'employees_detail' employee.id %}" class="initials">
                                 {{ employee.user.first_name|first }}{{ employee.user.last_name|first }}
                             </a>
-                        {% endif %}
+
                     </div>
                     <div class="card-body text-center">
                         <h5 class="employee-name">
-                            {{ employee.user.first_name }} {{ employee.user.last_name }}
+                            {{ employee.user.first_name }} {{ employee.user.last_name }} 
                         </h5>
                         <p class="employee-position">{{ employee.position }}</p>
                         <div class="mt-3">

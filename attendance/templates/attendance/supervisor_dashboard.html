@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title"> Supervisor Dashboard</h1>
+                <p class="page-subtitle">Team status and activity monitoring</p>
+                <div class="supervisor-info">
+                    <span class="badge bg-primary">Supervisor: {{ supervisor.full_name }}</span>
+                    <span class="badge bg-secondary ms-2">Team: {{ team_stats.total_agents }} agents</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas del equipo -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Team Overview</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-2 col-6 mb-3">
+                            <div class="stat-card status-ready p-3 rounded">
+                                <div class="stat-value display-6 fw-bold">{{ team_stats.ready_count }}</div>
+                                <div class="stat-label">Ready</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6 mb-3">
+                            <div class="stat-card status-break p-3 rounded">
+                                <div class="stat-value display-6 fw-bold">{{ team_stats.break_count }}</div>
+                                <div class="stat-label">On Break</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6 mb-3">
+                            <div class="stat-card status-lunch p-3 rounded">
+                                <div class="stat-value display-6 fw-bold">{{ team_stats.lunch_count }}</div>
+                                <div class="stat-label">Lunch</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6 mb-3">
+                            <div class="stat-card status-training p-3 rounded">
+                                <div class="stat-value display-6 fw-bold">{{ team_stats.training_count }}</div>
+                                <div class="stat-label">Training</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6 mb-3">
+                            <div class="stat-card status-meeting p-3 rounded">
+                                <div class="stat-value display-6 fw-bold">{{ team_stats.meeting_count }}</div>
+                                <div class="stat-label">Meeting</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-6 mb-3">
+                            <div class="stat-card status-offline p-3 rounded">
+                                <div class="stat-value display-6 fw-bold">{{ team_stats.offline_count }}</div>
+                                <div class="stat-label">Offline</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Lista de agentes con estados -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0"> Team Members Status</h5>
+                    <span class="badge bg-primary">{{ team_members.count }} agents</span>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Agent</th>
+                                    <th>Position</th>
+                                    <th>Current Status</th>
+                                    <th>Duration</th>
+                                    <th>Last Update</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for agent in team_members %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="agent-avatar me-3">
+                                                <span class="initials">{{ agent.user.first_name.0 }}{{ agent.user.last_name.0 }}</span>
+                                            </div>
+                                            <div>
+                                                <strong>{{ agent.full_name }}</strong>
+                                                <div class="small text-muted">{{ agent.employee_code }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ agent.position.name|default:"-" }}</td>
+                                    <td>
+                                        {% if agent.id in agent_status_map %}
+                                            {% with status=agent_status_map.agent.id %}
+                                            <span class="badge status-{{ status.status }} px-3 py-2">
+                                                {{ status.status|title }}
+                                            </span>
+                                            {% endwith %}
+                                        {% else %}
+                                            <span class="badge status-offline px-3 py-2">Offline</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if agent.id in agent_status_map %}
+                                            {% with status=agent_status_map.agent.id %}
+                                            <span class="duration" data-start-time="{{ status.start_time|date:'c' }}">
+                                                {{ status.start_time|timesince:current_time }}
+                                            </span>
+                                            {% endwith %}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if agent.id in agent_status_map %}
+                                            {% with status=agent_status_map.agent.id %}
+                                            {{ status.start_time|date:"M j, g:i A" }}
+                                            {% endwith %}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'employees_detail' agent.id %}" 
+                                            class="btn btn-outline-primary" 
+                                            title="View Profile">
+                                                <i class="bi bi-person"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="bi bi-people display-4 d-block mb-2"></i>
+                                        No team members assigned
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actividad reciente -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">🕒 Recent Activity</h5>
+                </div>
+                <div class="card-body">
+                    <div class="activity-timeline">
+                        {% for activity in today_activity %}
+                        <div class="activity-item mb-3 pb-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <strong class="text-truncate">{{ activity.agent.full_name }}</strong>
+                                <small class="text-muted">{{ activity.start_time|date:"g:i A" }}</small>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="badge status-{{ activity.status }} me-2">
+                                    {{ activity.status|title }}
+                                </span>
+                                <small class="text-muted">
+                                    {% if activity.end_time %}
+                                    Duration: {{ activity.duration }}
+                                    {% else %}
+                                    <em>In progress</em>
+                                    {% endif %}
+                                </small>
+                            </div>
+                            {% if activity.notes %}
+                            <div class="mt-1">
+                                <small class="text-muted">{{ activity.notes|truncatewords:10 }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% empty %}
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-activity display-4 d-block mb-2"></i>
+                            No activity today
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    {% if today_activity %}
+                    <div class="text-center mt-3">
+                        <a href="#" class="btn btn-outline-primary btn-sm">View Full History</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    {% comment %} <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">⚡ Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 col-6 mb-3">
+                            <a href="{% url 'employees' %}" class="btn btn-outline-primary w-100">
+                                <i class="bi bi-people me-2"></i>Manage Team
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <a href="#" class="btn btn-outline-success w-100">
+                                <i class="bi bi-file-earmark-text me-2"></i>Reports
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <a href="#" class="btn btn-outline-info w-100">
+                                <i class="bi bi-graph-up me-2"></i>Analytics
+                            </a>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <a href="{% url 'agent_status_dashboard' %}" class="btn btn-outline-secondary w-100">
+                                <i class="bi bi-person me-2"></i>My Status
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> {% endcomment %}
+</div>
+
+<style>
+.page-header {
+    background: linear-gradient(135deg, var(--secondary-color), var(--accent-color));
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+}
+
+.page-title {
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 1rem;
+}
+
+/* Status badges */
+.status-ready { background-color: #28a745; color: white; }
+.status-break { background-color: #ffc107; color: black; }
+.status-lunch { background-color: #6c757d; color: white; }
+.status-training { background-color: #007bff; color: white; }
+.status-meeting { background-color: #dc3545; color: white; }
+.status-offline { background-color: #343a40; color: white; }
+
+/* Stat cards */
+.stat-card {
+    transition: transform 0.2s;
+    border: 2px solid transparent;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-card.status-ready { border-color: #28a745; background-color: rgba(40, 167, 69, 0.1); }
+.stat-card.status-break { border-color: #ffc107; background-color: rgba(255, 193, 7, 0.1); }
+.stat-card.status-lunch { border-color: #6c757d; background-color: rgba(108, 117, 125, 0.1); }
+.stat-card.status-training { border-color: #007bff; background-color: rgba(0, 123, 255, 0.1); }
+.stat-card.status-meeting { border-color: #dc3545; background-color: rgba(220, 53, 69, 0.1); }
+.stat-card.status-offline { border-color: #343a40; background-color: rgba(52, 58, 64, 0.1); }
+
+/* Agent avatar */
+.agent-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+/* Activity timeline */
+.activity-item {
+    transition: background-color 0.2s;
+    padding: 0.5rem;
+    border-radius: 6px;
+}
+
+.activity-item:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .page-header {
+        padding: 1.5rem 1rem;
+    }
+    
+    .stat-value {
+        font-size: 1.8rem !important;
+    }
+    
+    .btn-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        margin-bottom: 0.25rem;
+    }
+}
+</style>
+
+<script>
+// Actualizar duraciones en tiempo real
+function updateDurations() {
+    const durationElements = document.querySelectorAll('.duration[data-start-time]');
+    const now = new Date();
+    
+    durationElements.forEach(element => {
+        const startTime = new Date(element.dataset.startTime);
+        const diffMs = now - startTime;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const remainingMins = diffMins % 60;
+        
+        if (diffHours > 0) {
+            element.textContent = `${diffHours}h ${remainingMins}m`;
+        } else {
+            element.textContent = `${diffMins}m`;
+        }
+    });
+}
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    updateDurations();
+    setInterval(updateDurations, 60000); // Actualizar cada minuto
+});
+
+// Filtro simple para la tabla
+function filterAgents() {
+    const input = document.getElementById('agentSearch');
+    const filter = input.value.toLowerCase();
+    const table = document.querySelector('.table');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    
+    for (let i = 0; i < rows.length; i++) {
+        const name = rows[i].getElementsByTagName('td')[0].textContent.toLowerCase();
+        if (name.includes(filter)) {
+            rows[i].style.display = '';
+        } else {
+            rows[i].style.display = 'none';
+        }
+    }
+}
+</script>
+{% endblock %}
