@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from .models import Attendance, LeaveType, AgentStatus
 from core.models import Department
 from decimal import Decimal
+from django.contrib import messages
 
 from core.models import Employee
 from .forms import AgentStatusForm
@@ -113,7 +114,7 @@ def calculate_pay_period_data(employee, start_date, end_date):
     }
 
 def get_recent_daily_stats(employee, days=7):
-    """Obtiene estadísticas diarias de los últimos días"""
+    """Obtiene estadísticas diarias de los últimos días incluyendo primer y último status"""
     daily_stats = []
     
     for i in range(days):
@@ -121,11 +122,17 @@ def get_recent_daily_stats(employee, days=7):
         day_start = timezone.make_aware(datetime.combine(day, time.min))
         day_end = timezone.make_aware(datetime.combine(day, time.max))
         
+        # Get all records for the day, ordered by time
         records = AgentStatus.objects.filter(
             agent=employee,
             start_time__range=(day_start, day_end)
-        )
+        ).order_by('start_time')
         
+        # Calculate first and last records
+        first_record = records.first()
+        last_record = records.last()
+        
+        # Calculate payable time
         daily_payable = timedelta()
         for record in records:
             if record.status == 'ready':
@@ -141,6 +148,8 @@ def get_recent_daily_stats(employee, days=7):
             'earnings': daily_earnings,
             'is_weekend': day.weekday() >= 5,
             'records_count': records.count(),
+            'first_record': first_record,
+            'last_record': last_record,
         })
     
     return daily_stats
@@ -253,6 +262,30 @@ def agent_status_dashboard(request):
     start_of_day = timezone.make_aware(datetime.combine(today, time.min))
     end_of_day = timezone.make_aware(datetime.combine(today, time.max))
 
+    # Handle form submission
+    if request.method == 'POST':
+        form = AgentStatusForm(request.POST)
+        if form.is_valid():
+            status_record = form.save(commit=False)
+            status_record.agent = employee
+            
+            # End current status if exists
+            current_active = AgentStatus.objects.filter(
+                agent=employee,
+                end_time__isnull=True
+            ).first()
+            
+            if current_active:
+                current_active.end_time = timezone.now()
+                current_active.save()
+                messages.info(request, f"Ended {current_active.get_status_display()} status")
+            
+            status_record.save()
+            messages.success(request, f"Status changed to {status_record.get_status_display()}")
+            return redirect('agent_status_dashboard')
+    else:
+        form = AgentStatusForm()
+
     records = AgentStatus.objects.filter(
         agent=employee,
         start_time__range=(start_of_day, end_of_day)
@@ -288,7 +321,7 @@ def agent_status_dashboard(request):
     context = {
         'employee': employee,
         'current_status': records.filter(end_time__isnull=True).first(),
-        'form': AgentStatusForm(),
+        'form': form,
         'daily_stats': {
             'total': format_timedelta(total),
             'break': format_timedelta(break_time),
@@ -390,8 +423,6 @@ def attendance_dashboard(request):
     return render(request, 'attendance/attendance_dashboard.html', context)
 
 
-
-
 @login_required
 def supervisor_dashboard(request):
     """Dashboard para supervisores ver el estado de sus agentes"""
@@ -402,16 +433,40 @@ def supervisor_dashboard(request):
         # Obtener agentes asignados (team_members por la relación ForeignKey)
         team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
         
-        # Obtener estados actuales de los agentes
+        context = {
+            'supervisor': supervisor,
+            'team_members': team_members,
+        }
+        
+        return render(request, 'attendance/supervisor_dashboard.html', context)
+        
+    except Employee.DoesNotExist:
+        return redirect('agent_status_dashboard')
+
+
+
+
+@login_required
+# @cache_control(no_cache=True, must_revalidate=True, no_store=True)
+def supervisor_stats_api(request):
+    """API endpoint para obtener estadísticas actualizadas del equipo"""
+    try:
+        # Get supervisor
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+        
+        # Get team members
+        team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
+        
+        # Get current statuses
         current_statuses = AgentStatus.objects.filter(
             agent__in=team_members,
             end_time__isnull=True  # Estados activos
         ).select_related('agent')
         
-        # Crear mapa de estados actuales por agente
+        # Create status map
         agent_status_map = {status.agent_id: status for status in current_statuses}
         
-        # Estadísticas del equipo
+        # Team statistics
         team_stats = {
             'total_agents': team_members.count(),
             'ready_count': current_statuses.filter(status='ready').count(),
@@ -422,27 +477,234 @@ def supervisor_dashboard(request):
             'offline_count': current_statuses.filter(status='offline').count(),
         }
         
-        # Historial de hoy del equipo
+        # Today's activity (last 10 activities)
         today = timezone.localdate()
         start_of_day = timezone.make_aware(datetime.combine(today, time.min))
         
         today_activity = AgentStatus.objects.filter(
             agent__in=team_members,
             start_time__gte=start_of_day
-        ).select_related('agent').order_by('-start_time')[:20]  # Últimas 20 actividades
+        ).select_related('agent').order_by('-start_time')[:10]
         
         context = {
-            'supervisor': supervisor,
-            'team_members': team_members,
-            'agent_status_map': agent_status_map,
             'team_stats': team_stats,
             'today_activity': today_activity,
+            'agent_status_map': agent_status_map,
             'current_time': timezone.now(),
         }
         
-        return render(request, 'attendance/supervisor_dashboard.html', context)
+        return render(request, 'attendance/partials/supervisor_stats.html', context)
         
     except Employee.DoesNotExist:
-        # messages.error(request, "No tienes permisos de supervisor")
-        return redirect('agent_status_dashboard')
+        return HttpResponse(status=403)
+    
+
+
+@login_required
+def supervisor_agents_api(request):
+    """API para la tabla de agentes"""
+    try:
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+        team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
+        
+        current_statuses = AgentStatus.objects.filter(
+            agent__in=team_members,
+            end_time__isnull=True
+        ).select_related('agent')
+        
+        agent_status_map = {status.agent_id: status for status in current_statuses}
+        
+        context = {
+            'team_members': team_members,
+            'agent_status_map': agent_status_map,
+            'current_time': timezone.now(),
+        }
+        
+        return render(request, 'attendance/partials/agents_table.html', context)
+    except Employee.DoesNotExist:
+        return HttpResponse(status=403)
+
+@login_required
+def supervisor_activity_api(request):
+    """API para la línea de tiempo de actividad"""
+    try:
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+        team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
+        
+        today = timezone.localdate()
+        start_of_day = timezone.make_aware(datetime.combine(today, time.min))
+        
+        today_activity = AgentStatus.objects.filter(
+            agent__in=team_members,
+            start_time__gte=start_of_day
+        ).select_related('agent').order_by('-start_time')[:10]
+        
+        context = {
+            'today_activity': today_activity,
+        }
+        
+        return render(request, 'attendance/partials/activity_timeline.html', context)
+    except Employee.DoesNotExist:
+        return HttpResponse(status=403)
+    
+
+
+
+
+# views.py
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from django.http import HttpResponse
+from django.utils import timezone
+from datetime import datetime
+from django.contrib.auth.decorators import login_required, user_passes_test
+
+@login_required
+@user_passes_test(lambda u: u.is_staff or getattr(u, 'employee', None) and u.employee.is_it)
+def export_employees_excel(request):
+    """Export employee list to Excel with basic information"""
+    # Get all active employees with related data
+    employees = Employee.objects.select_related(
+        'user', 
+        'position', 
+        'department', 
+        'supervisor'
+    ).filter(is_active=True).order_by('department__name', 'employee_code')
+    
+    # Create workbook and worksheet
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Employee List"
+    
+    # Define styles
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    center_align = Alignment(horizontal='center', vertical='center')
+    left_align = Alignment(horizontal='left', vertical='center')
+    
+    # Thin border style
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Define columns for basic info
+    columns = [
+        ('Employee Code', 15),
+        ('ID Number', 18),
+        ('Full Name', 25),
+        ('Email', 30),
+        ('Position', 20),
+        ('Department', 20),
+        ('Supervisor', 20),
+        ('Hire Date', 12),
+        ('Status', 10),
+        ('Phone', 15),
+        ('City', 15),
+    ]
+    
+    # Create headers
+    for col_num, (column_title, column_width) in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=col_num, value=column_title)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+        cell.border = thin_border
+        ws.column_dimensions[get_column_letter(col_num)].width = column_width
+    
+    # Add data rows
+    for row_num, employee in enumerate(employees, 2):
+        # Get supervisor name
+        supervisor_name = ""
+        if employee.supervisor:
+            if employee.supervisor.user:
+                supervisor_name = f"{employee.supervisor.user.get_full_name()}"
+            else:
+                supervisor_name = f"EMP-{employee.supervisor.employee_code}"
+        
+        # Get employee full name
+        full_name = ""
+        if employee.user:
+            full_name = employee.user.get_full_name()
+            if not full_name.strip():
+                full_name = employee.user.username
+        else:
+            full_name = f"EMP-{employee.employee_code}"
+        
+        # Get email
+        email = ""
+        if employee.user:
+            email = employee.user.email
+        elif employee.email:
+            email = employee.email
+        
+        row_data = [
+            employee.employee_code,
+            employee.identification,
+            full_name,
+            email,
+            employee.position.name if employee.position else "Not assigned",
+            employee.department.name if employee.department else "Not assigned",
+            supervisor_name,
+            employee.hire_date.strftime("%Y-%m-%d") if employee.hire_date else "Not set",
+            "Active",
+            employee.phone or "Not set",
+            employee.city or "Not set",
+        ]
+        
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num, value=value)
+            cell.alignment = left_align
+            cell.border = thin_border
+            
+            # Center align specific columns
+            if col_num in [1, 8, 9]:
+                cell.alignment = center_align
+    
+    # Add summary information
+    summary_row = len(employees) + 4
+    
+    # Summary title
+    ws.cell(row=summary_row, column=1, value="REPORT SUMMARY").font = Font(bold=True, size=14)
+    summary_row += 1
+    
+    # Summary data
+    summary_data = [
+        f"Total Employees: {len(employees)}",
+        f"Report Generated: {timezone.now().strftime('%Y-%m-%d %H:%M')}",
+        f"Generated By: {request.user.get_full_name() or request.user.username}",
+    ]
+    
+    for i, summary_line in enumerate(summary_data):
+        ws.cell(row=summary_row + i, column=1, value=summary_line).font = Font(bold=True)
+    
+    # Department breakdown
+    dept_summary_row = summary_row + len(summary_data) + 1
+    ws.cell(row=dept_summary_row, column=1, value="DEPARTMENT BREAKDOWN").font = Font(bold=True)
+    dept_summary_row += 1
+    
+    # Count employees by department
+    from django.db.models import Count
+    dept_counts = employees.values('department__name').annotate(count=Count('id')).order_by('-count')
+    
+    for i, dept in enumerate(dept_counts):
+        dept_name = dept['department__name'] or 'No Department'
+        ws.cell(row=dept_summary_row + i, column=1, value=f"{dept_name}: {dept['count']} employees")
+    
+    # Freeze header row
+    ws.freeze_panes = "A2"
+    
+    # Create response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"employee_list_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    # Save workbook to response
+    wb.save(response)
+    return response
 

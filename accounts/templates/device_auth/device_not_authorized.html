@@ -1,0 +1,34 @@
+<!-- templates/device_auth/device_not_authorized.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4>Device Not Authorized</h4>
+                </div>
+                <div class="card-body">
+                    <p>You are trying to access the system from an unauthorized device.</p>
+                    <p>For security reasons, each user account is tied to a specific device.</p>
+                    
+                    <div class="alert alert-info">
+                        <strong>To resolve this issue:</strong>
+                        <ul class="mt-2">
+                            <li>Use your originally registered device</li>
+                            <li>Contact IT department to reset your device registration</li>
+                            <li>You will be able to register a new device on your next login</li>
+                        </ul>
+                        <small class="text-danger">Make sure you are not using inconito mode</small>
+                    </div>
+                    
+                    <div class="text-center">
+                        <a href="{% url 'account_logout' %}" class="btn btn-secondary">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -387,40 +387,7 @@
           <!-- Contenido Principal -->
       <div class="d-flex">
         <!-- Sidebar -->
-        <nav id="sidebar" class="sidebar text-white p-3 d-flex flex-column">
-          <ul class="nav flex-column">
-            <li class="nav-item">
-              <a class="nav-link text-white" href="{% url 'agent_status_dashboard' %}">
-                <i class="bi bi-house-door"></i> Inicio
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link text-white" href="{% url 'employees' %}">
-                <i class="bi bi-people"></i> Empleados
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link text-white" hx-boost="false" href="{% url 'admin_dashboard' %}">
-                <i class="bi bi-speedometer2"></i> Admin - Dashboard
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link text-white" hx-boost="false" href="{% url 'supervisor_dashboard' %}">
-                <i class="bi bi-speedometer2"></i> supervisor - Dashboard
-              </a>
-            </li>
-            {% comment %} <li class="nav-item">
-              <a class="nav-link text-white" hx-boost="false" href="{% url 'agent_status_dashboard' %}">
-                <i class="bi bi-speedometer2"></i> Agent status
-              </a>
-            </li> {% endcomment %}
-          </ul>
-          <div class="pt-5 mt-5"> 
-              <a class="btn btn-outline-light w-100" href="{% url 'account_logout' %}">
-                <i class="bi bi-box-arrow-right"></i> Salir
-              </a>
-          </div>
-        </nav>
+        {% include "components/sidebar.html" %}
 
         <!-- Contenido principal -->
         <main class="main-content flex-grow-1">

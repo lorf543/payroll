@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import datetime, time
+import humanize
 
 from core.models import Employee
 
@@ -132,6 +133,28 @@ class AgentStatus(models.Model):
         if self.end_time:
             return self.end_time - self.start_time
         return timezone.now() - self.start_time
+    
+    @property
+    def natural_duration(self):
+        """Retorna la duración en formato humano"""
+        duration = self.duration
+        if not duration:
+            return ""
+        
+        try:
+            return humanize.naturaldelta(duration)
+        except:
+            # Fallback
+            total_seconds = int(duration.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            
+            if hours > 0:
+                return f"{hours}h {minutes}m"
+            elif minutes > 0:
+                return f"{minutes}m"
+            else:
+                return "Less than 1m"
 
 class StatusSchedule(models.Model):
     agent = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='status_schedules')

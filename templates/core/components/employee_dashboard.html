@@ -51,6 +51,7 @@
                             <thead>
                                 <tr>
                                     <th>Payment Date</th>
+                                    <th>In/Out</th>
                                     <th>Period</th>
                                     <th>Net Amount</th>
                                     <th>Payment Method</th>
@@ -61,6 +62,7 @@
                             <tbody>
                                 {% for payment in payments %}
                                 <tr>
+                                    <td>{{ payment.pay_date|date:"m/d/Y" }}</td>
                                     <td>{{ payment.pay_date|date:"m/d/Y" }}</td>
                                     <td>{{ payment.period.start_date|date:"m/d/Y" }} - {{ payment.period.end_date|date:"m/d/Y" }}</td>
                                     <td>${{ payment.net_salary|floatformat:2|intcomma }}</td>

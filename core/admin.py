@@ -24,13 +24,102 @@ class PositionAdmin(admin.ModelAdmin):
     ordering = ("department", "name")
 
 
-@admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ("employee_code", "full_name", "position", "department", "hire_date", "is_active","identification")
-    search_fields = ("employee_code", "user__first_name", "user__last_name", "position__name", "department__name")
-    list_filter = ("department", "position", "is_active", "gender", "marital_status")
-    ordering = ("employee_code",)
-    readonly_fields = ("full_name",)
+    list_display = ('employee_code', 'identification', 'user', 'position', 'department', 'is_active')
+    list_filter = ('is_active', 'department', 'position', 'gender', 'marital_status')
+    search_fields = ('employee_code', 'identification', 'user__username', 'user__email')
+    raw_id_fields = ('user', 'supervisor')
+    
+    fieldsets = (
+        # Authentication & Basic Info
+        ('Authentication & Basic Information', {
+            'fields': (
+                'user',
+                'employee_code', 
+                'identification',
+                'is_active'
+            ),
+            'classes': ('collapse',)  # Makes this section collapsible
+        }),
+        
+        # Employment Details
+        ('Employment Details', {
+            'fields': (
+                'position',
+                'department',
+                'hire_date',
+                'supervisor',
+                'is_supervisor',
+                'is_it'
+            )
+        }),
+        
+        # Personal Information
+        ('Personal Information', {
+            'fields': (
+                'birth_date',
+                'gender', 
+                'marital_status',
+            )
+        }),
+        
+        # Contact Information
+        ('Contact Information', {
+            'fields': (
+                'phone',
+                'email',
+                'address',
+                'city',
+                'country'
+            )
+        }),
+        
+        # Profile & Professional Details
+        ('Profile & Professional Details', {
+            'fields': (
+                'bio',
+                'education',
+                'skills'
+            ),
+            'classes': ('collapse',)  # Makes this section collapsible
+        }),
+        
+        # Salary Information
+        ('Salary Information', {
+            'fields': (
+                'fixed_rate',
+                'custom_base_salary'
+            ),
+            'classes': ('collapse',)  # Makes this section collapsible
+        }),
+        
+        # Banking Information
+        ('Banking Information', {
+            'fields': (
+                'bank_name',
+                'bank_account'
+            ),
+            'classes': ('collapse',)  # Makes this section collapsible
+        }),
+    )
+    
+    # You can also group fields in the add form differently if needed
+    add_fieldsets = (
+        ('Required Information', {
+            'fields': (
+                'user',
+                'employee_code',
+                'identification', 
+                'position',
+                'department',
+                'hire_date',
+                'birth_date',
+                'gender'
+            )
+        }),
+    )
+
+admin.site.register(Employee, EmployeeAdmin)
 
 
 @admin.register(PaymentConcept)

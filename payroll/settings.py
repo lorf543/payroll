@@ -78,6 +78,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'accounts.middleware.DeviceAuthenticationMiddleware',
 ]
 
 ROOT_URLCONF = 'payroll.urls'
@@ -105,18 +106,18 @@ WSGI_APPLICATION = 'payroll.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
 DATABASES = {
-    'default': dj_database_url.config(
-        default='postgresql://postgres:DpiorqneEWUTHdSwMCyhXmiCTAwYSHkZ@nozomi.proxy.rlwy.net:17346/railway'
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
+
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default='postgresql://postgres:DpiorqneEWUTHdSwMCyhXmiCTAwYSHkZ@nozomi.proxy.rlwy.net:17346/railway'
+#     )
+# }
 
 
 # Password validation

@@ -73,8 +73,9 @@ class Employee(models.Model):
         related_name='team_members',
         help_text="Supervisor directo del empleado"
     )
-    is_supervisor = models.BooleanField(blank=True, null=True)
 
+    is_supervisor = models.BooleanField(blank=True, null=True)
+    is_it = models.BooleanField(blank=True, null=True)
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     identification = models.CharField(max_length=50)

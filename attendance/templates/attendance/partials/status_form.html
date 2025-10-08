@@ -1,10 +1,11 @@
-{% load humanize %}  {# Asegúrate de cargar humanize #}
+{% load humanize %}
 
 <form 
     method="post"
     hx-post="{% url 'change_agent_status' employee.id %}" 
     hx-target="#current-status" 
     hx-swap="outerHTML"
+    hx-on::after-request="if(event.detail.successful) { showStatusChangeMessage('Status updated successfully!'); }"
     class="status-form"
 >
     {% csrf_token %}
@@ -12,15 +13,23 @@
         <label for="id_status" class="form-label">Select Status</label>
         {{ form.status }}
     </div>
-    <button type="submit" class="btn btn-primary">Update Status</button>
+    
+    <div class="mb-3">
+        <label for="id_notes" class="form-label">Notes (Optional)</label>
+        {{ form.notes }}
+    </div>
+    
+    <button type="submit" class="btn btn-primary w-100">
+        <i class="bi bi-check-circle me-2"></i>
+        Update Status
+    </button>
 </form>
 
-
-<!-- Current Status Display -->
+<!-- Status Preview -->
 <div class="mt-3 p-3 bg-light rounded">
     <div class="d-flex justify-content-between align-items-center">
-        <span class="text-muted">Current Status:</span>
-        <span id="status-badge-preview"
+        <span class="text-muted">Preview Status:</span>
+        <span id="status-badge-preview" 
               class="badge status-{{ current_status.status|default:'offline' }} px-3 py-2">
             {% if current_status %}
                 {{ current_status.get_status_display }}
@@ -32,20 +41,180 @@
     
     {% if current_status and current_status.start_time %}
     <small class="text-muted d-block mt-1">
-        Since: {{ current_status.start_time|naturaltime }}
+        Active since: {{ current_status.start_time|naturaltime }}
     </small>
     {% endif %}
 </div>
 
-<!-- Optional: Legends -->
+<!-- Status Legend -->
 <div class="mt-2">
     <small class="text-muted">Status Colors:</small><br>
-    <span class="badge status-ready">Ready</span>
-    <span class="badge status-break">Break</span>
-    <span class="badge status-lunch">Lunch</span>
-    <span class="badge status-training">Training</span>
-    <span class="badge status-meeting">Meeting</span>
-    <span class="badge status-offline">Offline</span>
+    <span class="badge status-ready me-1 mb-1">Ready</span>
+    <span class="badge status-break me-1 mb-1">Break</span>
+    <span class="badge status-lunch me-1 mb-1">Lunch</span>
+    <span class="badge status-training me-1 mb-1">Training</span>
+    <span class="badge status-meeting me-1 mb-1">Meeting</span>
+    <span class="badge status-offline me-1 mb-1">Offline</span>
 </div>
 
+<!-- Success Message Toast (Hidden by default) -->
+<div id="status-toast" class="toast align-items-center text-white bg-success border-0 position-fixed top-0 end-0 m-3" 
+     role="alert" aria-live="assertive" aria-atomic="true" style="z-index: 1050; display: none;">
+    <div class="d-flex">
+        <div class="toast-body">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            <span id="toast-message">Status updated successfully!</span>
+        </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+</div>
 
+<style>
+/* Status badge colors */
+.status-ready { background-color: #28a745; color: white; }
+.status-break { background-color: #ffc107; color: black; }
+.status-lunch { background-color: #6c757d; color: white; }
+.status-training { background-color: #007bff; color: white; }
+.status-meeting { background-color: #dc3545; color: white; }
+.status-offline { background-color: #343a40; color: white; }
+
+/* Form improvements */
+#id_status {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+#id_status:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+#id_notes {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Toast animation */
+.toast {
+    animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Status preview animation */
+#status-badge-preview {
+    transition: all 0.3s ease;
+}
+
+/* Button loading state */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+</style>
+
+<script>
+// Initialize status preview
+function initializeStatusPreview() {
+    const select = document.getElementById('id_status');
+    const badge = document.getElementById('status-badge-preview');
+    const statusClassMap = {
+        'ready': 'status-ready',
+        'break': 'status-break',
+        'lunch': 'status-lunch',
+        'training': 'status-training',
+        'meeting': 'status-meeting',
+        'offline': 'status-offline'
+    };
+
+    if (select && badge) {
+        // Update preview when selection changes
+        select.addEventListener('change', () => {
+            const selectedValue = select.value;
+            const statusClass = statusClassMap[selectedValue] || 'status-offline';
+            const selectedText = select.options[select.selectedIndex].text;
+            
+            // Update badge
+            badge.className = 'badge px-3 py-2 ' + statusClass;
+            badge.textContent = selectedText;
+            
+            // Add subtle animation
+            badge.style.transform = 'scale(1.05)';
+            setTimeout(() => {
+                badge.style.transform = 'scale(1)';
+            }, 150);
+        });
+        
+        // Trigger change on load to set initial preview
+        select.dispatchEvent(new Event('change'));
+    }
+}
+
+// Show success message
+function showStatusChangeMessage(message) {
+    const toastEl = document.getElementById('status-toast');
+    const toastMessage = document.getElementById('toast-message');
+    
+    if (toastEl && toastMessage) {
+        toastMessage.textContent = message || 'Status updated successfully!';
+        
+        // Show toast
+        toastEl.style.display = 'block';
+        const toast = new bootstrap.Toast(toastEl, {
+            autohide: true,
+            delay: 3000
+        });
+        toast.show();
+        
+        // Hide after animation
+        toastEl.addEventListener('hidden.bs.toast', function() {
+            toastEl.style.display = 'none';
+        });
+    }
+}
+
+// Add loading state to form
+function initializeFormLoading() {
+    const form = document.querySelector('.status-form');
+    if (form) {
+        form.addEventListener('htmx:beforeRequest', function() {
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-arrow-repeat spinner-border spinner-border-sm me-2"></i> Updating...';
+            }
+        });
+        
+        form.addEventListener('htmx:afterRequest', function() {
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i> Update Status';
+                }, 1000);
+            }
+        });
+    }
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initializeStatusPreview();
+    initializeFormLoading();
+});
+
+// Re-initialize after HTMX swaps
+document.body.addEventListener('htmx:afterSwap', function() {
+    initializeStatusPreview();
+    initializeFormLoading();
+});
+</script>

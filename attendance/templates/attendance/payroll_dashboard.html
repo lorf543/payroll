@@ -55,7 +55,7 @@
             </div>
         </div>
 
-        <!-- Historial Reciente (7 días) -->
+<!-- Historial Reciente (7 días) -->
         <div class="col-lg-8 mb-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header">
@@ -67,6 +67,7 @@
                             <thead>
                                 <tr>
                                     <th>Date</th>
+                                    <th>In/Out</th>
                                     <th>Hours</th>
                                     <th>Earnings</th>
                                     <th>Status Changes</th>
@@ -80,6 +81,36 @@
                                         {% if day.is_weekend %}<span class="badge bg-light text-dark ms-1">Weekend</span>{% endif %}
                                     </td>
                                     <td>
+                                        {% if day.first_record and day.last_record %}
+                                            <div class="d-flex flex-column small">
+                                                <div class="d-flex align-items-center mb-1">
+                                                    <span class="badge bg-success me-2">IN</span>
+                                                    <span>{{ day.first_record.start_time|date:"g:i A" }}</span>
+                                                </div>
+                                                <div class="d-flex align-items-center">
+                                                    <span class="badge bg-secondary me-2">OUT</span>
+                                                    <span>
+                                                        {% if day.last_record.end_time %}
+                                                            {{ day.last_record.end_time|date:"g:i A" }}
+                                                        {% else %}
+                                                            {{ day.last_record.start_time|date:"g:i A" }}
+                                                        {% endif %}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        {% elif day.first_record %}
+                                            <div class="d-flex flex-column small">
+                                                <div class="d-flex align-items-center mb-1">
+                                                    <span class="badge bg-success me-2">IN</span>
+                                                    <span>{{ day.first_record.start_time|date:"g:i A" }}</span>
+                                                </div>
+                                                <div class="text-muted">No clock-out</div>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">No activity</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
                                         <span class="fw-medium">{{ day.payable_hours|floatformat:1 }}h</span>
                                     </td>
                                     <td>
@@ -91,7 +122,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-3">No activity recorded</td>
+                                    <td colspan="5" class="text-center text-muted py-3">No activity recorded</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -103,7 +134,7 @@
     </div>
 
     <!-- Historial de Pagos Quincenales -->
-    {% comment %} <div class="row">
+    <div class="row">
         <div class="col-12">
             <div class="card shadow-sm">
                 <div class="card-header">
@@ -161,7 +192,7 @@
                 </div>
             </div>
         </div>
-    </div> {% endcomment %}
+    </div> 
 
     <!-- Resumen de Métodos de Pago -->
     <div class="row mt-4">

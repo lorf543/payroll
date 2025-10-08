@@ -18,47 +18,61 @@
         </div>
     </div>
 
-    <!-- Estadísticas del equipo -->
-    <div class="row mb-4">
+    <!-- Estadísticas del equipo - HTMX Auto-updating -->
+    <div class="row mb-4" 
+         hx-get="{% url 'supervisor_stats_api' %}" 
+         hx-trigger="every 10s"
+         hx-swap="innerHTML"
+         hx-indicator="#stats-indicator">
         <div class="col-12">
             <div class="card shadow-sm">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">Team Overview</h5>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-success me-2" id="last-update">
+                            Updated: {{ current_time|date:"H:i:s" }}
+                        </span>
+                        <div id="stats-indicator" class="htmx-indicator">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="row text-center">
+                    <div class="row text-center" id="stats-cards">
                         <div class="col-md-2 col-6 mb-3">
-                            <div class="stat-card status-ready p-3 rounded">
+                            <div class="stat-card status-ready p-3 rounded text-dark">
                                 <div class="stat-value display-6 fw-bold">{{ team_stats.ready_count }}</div>
                                 <div class="stat-label">Ready</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6 mb-3">
-                            <div class="stat-card status-break p-3 rounded">
+                            <div class="stat-card status-break p-3 rounded text-dark">
                                 <div class="stat-value display-6 fw-bold">{{ team_stats.break_count }}</div>
                                 <div class="stat-label">On Break</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6 mb-3">
-                            <div class="stat-card status-lunch p-3 rounded">
+                            <div class="stat-card status-lunch p-3 rounded text-dark">
                                 <div class="stat-value display-6 fw-bold">{{ team_stats.lunch_count }}</div>
                                 <div class="stat-label">Lunch</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6 mb-3">
-                            <div class="stat-card status-training p-3 rounded">
+                            <div class="stat-card status-training p-3 rounded text-dark">
                                 <div class="stat-value display-6 fw-bold">{{ team_stats.training_count }}</div>
                                 <div class="stat-label">Training</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6 mb-3">
-                            <div class="stat-card status-meeting p-3 rounded">
+                            <div class="stat-card status-meeting p-3 rounded text-dark">
                                 <div class="stat-value display-6 fw-bold">{{ team_stats.meeting_count }}</div>
                                 <div class="stat-label">Meeting</div>
                             </div>
                         </div>
                         <div class="col-md-2 col-6 mb-3">
-                            <div class="stat-card status-offline p-3 rounded">
+                            <div class="stat-card status-offline p-3 rounded text-dark">
                                 <div class="stat-value display-6 fw-bold">{{ team_stats.offline_count }}</div>
                                 <div class="stat-label">Offline</div>
                             </div>
@@ -74,8 +88,18 @@
         <div class="col-lg-8 mb-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0"> Team Members Status</h5>
-                    <span class="badge bg-primary">{{ team_members.count }} agents</span>
+                    <h5 class="card-title mb-0">Team Members Status</h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="badge bg-primary me-2">{{ team_members.count }} agents</span>
+                        <button class="btn btn-sm btn-outline-primary" 
+                                hx-get="{% url 'supervisor_agents_api' %}" 
+                                hx-target="#agents-table-body"
+                                hx-indicator="#agents-indicator">
+                            <span id="agents-indicator" class="htmx-indicator spinner-border spinner-border-sm me-1"></span>
+                            Refresh
+                        </button>
+                        <a href="{% url 'export_employees_excel' %}" class="btn btn-sm btn-success">Current payroll</a>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -90,70 +114,8 @@
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {% for agent in team_members %}
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="agent-avatar me-3">
-                                                <span class="initials">{{ agent.user.first_name.0 }}{{ agent.user.last_name.0 }}</span>
-                                            </div>
-                                            <div>
-                                                <strong>{{ agent.full_name }}</strong>
-                                                <div class="small text-muted">{{ agent.employee_code }}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>{{ agent.position.name|default:"-" }}</td>
-                                    <td>
-                                        {% if agent.id in agent_status_map %}
-                                            {% with status=agent_status_map.agent.id %}
-                                            <span class="badge status-{{ status.status }} px-3 py-2">
-                                                {{ status.status|title }}
-                                            </span>
-                                            {% endwith %}
-                                        {% else %}
-                                            <span class="badge status-offline px-3 py-2">Offline</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if agent.id in agent_status_map %}
-                                            {% with status=agent_status_map.agent.id %}
-                                            <span class="duration" data-start-time="{{ status.start_time|date:'c' }}">
-                                                {{ status.start_time|timesince:current_time }}
-                                            </span>
-                                            {% endwith %}
-                                        {% else %}
-                                            -
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if agent.id in agent_status_map %}
-                                            {% with status=agent_status_map.agent.id %}
-                                            {{ status.start_time|date:"M j, g:i A" }}
-                                            {% endwith %}
-                                        {% else %}
-                                            -
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="btn-group btn-group-sm">
-                                            <a href="{% url 'employees_detail' agent.id %}" 
-                                            class="btn btn-outline-primary" 
-                                            title="View Profile">
-                                                <i class="bi bi-person"></i>
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
-                                        <i class="bi bi-people display-4 d-block mb-2"></i>
-                                        No team members assigned
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                            <tbody id="agents-table-body">
+                                {% include 'attendance/partials/agents_table.html' %}
                             </tbody>
                         </table>
                     </div>
@@ -161,44 +123,22 @@
             </div>
         </div>
 
-        <!-- Actividad reciente -->
+        <!-- Actividad reciente - HTMX Auto-updating -->
         <div class="col-lg-4 mb-4">
             <div class="card shadow-sm h-100">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">🕒 Recent Activity</h5>
+                    <button class="btn btn-sm btn-outline-primary" 
+                            hx-get="{% url 'supervisor_activity_api' %}" 
+                            hx-target="#activity-timeline"
+                            hx-indicator="#activity-indicator">
+                        <span id="activity-indicator" class="htmx-indicator spinner-border spinner-border-sm me-1"></span>
+                        Refresh
+                    </button>
                 </div>
                 <div class="card-body">
-                    <div class="activity-timeline">
-                        {% for activity in today_activity %}
-                        <div class="activity-item mb-3 pb-3 border-bottom">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <strong class="text-truncate">{{ activity.agent.full_name }}</strong>
-                                <small class="text-muted">{{ activity.start_time|date:"g:i A" }}</small>
-                            </div>
-                            <div class="d-flex align-items-center">
-                                <span class="badge status-{{ activity.status }} me-2">
-                                    {{ activity.status|title }}
-                                </span>
-                                <small class="text-muted">
-                                    {% if activity.end_time %}
-                                    Duration: {{ activity.duration }}
-                                    {% else %}
-                                    <em>In progress</em>
-                                    {% endif %}
-                                </small>
-                            </div>
-                            {% if activity.notes %}
-                            <div class="mt-1">
-                                <small class="text-muted">{{ activity.notes|truncatewords:10 }}</small>
-                            </div>
-                            {% endif %}
-                        </div>
-                        {% empty %}
-                        <div class="text-center text-muted py-4">
-                            <i class="bi bi-activity display-4 d-block mb-2"></i>
-                            No activity today
-                        </div>
-                        {% endfor %}
+                    <div id="activity-timeline">
+                        {% include 'attendance/partials/activity_timeline.html' %}
                     </div>
                     
                     {% if today_activity %}
@@ -210,41 +150,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Quick Actions -->
-    {% comment %} <div class="row mt-4">
-        <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">⚡ Quick Actions</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 col-6 mb-3">
-                            <a href="{% url 'employees' %}" class="btn btn-outline-primary w-100">
-                                <i class="bi bi-people me-2"></i>Manage Team
-                            </a>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <a href="#" class="btn btn-outline-success w-100">
-                                <i class="bi bi-file-earmark-text me-2"></i>Reports
-                            </a>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <a href="#" class="btn btn-outline-info w-100">
-                                <i class="bi bi-graph-up me-2"></i>Analytics
-                            </a>
-                        </div>
-                        <div class="col-md-3 col-6 mb-3">
-                            <a href="{% url 'agent_status_dashboard' %}" class="btn btn-outline-secondary w-100">
-                                <i class="bi bi-person me-2"></i>My Status
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div> {% endcomment %}
 </div>
 
 <style>
@@ -315,6 +220,31 @@
     background-color: rgba(0, 0, 0, 0.02);
 }
 
+/* HTMX Indicators */
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.htmx-request .htmx-indicator {
+    opacity: 1;
+}
+
+.htmx-request.htmx-indicator {
+    opacity: 1;
+}
+
+/* Smooth transitions for HTMX */
+#stats-cards, #agents-table-body, #activity-timeline {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.htmx-request #stats-cards,
+.htmx-request #agents-table-body,
+.htmx-request #activity-timeline {
+    opacity: 0.7;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .page-header {
@@ -336,6 +266,7 @@
 }
 </style>
 
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
 <script>
 // Actualizar duraciones en tiempo real
 function updateDurations() {
@@ -357,10 +288,26 @@ function updateDurations() {
     });
 }
 
-// Inicializar
+// Update last update time
+function updateLastUpdateTime() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+    const lastUpdateElement = document.getElementById('last-update');
+    if (lastUpdateElement) {
+        lastUpdateElement.textContent = `Updated: ${timeString}`;
+    }
+}
+
+// HTMX event handlers
 document.addEventListener('DOMContentLoaded', function() {
     updateDurations();
     setInterval(updateDurations, 60000); // Actualizar cada minuto
+    
+    // Update time after HTMX requests complete
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        updateDurations();
+        updateLastUpdateTime();
+    });
 });
 
 // Filtro simple para la tabla
