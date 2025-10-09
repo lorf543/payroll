@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'crispy_bootstrap5',
     'django.contrib.humanize',
     'import_export',
+    'django_q',
     
     'core',
     'payroll',
@@ -119,6 +120,17 @@ DATABASES = {
     )
 }
 
+
+Q_CLUSTER = {
+    'name': 'payroll_cluster',
+    'workers': 4,
+    'recycle': 500,
+    'timeout': 60,
+    'retry': 120,
+    'queue_limit': 50,
+    'bulk': 10,
+    'orm': 'default',
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
