@@ -10,20 +10,20 @@
                 <i class="bi bi-people"></i> Empleados
               </a>
             </li>
-            <li class="nav-item">
+            {% comment %} <li class="nav-item">
               <a class="nav-link text-white" hx-boost="false" href="{% url 'admin_dashboard' %}">
                 <i class="bi bi-speedometer2"></i> Admin - Dashboard
               </a>
-            </li>
-            <li class="nav-item">                
-            {% if employee.is_supervisor %}                     
+            </li> {% endcomment %}
+            {% if not employee.is_supervisor.name == "Management" %}                     
+              <li class="nav-item">
                 <a class="nav-link text-white" hx-boost="false" href="{% url 'supervisor_dashboard' %}">
                     <i class="bi bi-speedometer2"></i> supervisor - Dashboard
                 </a>
-                </li>
+              </li>
             {% endif %}
 
-            {% if employee.is_it %}                   
+            {% if employee.position.department.name == "IT" %}                  
             <li class="nav-item">
               <a class="nav-link text-white" hx-boost="false" href="{% url 'it_device_management' %}">
                 <i class="bi bi-speedometer2"></i> IT

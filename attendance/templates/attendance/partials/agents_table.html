@@ -3,51 +3,42 @@
     <td>
         <div class="d-flex align-items-center">
             <div class="agent-avatar me-3">
-                <span class="initials">{{ agent.user.first_name.0 }}{{ agent.user.last_name.0 }}</span>
+                <span class="initials">
+                    {{ agent.user.first_name.0 }}{{ agent.user.last_name.0 }}
+                </span>
             </div>
             <div>
-                <strong>{{ agent.full_name }}</strong>
-                <div class="small text-muted">{{ agent.employee_code }}</div>
+                <strong>{{ agent.full_name }}</strong><br>
+                <small class="text-muted">{{ agent.employee_code }}</small>
             </div>
         </div>
     </td>
+
     <td>{{ agent.position.name|default:"-" }}</td>
-    <td>
-        {% if agent.id in agent_status_map %}
-            {% with status=agent_status_map.agent.id %}
-            <span class="badge status-{{ status.status }} px-3 py-2">
-                {{ status.status|title }}
+
+    {% if agent.current_status %}
+        <td>
+            <span class="badge status-{{ agent.current_status.status }}">
+                {{ agent.current_status.status|title }}
             </span>
-            {% endwith %}
-        {% else %}
-            <span class="badge status-offline px-3 py-2">Offline</span>
-        {% endif %}
-    </td>
-    <td>
-        {% if agent.id in agent_status_map %}
-            {% with status=agent_status_map.agent.id %}
-            <span class="duration" data-start-time="{{ status.start_time|date:'c' }}">
-                {{ status.start_time|timesince:current_time }}
-            </span>
-            {% endwith %}
-        {% else %}
-            -
-        {% endif %}
-    </td>
-    <td>
-        {% if agent.id in agent_status_map %}
-            {% with status=agent_status_map.agent.id %}
-            {{ status.start_time|date:"M j, g:i A" }}
-            {% endwith %}
-        {% else %}
-            -
-        {% endif %}
-    </td>
+        </td>
+        <td>
+            {{ agent.current_status.start_time|timesince:current_time }}
+        </td>
+        <td>
+            {{ agent.current_status.start_time|date:"M j, g:i A" }}
+        </td>
+    {% else %}
+        <td><span class="badge status-offline">Offline</span></td>
+        <td>-</td>
+        <td>-</td>
+    {% endif %}
+
     <td>
         <div class="btn-group btn-group-sm">
-            <a href="{% url 'employees_detail' agent.id %}" 
-            class="btn btn-outline-primary" 
-            title="View Profile">
+            <a href="{% url 'employee_status_list' agent.id %}" 
+               class="btn btn-outline-primary" 
+               title="View Profile">
                 <i class="bi bi-person"></i>
             </a>
         </div>

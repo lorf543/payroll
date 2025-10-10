@@ -121,7 +121,15 @@
                                         {% if rec.notes %}
                                             <small class="text-muted">{{ rec.notes }}</small>
                                         {% else %}
-                                            <span class="text-muted">—</span>
+                                            <a
+                                                name=""
+                                                id=""
+                                                class="btn btn-primary"
+                                                href="#"
+                                                role="button"
+                                                >Add notes</a
+                                            >
+                                            
                                         {% endif %}
                                     </td>
                                 </tr>

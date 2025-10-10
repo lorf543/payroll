@@ -81,7 +81,7 @@ class Employee(models.Model):
     identification = models.CharField(max_length=50)
     employee_code = models.CharField(max_length=20, unique=True)
     position = models.ForeignKey(Position, on_delete=models.SET_NULL, null=True)
-    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True)
+
     hire_date = models.DateField()
     birth_date = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
@@ -205,6 +205,7 @@ class Payment(models.Model):
     period = models.ForeignKey(PayPeriod, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     pay_date = models.DateField(blank=True, null=True)
+    
 
     gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_earnings = models.DecimalField(max_digits=12, decimal_places=2, default=0)

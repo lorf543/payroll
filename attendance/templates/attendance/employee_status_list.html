@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <h4 class="mb-4">
+        <i class="bi bi-person-badge"></i>
+        Status history for <strong>{{ employee.full_name }}</strong> — {{ today }}
+    </h4>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Start Time</th>
+                    <th>End Time</th>
+                    <th>Duration</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in statuses %}
+                <tr>
+                    <td>
+                        <span class="badge status-{{ s.status }} px-3 py-2">
+                            {{ s.status|title }}
+                        </span>
+                    </td>
+                    <td>{{ s.start_time|date:"M j, g:i A" }}</td>
+                    <td>
+                        {% if s.end_time %}
+                            {{ s.end_time|date:"M j, g:i A" }}
+                        {% else %}
+                            <span class="text-success fw-semibold">Active</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.natural_duration %}
+                            {{ s.natural_duration }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td> {% if s.notes %}
+                            {{ s.notes }}
+                        {% else%}
+                            <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addnoteModal">
+                            add notes
+                            </button>
+                        {% endif %} 
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        <i class="bi bi-clock-history display-6 d-block mb-2"></i>
+                        No status records for today
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-3">
+        <a href="{% url 'supervisor_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+</div>
+
+
+
+
+
+<!-- Modal -->
+<div class="modal fade" id="addnoteModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h1 class="modal-title fs-5" id="exampleModalLabel">Modal title</h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        ...
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{% endblock %}

@@ -27,16 +27,16 @@
                     <h5 class="card-title mb-0">Current Month</h5>
                 </div>
                 <div class="card-body">
-                    <div class="stats-grid">
-                        <div class="stat-item text-center p-3">
+                    <div class="">
+                        <div class="stat-item text-center p-3 my-2">
                             <div class="stat-value text-success">{{ month_stats.payable_hours|floatformat:1 }}h</div>
                             <div class="stat-label text-muted">Hours Worked</div>
                         </div>
-                        <div class="stat-item text-center p-3">
+                        <div class="stat-item text-center p-3 my-2">
                             <div class="stat-value text-primary">${{ month_stats.earnings|intcomma }}</div>
                             <div class="stat-label text-muted">Total Earned</div>
                         </div>
-                        <div class="stat-item text-center p-3">
+                        <div class="stat-item text-center p-3 my-2">
                             <div class="stat-value text-info">{{ month_stats.days_worked }}</div>
                             <div class="stat-label text-muted">Days Worked</div>
                         </div>

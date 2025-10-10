@@ -1,26 +1,16 @@
 
 from django.shortcuts import render, get_object_or_404, redirect,HttpResponse
-from django.db.models import Sum, F, DurationField, ExpressionWrapper
-from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
-from django.utils.decorators import method_decorator
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView
-from django.urls import reverse_lazy
-from django.db.models import Count, Q
 from django.utils import timezone
-from django.forms import modelform_factory, modelformset_factory
 from datetime import datetime, timedelta
-from .models import Attendance, LeaveType, AgentStatus
+from .models import Attendance, AgentStatus
 from core.models import Department
 from decimal import Decimal
 from django.contrib import messages
 
 import csv
-import json
+
 
 from core.models import Employee
 from .forms import AgentStatusForm
@@ -430,21 +420,39 @@ def attendance_dashboard(request):
 def supervisor_dashboard(request):
     """Dashboard para supervisores ver el estado de sus agentes"""
     try:
-        # Obtener el empleado que es supervisor
         supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
-        
-        # Obtener agentes asignados (team_members por la relación ForeignKey)
         team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
-        
+
+        # Agregar el estado actual a cada agente
+        for agent in team_members:
+            agent.current_status = AgentStatus.get_current_status(agent)
+
         context = {
             'supervisor': supervisor,
             'team_members': team_members,
+            'current_time': timezone.now(),
         }
-        
+
         return render(request, 'attendance/supervisor_dashboard.html', context)
-        
+
     except Employee.DoesNotExist:
-        return redirect('agent_status_dashboard')
+        messages.error(request, "You are not a supervisor.")
+        return redirect('home')
+
+
+@login_required
+def supervisor_dashboard_partial(request):
+    """Renderiza solo la tabla de agentes (para refresco con HTMX)"""
+    supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+    team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
+
+    for agent in team_members:
+        agent.current_status = AgentStatus.get_current_status(agent)
+
+    return render(request, 'attendance/partials/agents_table.html', {
+        'team_members': team_members,
+        'current_time': timezone.now(),
+    })
 
 
 
@@ -540,7 +548,7 @@ def supervisor_activity_api(request):
         today_activity = AgentStatus.objects.filter(
             agent__in=team_members,
             start_time__gte=start_of_day
-        ).select_related('agent').order_by('-start_time')[:10]
+        ).select_related('agent').order_by('-start_time')[:5]
         
         context = {
             'today_activity': today_activity,
@@ -550,6 +558,31 @@ def supervisor_activity_api(request):
     except Employee.DoesNotExist:
         return HttpResponse(status=403)
     
+def employee_status_list(request, id_employee):
+    # Obtener empleado o mostrar error 404 si no existe
+    employee = get_object_or_404(Employee, id=id_employee)
+
+    # Calcular el rango de tiempo para el día actual
+    today = timezone.now().date()
+    start_of_day = timezone.make_aware(
+        timezone.datetime.combine(today, timezone.datetime.min.time())
+    )
+    end_of_day = timezone.make_aware(
+        timezone.datetime.combine(today, timezone.datetime.max.time())
+    )
+
+    # Filtrar estados de este empleado dentro del rango del día actual
+    statuses = AgentStatus.objects.filter(
+        agent=employee,
+        start_time__range=(start_of_day, end_of_day)
+    ).order_by('-start_time')
+
+    context = {
+        'employee': employee,
+        'statuses': statuses,
+        'today': today,
+    }
+    return render(request, 'attendance/employee_status_list.html', context)
 
 
 def export_employees_excel(request):

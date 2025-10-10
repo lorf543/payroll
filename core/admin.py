@@ -25,8 +25,8 @@ class PositionAdmin(admin.ModelAdmin):
 
 
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('employee_code', 'identification', 'user', 'position', 'department', 'is_active')
-    list_filter = ('is_active', 'department', 'position', 'gender', 'marital_status')
+    list_display = ('employee_code', 'identification', 'user', 'position', 'is_active')
+    list_filter = ('is_active', 'position', 'gender', 'marital_status')
     search_fields = ('employee_code', 'identification', 'user__username', 'user__email')
     raw_id_fields = ('user', 'supervisor')
     
@@ -46,7 +46,6 @@ class EmployeeAdmin(admin.ModelAdmin):
         ('Employment Details', {
             'fields': (
                 'position',
-                'department',
                 'hire_date',
                 'supervisor',
                 'is_supervisor',
@@ -148,7 +147,7 @@ class PayPeriodAdmin(admin.ModelAdmin):
 class PayrollRecordAdmin(admin.ModelAdmin):
     list_display = ("employee", "period", "pay_date", "gross_salary", "net_salary", "status")
     search_fields = ("employee__user__first_name", "employee__user__last_name", "period__name")
-    list_filter = ("status", "period", "employee__department")
+    list_filter = ("status", "period",)
     ordering = ("-pay_date",)
     date_hierarchy = "pay_date"
 

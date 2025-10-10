@@ -14,7 +14,11 @@ urlpatterns = [
     path('supervisor/stats-api/', views.supervisor_stats_api, name='supervisor_stats_api'),
     path('supervisor/agents-api/', views.supervisor_agents_api, name='supervisor_agents_api'),
     path('supervisor/activity-api/', views.supervisor_activity_api, name='supervisor_activity_api'),
+    path('supervisor/dashboard/partial/', views.supervisor_dashboard_partial, name='supervisor_dashboard_partial'),
+
+    path('employee/<int:id_employee>/statuses/', views.employee_status_list, name='employee_status_list'),
 
 
-        path('employees/export/excel/', views.export_employees_excel, name='export_employees_excel'),
+
+    path('employees/export/excel/', views.export_employees_excel, name='export_employees_excel'),
 ]

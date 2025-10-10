@@ -79,7 +79,6 @@ class Attendance(models.Model):
     def has_overtime(self):
         return self.overtime_hours > 0
     
-
 class LeaveType(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
@@ -95,8 +94,6 @@ class LeaveType(models.Model):
     def __str__(self):
         return self.name
     
-
-
 class AgentStatus(models.Model):
     STATUS_CHOICES = [
         ('ready', 'Ready'),
@@ -155,6 +152,11 @@ class AgentStatus(models.Model):
                 return f"{minutes}m"
             else:
                 return "Less than 1m"
+            
+
+    @classmethod
+    def get_current_status(cls, agent):
+        return cls.objects.filter(agent=agent, end_time__isnull=True).first()
 
 class StatusSchedule(models.Model):
     agent = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='status_schedules')

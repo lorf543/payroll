@@ -21,7 +21,7 @@
     <!-- Estadísticas del equipo - HTMX Auto-updating -->
     <div class="row mb-4" 
          hx-get="{% url 'supervisor_stats_api' %}" 
-         hx-trigger="every 10s"
+         hx-trigger="every 1s"
          hx-swap="innerHTML"
          hx-indicator="#stats-indicator">
         <div class="col-12">
@@ -93,6 +93,7 @@
                         <span class="badge bg-primary me-2">{{ team_members.count }} agents</span>
                         <button class="btn btn-sm btn-outline-primary" 
                                 hx-get="{% url 'supervisor_agents_api' %}" 
+
                                 hx-target="#agents-table-body"
                                 hx-indicator="#agents-indicator">
                             <span id="agents-indicator" class="htmx-indicator spinner-border spinner-border-sm me-1"></span>
@@ -114,7 +115,12 @@
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="agents-table-body">
+                            <tbody
+                                id="agents-table-body"
+                                hx-get="{% url 'supervisor_dashboard_partial' %}"
+                                hx-trigger="every 5s"
+                                hx-swap="innerHTML"
+                            >
                                 {% include 'attendance/partials/agents_table.html' %}
                             </tbody>
                         </table>
@@ -130,6 +136,7 @@
                     <h5 class="card-title mb-0">🕒 Recent Activity</h5>
                     <button class="btn btn-sm btn-outline-primary" 
                             hx-get="{% url 'supervisor_activity_api' %}" 
+                            hx-trigger="load"
                             hx-target="#activity-timeline"
                             hx-indicator="#activity-indicator">
                         <span id="activity-indicator" class="htmx-indicator spinner-border spinner-border-sm me-1"></span>
@@ -141,11 +148,11 @@
                         {% include 'attendance/partials/activity_timeline.html' %}
                     </div>
                     
-                    {% if today_activity %}
+                    {% comment %} {% if today_activity %}
                     <div class="text-center mt-3">
                         <a href="#" class="btn btn-outline-primary btn-sm">View Full History</a>
                     </div>
-                    {% endif %}
+                    {% endif %} {% endcomment %}
                 </div>
             </div>
         </div>
