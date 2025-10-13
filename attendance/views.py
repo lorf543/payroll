@@ -649,7 +649,7 @@ def export_employees_excel(request):
     # Encabezado del archivo CSV
     writer.writerow([
         'First Name', 'Last Name', 'Email', 'Account Number',
-        'Department', 'Pay Rate', 'Total Hours Worked'
+        'Department', 'Pay Rate', 'Total Hours Worked','net_salary'
     ])
 
     # Definir el periodo (por ejemplo, el mes actual)
@@ -687,7 +687,8 @@ def export_employees_excel(request):
             employee.bank_account,
             department_name,
             employee.position.hour_rate,
-            total_hours
+            total_hours,
+            employee.position.hour_rate * total_hours
         ])
 
     return response
