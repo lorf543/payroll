@@ -1,20 +1,29 @@
-
+from django.contrib.auth import logout
 from django.shortcuts import render, get_object_or_404, redirect,HttpResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import Attendance, AgentStatus
 from core.models import Department
 from decimal import Decimal
 from django.contrib import messages
+from django.contrib.sessions.models import Session
+from django.db import transaction
+from django.utils.timezone import now
+from datetime import datetime, time, timedelta
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from django.db.models import Sum, F, ExpressionWrapper, DurationField
 
 import csv
+import openpyxl
 
 
 from core.models import Employee
 from .forms import AgentStatusForm
-from datetime import datetime, time, timedelta
+from .models import Attendance, AgentStatus, Campaign
+from core.models import PayPeriod
+from .status_helpers import close_active_status
 # Create your views here.
 
 
@@ -181,8 +190,6 @@ def employee_payroll_dashboard(request):
     return render(request, 'attendance/payroll_dashboard.html', context)
 
 
-
-
 #agent_status.html
 
 
@@ -335,11 +342,8 @@ def change_agent_status(request, agent_id):
     employee = get_object_or_404(Employee, id=agent_id, user=request.user)
     form = AgentStatusForm(request.POST)
     if form.is_valid():
-        # Terminar status activo
-        current = AgentStatus.objects.filter(agent=employee, end_time__isnull=True).first()
-        if current:
-            current.end_time = timezone.now()
-            current.save()
+        # Cerrar cualquier estado activo
+        close_active_status(employee)
 
         new_status = form.save(commit=False)
         new_status.agent = employee
@@ -559,31 +563,82 @@ def supervisor_activity_api(request):
         return HttpResponse(status=403)
     
 def employee_status_list(request, id_employee):
-    # Obtener empleado o mostrar error 404 si no existe
     employee = get_object_or_404(Employee, id=id_employee)
+    today = now().date()
 
-    # Calcular el rango de tiempo para el día actual
-    today = timezone.now().date()
-    start_of_day = timezone.make_aware(
-        timezone.datetime.combine(today, timezone.datetime.min.time())
-    )
-    end_of_day = timezone.make_aware(
-        timezone.datetime.combine(today, timezone.datetime.max.time())
-    )
-
-    # Filtrar estados de este empleado dentro del rango del día actual
     statuses = AgentStatus.objects.filter(
         agent=employee,
-        start_time__range=(start_of_day, end_of_day)
+        start_time__date=today  # 👈 filtrado directo por fecha
     ).order_by('-start_time')
 
-    context = {
+    return render(request, 'attendance/employee_status_list.html', {
         'employee': employee,
         'statuses': statuses,
         'today': today,
-    }
-    return render(request, 'attendance/employee_status_list.html', context)
+    })
 
+@login_required
+def add_status_note(request, status_id):
+    """Add note to existing status record"""
+    status_record = get_object_or_404(AgentStatus, id=status_id)
+    
+    if request.method == 'POST':
+        notes = request.POST.get('notes', '').strip()
+        if notes:
+            status_record.notes = notes
+            status_record.save()
+            messages.success(request, 'Note added successfully.')
+        else:
+            messages.error(request, 'Note cannot be empty.')
+    
+    return redirect(request.META.get('HTTP_REFERER', 'supervisor_dashboard'))
+
+
+def employee_force_logout(request, employee_id):
+    target_employee = get_object_or_404(Employee, id=employee_id)
+
+    try:
+        requester_employee = Employee.objects.get(user=request.user)
+    except Employee.DoesNotExist:
+        messages.error(request, 'You need an employee profile to perform this action.')
+        return redirect('supervisor_dashboard')
+
+    if (
+        requester_employee.is_supervisor and 
+        target_employee.supervisor == requester_employee and
+        target_employee.user
+    ):
+        # Cerrar sesiones activas
+        sessions = Session.objects.filter(expire_date__gte=timezone.now())
+        for session in sessions:
+            data = session.get_decoded()
+            if data.get('_auth_user_id') == str(target_employee.user.id):
+                session.delete()
+                break
+
+        # Actualizar estado del agente
+        with transaction.atomic():
+            close_active_status(target_employee)  # 👈 usa la misma función
+            new_status = AgentStatus.objects.create(
+                agent=target_employee,
+                status='offline',
+                start_time=timezone.now(),
+                notes='Forced logout by supervisor'
+            )
+
+            if hasattr(target_employee, 'current_status'):
+                target_employee.current_status = new_status
+                target_employee.save(update_fields=['current_status'])
+
+        messages.success(
+            request,
+            f'{target_employee.user.get_full_name()} has been logged out and set to Offline.'
+        )
+
+    else:
+        messages.error(request, 'You can only logout employees from your own team.')
+
+    return redirect('supervisor_dashboard')
 
 def export_employees_excel(request):
     response = HttpResponse(content_type='text/csv; charset=utf-8')
@@ -591,17 +646,84 @@ def export_employees_excel(request):
 
     writer = csv.writer(response)
 
-    # Header row
-    writer.writerow(['First Name', 'Last Name', 'Email'])
+    # Encabezado del archivo CSV
+    writer.writerow([
+        'First Name', 'Last Name', 'Email', 'Account Number',
+        'Department', 'Pay Rate', 'Total Hours Worked'
+    ])
+
+    # Definir el periodo (por ejemplo, el mes actual)
+    today = timezone.now().date()
+    period_start = today.replace(day=1)
+    period_end = today
 
     employees = Employee.objects.all()
 
     for employee in employees:
+        # Obtener todos los registros de estado "ready" del empleado en este periodo
+        ready_statuses = AgentStatus.objects.filter(
+            agent=employee,
+            status='ready',
+            start_time__date__gte=period_start,
+            end_time__date__lte=period_end,
+            end_time__isnull=False
+        ).annotate(
+            worked_time=ExpressionWrapper(
+                F('end_time') - F('start_time'),
+                output_field=DurationField()
+            )
+        )
+
+        # Sumar todas las duraciones de los periodos 'ready'
+        total_duration = ready_statuses.aggregate(total=Sum('worked_time'))['total'] or timedelta(0)
+        total_hours = round(Decimal(total_duration.total_seconds()) / Decimal(3600), 2)
+
+        department_name = employee.department.name if employee.department else 'N/A'
+
         writer.writerow([
             employee.user.first_name,
             employee.user.last_name,
-            employee.user.email
+            employee.user.email,
+            employee.bank_account,
+            department_name,
+            employee.position.hour_rate,
+            total_hours
         ])
 
     return response
+
+
+
+def calculate_employee_deductions(total_earnings):
+    """Calcular deducciones"""
+    # AFP (2.87%)
+    afp = (total_earnings * Decimal('0.0287')).quantize(Decimal('0.01'))
+    
+    # SFS (3.04%)
+    sfs = (total_earnings * Decimal('0.0304')).quantize(Decimal('0.01'))
+    
+    # ISR (cálculo simplificado)
+    taxable_income = total_earnings - afp - sfs
+    isr = calculate_isr(taxable_income)
+    
+    other_deductions = Decimal('0')  # Otras deducciones manuales
+    
+    return {
+        'afp': afp,
+        'sfs': sfs,
+        'isr': isr,
+        'other_deductions': other_deductions,
+        'total_deductions': afp + sfs + isr + other_deductions
+    }
+
+def calculate_isr(taxable_income):
+    """Calcular ISR según escalas RD"""
+    if taxable_income <= Decimal('416220'):
+        return Decimal('0')
+    elif taxable_income <= Decimal('624329'):
+        return ((taxable_income - Decimal('416220.01')) * Decimal('0.15')).quantize(Decimal('0.01'))
+    elif taxable_income <= Decimal('867123'):
+        return (Decimal('31216') + (taxable_income - Decimal('624329.01')) * Decimal('0.20')).quantize(Decimal('0.01'))
+    else:
+        return (Decimal('79776') + (taxable_income - Decimal('867123.01')) * Decimal('0.25')).quantize(Decimal('0.01'))
 

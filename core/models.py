@@ -8,14 +8,34 @@ from django.dispatch import receiver
 from decimal import Decimal
 
 
+class Campaign(models.Model):
+    name = models.CharField(max_length=100)
+    client_name = models.CharField(max_length=100, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
-class Cliant(models.Model):
-    pass
+    employees = models.ManyToManyField(
+        'Employee',
+        related_name='campaigns',
+        blank=True
+    )
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Campaign"
+        verbose_name_plural = "Campaigns"
 
 class Department(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
-    annual_budget = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    annual_budget = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)]
+    )
 
     def __str__(self):
         return self.name
@@ -23,6 +43,7 @@ class Department(models.Model):
     class Meta:
         verbose_name = "Department"
         verbose_name_plural = "Departments"
+        ordering = ["name"]
 
 
 class Position(models.Model):
@@ -34,7 +55,6 @@ class Position(models.Model):
     ]
 
     name = models.CharField(max_length=100)
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
     description = models.TextField(blank=True, null=True)
     hour_rate = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
     base_salary = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
@@ -42,7 +62,7 @@ class Position(models.Model):
     benefits = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.name} - {self.department.name}"
+        return f"{self.name}"
 
     class Meta:
         verbose_name = "Position"
@@ -71,16 +91,19 @@ class Employee(models.Model):
         null=True,
         blank=True,
         related_name='team_members',
-        help_text="Supervisor directo del empleado"
+        help_text="Direct supervisor"
     )
 
-    is_supervisor = models.BooleanField(blank=True, null=True)
-    is_it = models.BooleanField(blank=True, null=True)
+    is_supervisor = models.BooleanField(default=False)
+    is_it = models.BooleanField(default=False)
+
+    position = models.ForeignKey(Position, on_delete=models.SET_NULL, null=True)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True)
+
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     identification = models.CharField(max_length=50)
     employee_code = models.CharField(max_length=20, unique=True)
-    position = models.ForeignKey(Position, on_delete=models.SET_NULL, null=True)
 
     hire_date = models.DateField()
     birth_date = models.DateField()
@@ -92,7 +115,6 @@ class Employee(models.Model):
     country = models.CharField(max_length=100, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     
-    
     #Profile
     bio = models.TextField(blank=True)
     education = models.CharField(max_length=50, null=True, blank=True)
@@ -100,7 +122,7 @@ class Employee(models.Model):
     email = models.EmailField(max_length=60, null=True, blank=True)
     skills = models.CharField(max_length=250, null=True, blank=True)
     
-    fixed_rate = models.BooleanField(blank=True, null=True)
+    fixed_rate = models.BooleanField(default=False)
     custom_base_salary = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
 
     # Banking info for payroll
@@ -121,6 +143,11 @@ class Employee(models.Model):
         if not self.skills:
             return []
         return [skill.strip() for skill in self.skills.split(',') if skill.strip()]
+
+    @property
+    def age(self):
+        from datetime import date
+        return date.today().year - self.birth_date.year
     
 
     class Meta:

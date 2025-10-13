@@ -17,8 +17,10 @@ urlpatterns = [
     path('supervisor/dashboard/partial/', views.supervisor_dashboard_partial, name='supervisor_dashboard_partial'),
 
     path('employee/<int:id_employee>/statuses/', views.employee_status_list, name='employee_status_list'),
-
+    path('employee/<int:employee_id>/force-logout/', views.employee_force_logout, name='employee_force_logout'),
+    path('status/<int:status_id>/add-note/', views.add_status_note, name='add_status_note'),
 
 
     path('employees/export/excel/', views.export_employees_excel, name='export_employees_excel'),
+
 ]

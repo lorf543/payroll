@@ -21,7 +21,7 @@
     <!-- Estadísticas del equipo - HTMX Auto-updating -->
     <div class="row mb-4" 
          hx-get="{% url 'supervisor_stats_api' %}" 
-         hx-trigger="every 1s"
+         hx-trigger="every 5s"
          hx-swap="innerHTML"
          hx-indicator="#stats-indicator">
         <div class="col-12">

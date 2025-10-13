@@ -2,13 +2,18 @@ from django.contrib import admin
 from import_export import resources
 from .models import (
     Department, Position, Employee,
-    PaymentConcept, PayPeriod,Payment
+    PaymentConcept, PayPeriod,Payment,
+    Campaign
 )
 
 
 
 
-
+@admin.register(Campaign)
+class CampaignAdmin(admin.ModelAdmin):
+    list_display = ("name", "client_name")
+    filter_horizontal = ("employees",) 
+    
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
     list_display = ("name", "annual_budget", "description")
@@ -18,14 +23,31 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(Position)
 class PositionAdmin(admin.ModelAdmin):
-    list_display = ("name", "department", "contract_type", "base_salary")
-    search_fields = ("name", "department__name")
-    list_filter = ("department", "contract_type")
-    ordering = ("department", "name")
+    list_display = ("name", "contract_type", "base_salary")
+    search_fields = ("name",)
+    list_filter = ( "contract_type",)
+    ordering = ("name",)
 
+
+class TeamMemberInline(admin.TabularInline):
+    model = Employee
+    fk_name = 'supervisor'
+    extra = 1
+    fields = ('employee_code', 'user', 'department', 'position', 'is_active')
+    show_change_link = True
+
+
+
+
+class TeamMemberInline(admin.TabularInline):
+    model = Employee
+    fk_name = 'supervisor'
+    extra = 1
+    fields = ('employee_code', 'user', 'department', 'position', 'is_active')
+    show_change_link = True
 
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('employee_code', 'identification', 'user', 'position', 'is_active')
+    list_display = ('employee_code', 'identification', 'user', 'position', 'is_active','department')
     list_filter = ('is_active', 'position', 'gender', 'marital_status')
     search_fields = ('employee_code', 'identification', 'user__username', 'user__email')
     raw_id_fields = ('user', 'supervisor')
@@ -47,9 +69,9 @@ class EmployeeAdmin(admin.ModelAdmin):
             'fields': (
                 'position',
                 'hire_date',
-                'supervisor',
                 'is_supervisor',
-                'is_it'
+                'is_it',
+                'department'
             )
         }),
         
@@ -114,10 +136,20 @@ class EmployeeAdmin(admin.ModelAdmin):
                 'hire_date',
                 'birth_date',
                 'gender'
+                'deparment'
             )
         }),
     )
 
+
+    inlines = [TeamMemberInline]
+
+    def get_inlines(self, request, obj):
+        # Mostrar el inline solo si el empleado es un supervisor
+        if obj and obj.is_supervisor:
+            return [TeamMemberInline]
+        return []
+    
 admin.site.register(Employee, EmployeeAdmin)
 
 
@@ -137,10 +169,6 @@ class PayPeriodAdmin(admin.ModelAdmin):
     ordering = ("-start_date",)
 
 
-# class PayrollDetailInline(admin.TabularInline):
-#     model = PayrollDetail
-#     extra = 1
-
 
 
 @admin.register(Payment)
@@ -151,25 +179,3 @@ class PayrollRecordAdmin(admin.ModelAdmin):
     ordering = ("-pay_date",)
     date_hierarchy = "pay_date"
 
-
-# @admin.register(PayrollDetail)
-# class PayrollDetailAdmin(admin.ModelAdmin):
-#     list_display = ("payroll_record", "concept", "quantity", "amount")
-#     search_fields = ("concept__name", "payroll_record__employee__user__first_name", "payroll_record__employee__user__last_name")
-#     list_filter = ("concept",)
-
-
-# @admin.register(Attendance)
-# class AttendanceAdmin(admin.ModelAdmin):
-#     list_display = ("employee", "date", "check_in", "check_out", "hours_worked", "overtime_hours")
-#     search_fields = ("employee__user__first_name", "employee__user__last_name")
-#     list_filter = ("date", "employee__department")
-#     ordering = ("-date",)
-
-
-# @admin.register(Incident)
-# class IncidentAdmin(admin.ModelAdmin):
-#     list_display = ("employee", "type", "date", "end_date", "justified")
-#     search_fields = ("employee__user__first_name", "employee__user__last_name", "type")
-#     list_filter = ("type", "justified", "date")
-#     ordering = ("-date",)

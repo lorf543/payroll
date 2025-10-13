@@ -85,21 +85,26 @@ def get_payment_method_display(employee):
 def home_view(request):
     """Panel principal del empleado con resumen de pagos."""
     employee = get_object_or_404(Employee, user=request.user)
-    payments = Payment.objects.filter(employee=employee)
+    payments = Payment.objects.filter(employee=employee).order_by('-pay_date')
 
     # Último pago
     last_payment = payments.first()
 
     # Totales del año actual
     current_year = now().year
-    year_payments = payments.filter(pay_date__year=current_year)
+    year_payments = payments.filter(
+        # period__start_date__year=current_year,
+        status='paid'
+    )
     total_year = year_payments.aggregate(total=Sum("net_salary"))["total"] or 0
     total_payments = year_payments.count()
+    
+    # Promedio quincenal (24 quincenas al año)
     avg_monthly = total_year / 12 if total_year else 0
 
     context = {
         "employee": employee,
-        "payments": payments,
+        "payments": payments[:12],  # Últimos 12 pagos (6 meses)
         "last_payment": last_payment,
         "total_year": total_year,
         "total_payments": total_payments,

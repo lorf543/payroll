@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import datetime, time
 import humanize
+from core.models import Campaign
 
 from core.models import Employee
 
@@ -105,6 +106,8 @@ class AgentStatus(models.Model):
     ]
     
     agent = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='status_changes')
+    campaign = models.ForeignKey(Campaign, on_delete=models.SET_NULL, null=True, blank=True, related_name='campaign_statuses')
+
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='offline')
     start_time = models.DateTimeField(null=True, blank=True)
     end_time = models.DateTimeField(null=True, blank=True)

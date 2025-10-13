@@ -122,7 +122,7 @@ DATABASES = {
 
 
 Q_CLUSTER = {
-    'name': 'payroll_cluster',
+    'name': 'DjangoQ',
     'workers': 4,
     'recycle': 500,
     'timeout': 60,
@@ -131,6 +131,7 @@ Q_CLUSTER = {
     'bulk': 10,
     'orm': 'default',
 }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

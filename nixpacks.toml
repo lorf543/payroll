@@ -1,3 +1,4 @@
+# === nixpacks.toml ===
 [phases.setup]
 nixPkgs = ["python311"]
 
@@ -14,4 +15,10 @@ cmds = [
   "python manage.py collectstatic --noinput"
 ]
 
-# Quitamos la sección [start], la manejaremos con Procfile
+[start]
+# Define los comandos que Railway debe ejecutar al iniciar el servicio
+# Web server
+web = "gunicorn core.wsgi:application --bind 0.0.0.0:$PORT"
+
+# Worker para Django-Q (maneja tareas agendadas)
+worker = "python manage.py qcluster"
