@@ -1,24 +1,13 @@
-# === nixpacks.toml ===
-[phases.setup]
-nixPkgs = ["python311"]
+[build]
+builder = "NIXPACKS"
 
-[phases.install]
-cmds = [
-  "pip install --upgrade pip",
-  "pip install -r requirements.txt"
-]
+[deploy]
+startCommand = "python manage.py runserver 0.0.0.0:$PORT"
 
-[phases.build]
-cmds = [
-  "python manage.py makemigrations",
-  "python manage.py migrate",
-  "python manage.py collectstatic --noinput"
-]
+[[services]]
+name = "web"
+run = "python manage.py runserver 0.0.0.0:$PORT"
 
-[start]
-# Define los comandos que Railway debe ejecutar al iniciar el servicio
-# Web server
-web = "gunicorn core.wsgi:application --bind 0.0.0.0:$PORT"
-
-# Worker para Django-Q (maneja tareas agendadas)
-worker = "python manage.py qcluster"
+[[services]]
+name = "qcluster"
+run = "python manage.py qcluster"
