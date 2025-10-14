@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+# === nixpacks.toml ===
+>>>>>>> parent of f05d775 (cluster)
 [phases.setup]
 nixPkgs = ["python311"]
 
@@ -14,9 +18,20 @@ cmds = [
   "python manage.py collectstatic --noinput"
 ]
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 [start]
 cmd = "gunicorn core.wsgi:application --bind 0.0.0.0:$PORT"
 
 >>>>>>> d818f4ab883b42c31c85fbe1fd689e6bf14ae702
+=======
+
+[start]
+# Define los comandos que Railway debe ejecutar al iniciar el servicio
+# Web server
+web = "gunicorn core.wsgi:application --bind 0.0.0.0:$PORT"
+
+# Worker para Django-Q (maneja tareas agendadas)
+worker = "python manage.py qcluster"
+>>>>>>> parent of f05d775 (cluster)
