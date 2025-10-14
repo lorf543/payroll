@@ -13,3 +13,10 @@ cmds = [
   "python manage.py migrate",
   "python manage.py collectstatic --noinput"
 ]
+<<<<<<< HEAD
+=======
+
+[start]
+cmd = "gunicorn core.wsgi:application --bind 0.0.0.0:$PORT"
+
+>>>>>>> d818f4ab883b42c31c85fbe1fd689e6bf14ae702
