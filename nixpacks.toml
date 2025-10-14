@@ -1,13 +1,15 @@
-[build]
-builder = "NIXPACKS"
+[phases.setup]
+nixPkgs = ["python311"]
 
-[deploy]
-startCommand = "python manage.py runserver 0.0.0.0:$PORT"
+[phases.install]
+cmds = [
+  "pip install --upgrade pip",
+  "pip install -r requirements.txt"
+]
 
-[[services]]
-name = "web"
-run = "python manage.py runserver 0.0.0.0:$PORT"
-
-[[services]]
-name = "qcluster"
-run = "python manage.py qcluster"
+[phases.build]
+cmds = [
+  "python manage.py makemigrations",
+  "python manage.py migrate",
+  "python manage.py collectstatic --noinput"
+]
