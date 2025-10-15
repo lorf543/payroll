@@ -11,6 +11,7 @@
               </a>
             </li>
 
+
             {% comment %} <li class="nav-item">
               <a class="nav-link text-white" hx-boost="false" href="{% url 'admin_dashboard' %}">
                 <i class="bi bi-speedometer2"></i> Admin - Dashboard
@@ -21,16 +22,9 @@
                 <a class="nav-link text-white" hx-boost="false" href="{% url 'supervisor_dashboard' %}">
                     <i class="bi bi-speedometer2"></i> supervisor - Dashboard
                 </a>
-              </li>
+              </li>              
             {% endif %}
 
-            {% if employee.position.department.name == "IT" %}                  
-            <li class="nav-item">
-              <a class="nav-link text-white" hx-boost="false" href="{% url 'it_device_management' %}">
-                <i class="bi bi-speedometer2"></i> IT
-              </a>
-            </li>
-            {% endif %}
             {% comment %} <li class="nav-item">
               <a class="nav-link text-white" hx-boost="false" href="{% url 'agent_status_dashboard' %}">
                 <i class="bi bi-speedometer2"></i> Agent status

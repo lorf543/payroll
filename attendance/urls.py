@@ -20,7 +20,8 @@ urlpatterns = [
     path('employee/<int:employee_id>/force-logout/', views.employee_force_logout, name='employee_force_logout'),
     path('status/<int:status_id>/add-note/', views.add_status_note, name='add_status_note'),
 
-
+    path('employee/status-history/', views.employee_status_history, name='employee_status_history'),
+    
     path('employees/export/excel/', views.export_employees_excel, name='export_employees_excel'),
 
 ]

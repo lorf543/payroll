@@ -3,9 +3,8 @@ from django.shortcuts import render, get_object_or_404, redirect,HttpResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
-from datetime import datetime, timedelta
 from core.models import Department
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.contrib import messages
 from django.contrib.sessions.models import Session
 from django.db import transaction
@@ -13,10 +12,11 @@ from django.utils.timezone import now
 from datetime import datetime, time, timedelta
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from django.db.models import Sum, F, ExpressionWrapper, DurationField
+from django.db.models import Case, When, ExpressionWrapper, F, DurationField, Sum
+from django.core.paginator import Paginator
+
 
 import csv
-import openpyxl
 
 
 from core.models import Employee
@@ -24,137 +24,11 @@ from .forms import AgentStatusForm
 from .models import Attendance, AgentStatus, Campaign
 from core.models import PayPeriod
 from .status_helpers import close_active_status
+from .utility import *
+from core.utils.payroll import get_effective_pay_rate
 # Create your views here.
 
 
-def get_last_day_of_month(date):
-    """Devuelve el último día del mes dado."""
-    next_month = date.replace(day=28) + timedelta(days=4)
-    return next_month - timedelta(days=next_month.day)
-
-def get_pay_periods(reference_date, periods=6):
-    """Genera periodos de pago quincenales hacia atrás desde la fecha de referencia."""
-    periods_list = []
-
-    # Determinar si estamos en la primera o segunda quincena
-    if reference_date.day <= 15:
-        current_start = reference_date.replace(day=1)
-        current_end = reference_date.replace(day=15)
-    else:
-        current_start = reference_date.replace(day=16)
-        current_end = get_last_day_of_month(reference_date)
-
-    # Generar los periodos hacia atrás
-    for _ in range(periods):
-        periods_list.append({
-            'start_date': current_start,
-            'end_date': current_end,
-            'name': f"{current_start.strftime('%b %d')} - {current_end.strftime('%b %d, %Y')}",
-            'is_current': len(periods_list) == 0
-        })
-
-        # Retroceder una quincena
-        if current_start.day == 16:
-            # Ir a la primera quincena del mismo mes
-            current_end = current_start.replace(day=15)
-            current_start = current_start.replace(day=1)
-        else:
-            # Ir a la segunda quincena del mes anterior
-            prev_month = (current_start.replace(day=1) - timedelta(days=1))
-            current_start = prev_month.replace(day=16)
-            current_end = get_last_day_of_month(prev_month)
-
-    return periods_list
-
-def calculate_pay_period_data(employee, start_date, end_date):
-    """Calcula estadísticas para un periodo específico"""
-    start_datetime = timezone.make_aware(datetime.combine(start_date, time.min))
-    end_datetime = timezone.make_aware(datetime.combine(end_date, time.max))
-    
-    # Obtener registros del periodo
-    records = AgentStatus.objects.filter(
-        agent=employee,
-        start_time__range=(start_datetime, end_datetime)
-    ).order_by('-start_time')
-    
-    # Calcular tiempos
-    total_payable = timedelta()
-    total_break = timedelta()
-    total_lunch = timedelta()
-    
-    for record in records:
-        end_time = record.end_time or timezone.now()
-        if end_time > end_datetime:
-            end_time = end_datetime
-        if record.start_time < start_datetime:
-            start_time = start_datetime
-        else:
-            start_time = record.start_time
-            
-        duration = end_time - start_time
-        
-        if record.status == 'ready':
-            total_payable += duration
-        elif record.status == 'break':
-            total_break += duration
-        elif record.status == 'lunch':
-            total_lunch += duration
-    
-    # Calcular pago
-    earnings, pay_method = calculate_employee_pay(employee, total_payable)
-    
-    return {
-        'start_date': start_date,
-        'end_date': end_date,
-        'total_payable': total_payable,
-        'total_break': total_break,
-        'total_lunch': total_lunch,
-        'payable_hours': timedelta_to_hours(total_payable),
-        'earnings': earnings,
-        'pay_method': pay_method,
-        'days_worked': records.dates('start_time', 'day').count(),
-    }
-
-def get_recent_daily_stats(employee, days=7):
-    """Obtiene estadísticas diarias de los últimos días incluyendo primer y último status"""
-    daily_stats = []
-    
-    for i in range(days):
-        day = timezone.localdate() - timedelta(days=i)
-        day_start = timezone.make_aware(datetime.combine(day, time.min))
-        day_end = timezone.make_aware(datetime.combine(day, time.max))
-        
-        # Get all records for the day, ordered by time
-        records = AgentStatus.objects.filter(
-            agent=employee,
-            start_time__range=(day_start, day_end)
-        ).order_by('start_time')
-        
-        # Calculate first and last records
-        first_record = records.first()
-        last_record = records.last()
-        
-        # Calculate payable time
-        daily_payable = timedelta()
-        for record in records:
-            if record.status == 'ready':
-                end_time = record.end_time or min(timezone.now(), day_end)
-                start_time = max(record.start_time, day_start)
-                daily_payable += (end_time - start_time)
-        
-        daily_earnings, _ = calculate_employee_pay(employee, daily_payable)
-        
-        daily_stats.append({
-            'date': day,
-            'payable_hours': timedelta_to_hours(daily_payable),
-            'earnings': daily_earnings,
-            'is_weekend': day.weekday() >= 5,
-            'records_count': records.count(),
-            'first_record': first_record,
-            'last_record': last_record,
-        })
-    
-    return daily_stats
 
 
 @login_required(login_url='account_login')
@@ -176,7 +50,7 @@ def employee_payroll_dashboard(request):
     current_month_end = (current_month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     month_stats = calculate_pay_period_data(employee, current_month_start, current_month_end)
     
-    # Historial diario de los últimos 7 días
+    # Historial diario de los últimos 7 días (usando la nueva función)
     recent_days = get_recent_daily_stats(employee, days=7)
     
     context = {
@@ -192,66 +66,57 @@ def employee_payroll_dashboard(request):
 
 #agent_status.html
 
-
-def timedelta_to_hours(td):
-    return Decimal(td.total_seconds()) / Decimal(3600)
-
-def format_timedelta(td):
-    total_seconds = int(td.total_seconds())
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes = (remainder // 60)
-    return f"{hours}h {minutes}m"
-
-
-def calculate_employee_pay(employee, payable_time):
-    """
-    Calcula el pago del empleado basado en su configuración:
-    1. Fixed rate (pago fijo diario)
-    2. Hourly rate (pago por hora)
-    3. Base salary + hourly (mixto)
-    """
-    payable_hours = timedelta_to_hours(payable_time)
-    
-    # 1. Empleado con salario fijo (independiente de horas trabajadas)
-    if employee.fixed_rate:
-        if employee.custom_base_salary and employee.custom_base_salary > 0:
-            # Salario fijo personalizado
-            daily_salary = employee.custom_base_salary / 22  # Asumiendo 22 días laborales al mes
-            return round(daily_salary, 2), "fixed_custom"
-        elif employee.position.base_salary and employee.position.base_salary > 0:
-            # Salario fijo basado en posición
-            daily_salary = employee.position.base_salary / 22
-            return round(daily_salary, 2), "fixed_position"
-        else:
-            # Salario fijo por defecto
-            return round(employee.position.hour_rate * 8, 2), "fixed_default"
-    
-    # 2. Empleado por horas
-    else:
-        if employee.custom_base_salary and employee.custom_base_salary > 0:
-            # Pago por horas con tarifa personalizada
-            return round(employee.custom_base_salary * payable_hours, 2), "hourly_custom"
-        else:
-            # Pago por horas con tarifa de posición
-            return round(employee.position.hour_rate * payable_hours, 2), "hourly_position"
-
-
-
-def get_payment_method_display(employee):
-    """Retorna la descripción del método de pago"""
-    if employee.fixed_rate:
-        if employee.custom_base_salary:
-            return f"Salario fijo: ${employee.custom_base_salary:,.2f}/mes"
-        elif employee.position.base_salary:
-            return f"Salario fijo: ${employee.position.base_salary:,.2f}/mes"
-        else:
-            return f"Salario fijo: ${employee.position.hour_rate * 8 * 22:,.2f}/mes"
-    else:
-        if employee.custom_base_salary:
-            return f"Por horas: ${employee.custom_base_salary:,.2f}/hora"
-        else:
-            return f"Por horas: ${employee.position.hour_rate:,.2f}/hora"
+@login_required(login_url='account_login')
+def employee_status_history(request):
+    """Historial completo de todos los status del empleado"""
+    try:
+        employee = Employee.objects.get(user=request.user)
         
+        # Obtener todos los status del empleado ordenados por fecha
+        status_history = AgentStatus.objects.filter(
+            agent=employee
+        ).select_related('campaign').order_by('-start_time')
+
+        ready_statuses = AgentStatus.objects.filter(
+            agent=employee,
+            status='ready'
+        )
+        total_ready_duration = sum(
+            (
+                (status.end_time or timezone.now()) - status.start_time
+                for status in ready_statuses
+                if status.start_time
+            ),
+            timedelta(0)
+        )
+        # Convert timedelta → hours (float)
+        total_ready_hours = total_ready_duration.total_seconds() / 3600
+        hours, remainder = divmod(total_ready_duration.total_seconds(), 3600)
+        minutes = remainder // 60
+        formatted_ready_time = f"{int(hours)}h {int(minutes)}m"
+        
+        # Paginación - 50 registros por página
+        paginator = Paginator(status_history, 50)
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        
+        # Estadísticas
+        total_records = status_history.count()
+
+                
+        context = {
+            'employee': employee,
+            'page_obj': page_obj,
+            'total_records': total_records,
+            'total_ready_hours':formatted_ready_time
+
+        }
+        
+        return render(request, 'attendance/employee_status_history.html', context)
+        
+    except Employee.DoesNotExist:
+        messages.error(request, "Employee profile not found.")
+        return redirect('home')        
 
 def agent_status_dashboard(request):
     if not request.user.is_authenticated:
@@ -640,91 +505,190 @@ def employee_force_logout(request, employee_id):
 
     return redirect('supervisor_dashboard')
 
+
 def export_employees_excel(request):
     response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename=employees.csv'
+    response['Content-Disposition'] = 'attachment; filename=employees_payroll_detailed.csv'
 
     writer = csv.writer(response)
-
-    # Encabezado del archivo CSV
+    
+    # Encabezados más detallados
     writer.writerow([
-        'First Name', 'Last Name', 'Email', 'Account Number',
-        'Department', 'Pay Rate', 'Total Hours Worked','net_salary'
+        'Employee Code', 'First Name', 'Last Name', 'Email', 
+        'Identification', 'Department', 'Position', 'Supervisor',
+        'Pay Type', 'Base Rate', 'Overtime Rate', 'Bonus',
+        'Total Hours', 'Regular Hours', 'Overtime Hours',
+        'Gross Salary', 'AFP (2.87%)', 'SFS (3.04%)', 'ISR', 
+        'Other Deductions', 'Total Deductions', 'Net Salary',
+        'Bank Name', 'Account Number', 'Period'
     ])
 
-    # Definir el periodo (por ejemplo, el mes actual)
     today = timezone.now().date()
     period_start = today.replace(day=1)
     period_end = today
+    period_name = f"{period_start.strftime('%b %Y')}"
 
-    employees = Employee.objects.all()
+    employees = Employee.objects.select_related('user', 'position', 'department', 'supervisor').all()
 
     for employee in employees:
-        # Obtener todos los registros de estado "ready" del empleado en este periodo
+        # ✅ Calculate total hours and separate regular/overtime
         ready_statuses = AgentStatus.objects.filter(
             agent=employee,
             status='ready',
-            start_time__date__gte=period_start,
-            end_time__date__lte=period_end,
-            end_time__isnull=False
-        ).annotate(
-            worked_time=ExpressionWrapper(
-                F('end_time') - F('start_time'),
-                output_field=DurationField()
-            )
+            start_time__date__range=[period_start, period_end]
         )
 
-        # Sumar todas las duraciones de los periodos 'ready'
-        total_duration = ready_statuses.aggregate(total=Sum('worked_time'))['total'] or timedelta(0)
-        total_hours = round(Decimal(total_duration.total_seconds()) / Decimal(3600), 2)
+        total_seconds = 0
+        for status in ready_statuses:
+            end_time = status.end_time or timezone.now()
+            if end_time.date() > period_end:
+                end_time = timezone.make_aware(datetime.combine(period_end, datetime.max.time()))
+            
+            duration = end_time - status.start_time
+            total_seconds += duration.total_seconds()
 
-        department_name = employee.department.name if employee.department else 'N/A'
+        total_hours = Decimal(total_seconds) / Decimal(3600) if total_seconds > 0 else Decimal('0')
+        total_hours = round(total_hours, 2)
+        
+        # Calcular horas regulares y extra (simplificado)
+        regular_hours = min(total_hours, Decimal('160'))  # 160 horas mensuales
+        overtime_hours = max(total_hours - Decimal('160'), Decimal('0'))
+
+        # ✅ Get payroll info
+        payroll_info = get_effective_pay_rate(employee, total_hours=total_hours)
+        
+        # ✅ Calcular deducciones
+        gross_salary = payroll_info['net_salary']
+        deductions = calculate_employee_deductions(gross_salary)
+        
+        # Información del supervisor
+        supervisor_name = ""
+        if employee.supervisor and employee.supervisor.user:
+            supervisor_name = f"{employee.supervisor.user.get_full_name()}"
 
         writer.writerow([
-            employee.user.first_name,
-            employee.user.last_name,
-            employee.user.email,
-            employee.bank_account,
-            department_name,
-            employee.position.hour_rate,
-            total_hours,
-            employee.position.hour_rate * total_hours
+            employee.employee_code,
+            employee.user.first_name if employee.user else '',
+            employee.user.last_name if employee.user else '',
+            employee.user.email if employee.user else '',
+            employee.identification,
+            employee.department.name if employee.department else 'N/A',
+            employee.position.name if employee.position else 'N/A',
+            supervisor_name,
+            payroll_info['pay_type'].title(),
+            float(payroll_info['base_rate']),
+            float(payroll_info['overtime_rate']),
+            float(payroll_info['bonus']),
+            float(total_hours),
+            float(regular_hours),
+            float(overtime_hours),
+            float(gross_salary),
+            float(deductions['afp']),
+            float(deductions['sfs']),
+            float(deductions['isr']),
+            float(deductions['other_deductions']),
+            float(deductions['total_deductions']),
+            float(deductions['net_income']),
+            employee.bank_name or 'N/A',
+            employee.bank_account or 'N/A',
+            period_name
         ])
 
     return response
 
-
-
-def calculate_employee_deductions(total_earnings):
-    """Calcular deducciones"""
-    # AFP (2.87%)
-    afp = (total_earnings * Decimal('0.0287')).quantize(Decimal('0.01'))
+def calculate_employee_deductions(total_earnings, year=None):
+    """
+    Calcular deducciones legales para República Dominicana
+    """
+    if year is None:
+        year = datetime.now().year
     
-    # SFS (3.04%)
-    sfs = (total_earnings * Decimal('0.0304')).quantize(Decimal('0.01'))
+    # Validar que total_earnings sea Decimal
+    if not isinstance(total_earnings, Decimal):
+        total_earnings = Decimal(str(total_earnings))
     
-    # ISR (cálculo simplificado)
+    # Asegurar que sea positivo
+    total_earnings = max(total_earnings, Decimal('0'))
+    
+    # AFP (Administradora de Fondos de Pensiones) - 2.87%
+    afp = (total_earnings * Decimal('0.0287')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    
+    # SFS (Sistema de Fondo de Salud) - 3.04%
+    sfs = (total_earnings * Decimal('0.0304')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    
+    # Base para ISR (Ingreso imponible)
     taxable_income = total_earnings - afp - sfs
-    isr = calculate_isr(taxable_income)
     
-    other_deductions = Decimal('0')  # Otras deducciones manuales
+    # Calcular ISR según las escalas
+    isr = calculate_isr(taxable_income, year)
+    
+    # Otras deducciones (podrían incluir préstamos, etc.)
+    other_deductions = Decimal('0')
+    
+    total_deductions = afp + sfs + isr + other_deductions
     
     return {
         'afp': afp,
-        'sfs': sfs,
+        'sfs': sfs, 
         'isr': isr,
         'other_deductions': other_deductions,
-        'total_deductions': afp + sfs + isr + other_deductions
+        'total_deductions': total_deductions,
+        'taxable_income': taxable_income,
+        'net_income': total_earnings - total_deductions
     }
 
-def calculate_isr(taxable_income):
-    """Calcular ISR según escalas RD"""
-    if taxable_income <= Decimal('416220'):
-        return Decimal('0')
-    elif taxable_income <= Decimal('624329'):
-        return ((taxable_income - Decimal('416220.01')) * Decimal('0.15')).quantize(Decimal('0.01'))
-    elif taxable_income <= Decimal('867123'):
-        return (Decimal('31216') + (taxable_income - Decimal('624329.01')) * Decimal('0.20')).quantize(Decimal('0.01'))
+def calculate_isr(taxable_income, year=2024):
+    """
+    Calcular Impuesto Sobre la Renta según escalas oficiales de RD
+    Escalas basadas en el año 2024
+    """
+    if not isinstance(taxable_income, Decimal):
+        taxable_income = Decimal(str(taxable_income))
+    
+    # Asegurar que sea positivo
+    taxable_income = max(taxable_income, Decimal('0'))
+    
+    # Escalas ISR 2024 para República Dominicana
+    # (Estas escalas pueden cambiar anualmente)
+    if year == 2024:
+        scales = [
+            (Decimal('416220.00'), Decimal('0.00'), Decimal('0.00')),    # Exento
+            (Decimal('624329.00'), Decimal('0.15'), Decimal('416220.01')), # 15%
+            (Decimal('867123.00'), Decimal('0.20'), Decimal('624329.01')), # 20%
+            (Decimal('999999999.00'), Decimal('0.25'), Decimal('867123.01'))  # 25%
+        ]
+        
+        # Montos fijos por escalón (acumulado de escalones anteriores)
+        fixed_amounts = {
+            1: Decimal('0'),      # Escalón 1: Exento
+            2: Decimal('31216'),  # Escalón 2: 31,216
+            3: Decimal('79776')   # Escalón 3: 79,776
+        }
     else:
-        return (Decimal('79776') + (taxable_income - Decimal('867123.01')) * Decimal('0.25')).quantize(Decimal('0.01'))
-
+        # Para otros años, usar escalas por defecto (2024)
+        # En una implementación real, tendrías diferentes escalas por año
+        scales = [
+            (Decimal('416220.00'), Decimal('0.00'), Decimal('0.00')),
+            (Decimal('624329.00'), Decimal('0.15'), Decimal('416220.01')),
+            (Decimal('867123.00'), Decimal('0.20'), Decimal('624329.01')),
+            (Decimal('999999999.00'), Decimal('0.25'), Decimal('867123.01'))
+        ]
+        fixed_amounts = {
+            1: Decimal('0'),
+            2: Decimal('31216'), 
+            3: Decimal('79776')
+        }
+    
+    # Encontrar el escalón correspondiente
+    for i, (limit, rate, base) in enumerate(scales, 1):
+        if taxable_income <= limit:
+            if i == 1:  # Primer escalón (exento)
+                return Decimal('0')
+            else:
+                # Calcular ISR para este escalón
+                excess = taxable_income - base
+                calculated_isr = fixed_amounts[i] + (excess * rate)
+                return calculated_isr.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    
+    # Si excede todas las escalas (no debería pasar)
+    return Decimal('0')

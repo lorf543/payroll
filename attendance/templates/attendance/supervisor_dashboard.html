@@ -21,7 +21,7 @@
     <!-- Estadísticas del equipo - HTMX Auto-updating -->
     <div class="row mb-4" 
          hx-get="{% url 'supervisor_stats_api' %}" 
-         hx-trigger="every 5s"
+         hx-trigger="every 2s"
          hx-swap="innerHTML"
          hx-indicator="#stats-indicator">
         <div class="col-12">
@@ -90,7 +90,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">Team Members Status</h5>
                     <div class="d-flex align-items-center gap-3">
+
                         <span class="badge bg-primary me-2">{{ team_members.count }} agents</span>
+                        <a class="btn btn-sm btn-outline-danger" href="{% url 'it_device_management' %}">Force logout</a>
                         <button class="btn btn-sm btn-outline-primary" 
                                 hx-get="{% url 'supervisor_agents_api' %}" 
 

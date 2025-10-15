@@ -16,9 +16,24 @@ class Campaign(models.Model):
     end_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
+    break_duraction = models.TimeField(null=True, blank=True)
+    lunch = models.TimeField(null=True, blank=True)
+    head_count = models.IntegerField(null=True, blank=True)
+    hours_required = models.IntegerField(null=True, blank=True)
+
+    hour_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    base_salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    BONUS_TYPE_CHOICES = [
+        ('percent', 'Percentage'),
+        ('fixed', 'Fixed Amount'),
+    ]
+    bonus_type = models.CharField(max_length=10, choices=BONUS_TYPE_CHOICES, blank=True, null=True)
+    bonus_value = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+
     employees = models.ManyToManyField(
         'Employee',
-        related_name='campaigns',
+        related_name='campaign',
         blank=True
     )
 

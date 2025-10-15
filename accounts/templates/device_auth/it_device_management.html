@@ -41,23 +41,7 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <div class="btn-group btn-group-sm gap-2 ">
-                                    {% if token.is_active %}
-                                        <form method="post" style="display: inline;">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="token_id" value="{{ token.id }}">
-                                            <input type="hidden" name="action" value="deactivate">
-                                            <button type="submit" class="btn btn-warning btn-sm">Deactivate</button>
-                                        </form>
-                                    {% else %}
-                                        <form method="post" style="display: inline;">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="token_id" value="{{ token.id }}">
-                                            <input type="hidden" name="action" value="activate">
-                                            <button type="submit" class="btn btn-success btn-sm">Activate</button>
-                                        </form>
-                                    {% endif %}
-                                    
+                                <div class="btn-group btn-group-sm gap-2 ">                                    
                                     <form method="post" style="display: inline;">
                                         {% csrf_token %}
                                         <input type="hidden" name="token_id" value="{{ token.id }}">
@@ -65,12 +49,7 @@
                                         <button type="submit" class="btn btn-danger btn-sm" 
                                                 onclick="return confirm('Are you sure?')">Delete</button>
                                     </form>
-                                    
-                                    <a href="{% url 'reset_user_device' token.user.id %}" 
-                                       class="btn btn-info btn-sm"
-                                       onclick="return confirm('Reset device for {{ token.user.username }}?')">
-                                        Reset Device
-                                    </a>
+                                
                                 </div>
                             </td>
                         </tr>
