@@ -3,46 +3,29 @@
   "nixpacksPlan": {
     "phases": {
       "setup": {
-        "nixPkgs": ["python311", "postgresql"],
-        "aptPkgs": ["python3-pip", "python3-venv"]
-      },
-      "install": {
-        "cmds": [
-          "python -m ensurepip",
-          "pip install --upgrade pip setuptools wheel",
-          "pip install -r requirements.txt"
-        ]
-      },
-      "build": {
-        "cmds": [
-          "python manage.py collectstatic --noinput",
-          "python manage.py migrate --noinput"
-        ]
+        "nixPkgs": ["python311"]
       }
     }
   },
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+    "builder": "NIXPACKS"
   },
   "deploy": {
     "numReplicas": 1,
-    "restartPolicyType": "ON_FAILURE",
-    "sleepApplication": false,
-    "timeout": 30
+    "restartPolicyType": "ON_FAILURE"
   },
-  "services": [
-    {
-      "name": "web",
-      "startCommand": "gunicorn payroll.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --threads 2 --timeout 120",
-      "restartPolicyType": "ALWAYS",
-      "healthCheckPath": "/",
-      "healthCheckTimeout": 300
-    },
-    {
-      "name": "worker", 
-      "startCommand": "python manage.py qcluster",
-      "restartPolicyType": "ALWAYS"
-    }
-  ]
+    "services": [
+        {
+        "name": "web",
+        "startCommand": "gunicorn payroll.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --threads 2 --timeout 120",
+        "restartPolicyType": "ALWAYS",
+        "healthCheckPath": "/",
+        "healthCheckTimeout": 300
+        },
+        {
+        "name": "worker", 
+        "startCommand": "python manage.py qcluster",
+        "restartPolicyType": "ALWAYS"
+        }
+    ]
 }
