@@ -1,5 +1,26 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "nixpacksPlan": {
+    "phases": {
+      "setup": {
+        "nixPkgs": ["python311", "postgresql"],
+        "aptPkgs": ["python3-pip", "python3-venv"]
+      },
+      "install": {
+        "cmds": [
+          "python -m ensurepip",
+          "pip install --upgrade pip setuptools wheel",
+          "pip install -r requirements.txt"
+        ]
+      },
+      "build": {
+        "cmds": [
+          "python manage.py collectstatic --noinput",
+          "python manage.py migrate --noinput"
+        ]
+      }
+    }
+  },
   "build": {
     "builder": "NIXPACKS",
     "buildCommand": "pip install -r requirements.txt && python manage.py collectstatic --noinput"
