@@ -4,28 +4,34 @@
     "phases": {
       "setup": {
         "nixPkgs": ["python311"]
+      },
+      "install": {
+        "cmds": [
+          "pip install --upgrade pip",
+          "pip install -r requirements.txt"
+        ]
+      },
+      "build": {
+        "cmds": [
+          "python manage.py migrate --noinput",
+          "python manage.py collectstatic --noinput"
+        ]
       }
+    },
+    "start": {
+      "cmd": "gunicorn payroll.wsgi:application --bind 0.0.0.0:$PORT"
     }
   },
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "numReplicas": 1,
-    "restartPolicyType": "ON_FAILURE"
-  },
-    "services": [
-        {
-        "name": "web",
-        "startCommand": "gunicorn payroll.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --threads 2 --timeout 120",
-        "restartPolicyType": "ALWAYS",
-        "healthCheckPath": "/",
-        "healthCheckTimeout": 300
-        },
-        {
-        "name": "worker", 
-        "startCommand": "python manage.py qcluster",
-        "restartPolicyType": "ALWAYS"
-        }
-    ]
+  "services": [
+    {
+      "name": "web",
+      "startCommand": "gunicorn payroll.wsgi:application --bind 0.0.0.0:$PORT",
+      "restartPolicyType": "ALWAYS"
+    },
+    {
+      "name": "worker",
+      "startCommand": "python manage.py qcluster", 
+      "restartPolicyType": "ALWAYS"
+    }
+  ]
 }
