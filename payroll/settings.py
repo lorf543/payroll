@@ -9,9 +9,12 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-import dj_database_url
 from pathlib import Path
+from dotenv import load_dotenv
+import dj_database_url
 import os
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,7 +24,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-fj@78sr7)-2so09q%!w2hpmq#ul)bnxdxeqgm-ec5s3*dr-e2^'
+SECRET_KEY = os.getenv("SECRET_KEY")
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -114,12 +118,22 @@ WSGI_APPLICATION = 'payroll.wsgi.application'
 #     }
 # }
 
+
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgresql://postgres:DpiorqneEWUTHdSwMCyhXmiCTAwYSHkZ@nozomi.proxy.rlwy.net:17346/railway'
+        default=os.getenv("DATABASE_URL")
     )
 }
 
+
+
+
+
+### Redus Configuration
+
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_UR")
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
 
 Q_CLUSTER = {
     'name': 'DjangoQ',

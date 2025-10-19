@@ -1,23 +1,12 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "nixpacksPlan": {
-    "phases": {
-      "setup": {
-        "nixPkgs": ["python311"]
-      },
-      "install": {
-        "cmds": [
-          "pip install --upgrade pip",
-          "pip install -r requirements.txt"
-        ]
-      },
-      "build": {
-        "cmds": [
-          "python manage.py migrate --noinput",
-          "python manage.py collectstatic --noinput"
-        ]
-      }
-    }
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pip install -r requirements.txt && python manage.py migrate --noinput && python manage.py collectstatic --noinput"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE"
   },
   "services": [
     {
@@ -27,7 +16,12 @@
     },
     {
       "name": "worker",
-      "startCommand": "python manage.py qcluster", 
+      "startCommand": "celery -A payroll worker --loglevel=info",
+      "restartPolicyType": "ALWAYS"
+    },
+    {
+      "name": "beat",
+      "startCommand": "celery -A payroll beat --loglevel=info",
       "restartPolicyType": "ALWAYS"
     }
   ]
