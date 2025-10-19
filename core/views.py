@@ -12,7 +12,7 @@ from django.utils.timezone import now
 
 from .models import Employee, Payment, Department, Position
 from .forms import EmployeeForm, UploadCSVForm
-from .tasks import sleeptime
+
 
 
 # ==============================
@@ -81,7 +81,7 @@ def get_payment_method_display(employee):
 # ==============================
 # 🏠 Dashboard Views
 # ==============================
-sleeptime
+
 @login_required(login_url='account_login')
 def home_view(request):
     """Panel principal del empleado con resumen de pagos."""

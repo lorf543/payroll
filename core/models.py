@@ -20,6 +20,7 @@ class Campaign(models.Model):
     lunch = models.TimeField(null=True, blank=True)
     head_count = models.IntegerField(null=True, blank=True)
     hours_required = models.IntegerField(null=True, blank=True)
+    shutdown_time = models.TimeField(null=True, blank=True)
 
     hour_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     base_salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
