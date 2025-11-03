@@ -3,7 +3,7 @@ from django.utils.timezone import now
 from django.utils import timezone
 from decimal import Decimal
 
-from .models import Attendance, AgentStatus
+
 
 
 def timedelta_to_hours(td):

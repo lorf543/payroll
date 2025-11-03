@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Error - Payroll System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            <!-- Error Card -->
+            <div class="card shadow-sm border-0 mt-5">
+                <div class="card-body text-center p-5">
+                    <!-- Error Icon -->
+                    <div class="mb-4">
+                        <i class="bi bi-exclamation-triangle display-1 text-warning"></i>
+                    </div>
+                    
+                    <!-- Error Title -->
+                    <h1 class="display-6 fw-bold text-danger mb-3">Oops! Something Went Wrong</h1>
+                    
+                    <!-- Error Message -->
+                    <div class="alert alert-warning border-warning bg-light-warning mb-4">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Error Details:</strong>
+                        <span class="ms-2">{{ error|default:"An unexpected error occurred." }}</span>
+                    </div>
+
+                    <!-- Additional Info -->
+                    <div class="text-muted mb-4">
+                        <p class="mb-2">We apologize for the inconvenience. This error has been logged and our team has been notified.</p>
+                        <small>If this problem persists, please contact the system administrator.</small>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-center">
+                        <a href="{% url 'home' %}" class="btn btn-primary px-4">
+                            <i class="bi bi-house me-2"></i>
+                            Go to Homepage
+                        </a>
+                        <button onclick="window.history.back()" class="btn btn-outline-secondary px-4">
+                            <i class="bi bi-arrow-left me-2"></i>
+                            Go Back
+                        </button>
+                        <a href="mailto:support@company.com" class="btn btn-outline-danger px-4">
+                            <i class="bi bi-envelope me-2"></i>
+                            Contact Support
+                        </a>
+                    </div>
+
+                    <!-- Technical Details (for debugging) -->
+                    {% if request.user.is_staff %}
+                    <div class="mt-4 p-3 bg-light rounded text-start">
+                        <h6 class="fw-bold mb-2">Technical Details (Staff Only):</h6>
+                        <small class="text-muted">
+                            <strong>Path:</strong> {{ request.path }}<br>
+                            <strong>User:</strong> {{ request.user.username }}<br>
+                            <strong>Time:</strong> {% now "F j, Y H:i:s" %}
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Support Information -->
+            <div class="card shadow-sm border-0 mt-4">
+                <div class="card-body text-center">
+                    <h5 class="card-title mb-3">Need Immediate Help?</h5>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <i class="bi bi-telephone text-primary fs-4 d-block mb-2"></i>
+                                <h6 class="fw-bold mb-1">Call Support</h6>
+                                <small class="text-muted">+1 (555) 123-4567</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <i class="bi bi-envelope text-success fs-4 d-block mb-2"></i>
+                                <h6 class="fw-bold mb-1">Email Us</h6>
+                                <small class="text-muted">support@company.com</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <i class="bi bi-clock text-info fs-4 d-block mb-2"></i>
+                                <h6 class="fw-bold mb-1">Support Hours</h6>
+                                <small class="text-muted">Mon-Fri, 9AM-6PM EST</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-light-warning {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}
+
+.card {
+    border-radius: 16px;
+}
+
+.btn {
+    border-radius: 10px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.display-1 {
+    font-size: 5rem;
+}
+
+@media (max-width: 768px) {
+    .display-1 {
+        font-size: 3.5rem;
+    }
+    
+    .display-6 {
+        font-size: 1.8rem;
+    }
+}
+</style>
+{% endblock %}

@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django import forms
 from import_export import resources
 from .models import (
     Department, Position, Employee,
@@ -12,7 +13,7 @@ from .models import (
 @admin.register(Campaign)
 class CampaignAdmin(admin.ModelAdmin):
     list_display = ("name", "client_name")
-    filter_horizontal = ("employees",) 
+    # filter_horizontal = ("employees",) 
     
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
@@ -29,62 +30,96 @@ class PositionAdmin(admin.ModelAdmin):
     ordering = ("name",)
 
 
-class TeamMemberInline(admin.TabularInline):
-    model = Employee
-    fk_name = 'supervisor'
-    extra = 1
-    fields = ('employee_code', 'user', 'department', 'position', 'is_active')
-    show_change_link = True
+class SupervisorForm(forms.ModelForm):
+    team_members = forms.ModelMultipleChoiceField(
+        queryset=Employee.objects.filter(is_supervisor=False),
+        required=False,
+        widget=admin.widgets.FilteredSelectMultiple('Team Members', is_stacked=False)
+    )
+
+    class Meta:
+        model = Employee
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            # Mostrar solo los empleados que no son supervisores y que no tienen supervisor asignado
+            self.fields['team_members'].initial = Employee.objects.filter(supervisor=self.instance)
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save()
+            self.save_m2m()
+
+        # Primero quitamos a los empleados que antes estaban bajo este supervisor
+        Employee.objects.filter(supervisor=instance).update(supervisor=None)
+
+        # Asignamos los seleccionados como subordinados
+        for emp in self.cleaned_data['team_members']:
+            emp.supervisor = instance
+            emp.save()
+
+        return instance
 
 
-
-
-class TeamMemberInline(admin.TabularInline):
-    model = Employee
-    fk_name = 'supervisor'
-    extra = 1
-    fields = ('employee_code', 'user', 'department', 'position', 'is_active')
-    show_change_link = True
-
+@admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('employee_code', 'identification', 'user', 'position', 'is_active','department')
-    list_filter = ('is_active', 'position', 'gender', 'marital_status')
-    search_fields = ('employee_code', 'identification', 'user__username', 'user__email')
+    form = SupervisorForm
+
+    list_display = (
+        'employee_code', 'identification', 'user', 'position',
+        'is_active', 'department', 'supervisor'
+    )
+    list_filter = ('is_active', 'position', 'gender', 'marital_status', 'supervisor')
+    search_fields = (
+        'employee_code', 'identification', 'user__username',
+        'user__email', 'supervisor__user__username'
+    )
     raw_id_fields = ('user', 'supervisor')
-    
+
+    filter_horizontal = ('campaigns',)
+
+    # Fieldsets originales con supervisor y nueva sección de team_members
     fieldsets = (
-        # Authentication & Basic Info
         ('Authentication & Basic Information', {
             'fields': (
                 'user',
-                'employee_code', 
+                'employee_code',
                 'identification',
                 'is_active'
-            ),
-            'classes': ('collapse',)  # Makes this section collapsible
+            )
         }),
-        
-        # Employment Details
+        ('Campaign Settings', {
+            'fields': (
+                'campaigns',
+                'current_campaign',
+                'is_logged_in',
+                'last_login',
+                'last_logout',
+            ),
+            'classes': ('collapse',)
+        }),
         ('Employment Details', {
             'fields': (
                 'position',
+                'department',
                 'hire_date',
                 'is_supervisor',
                 'is_it',
-                'department'
+                'supervisor',
+                'team_members', 
             )
         }),
-        
-        # Personal Information
         ('Personal Information', {
             'fields': (
                 'birth_date',
-                'gender', 
+                'gender',
                 'marital_status',
-            )
+            ),
+            'classes': ('collapse',)
         }),
-        
-        # Contact Information
         ('Contact Information', {
             'fields': (
                 'phone',
@@ -92,65 +127,49 @@ class EmployeeAdmin(admin.ModelAdmin):
                 'address',
                 'city',
                 'country'
-            )
+            ),
+            'classes': ('collapse',)
         }),
-        
-        # Profile & Professional Details
         ('Profile & Professional Details', {
             'fields': (
                 'bio',
                 'education',
                 'skills'
             ),
-            'classes': ('collapse',)  # Makes this section collapsible
+            'classes': ('collapse',)
         }),
-        
-        # Salary Information
         ('Salary Information', {
             'fields': (
                 'fixed_rate',
                 'custom_base_salary'
             ),
-            'classes': ('collapse',)  # Makes this section collapsible
+            'classes': ('collapse',)
         }),
-        
-        # Banking Information
         ('Banking Information', {
             'fields': (
                 'bank_name',
                 'bank_account'
             ),
-            'classes': ('collapse',)  # Makes this section collapsible
+            'classes': ('collapse',)
         }),
     )
-    
-    # You can also group fields in the add form differently if needed
+
     add_fieldsets = (
         ('Required Information', {
             'fields': (
                 'user',
                 'employee_code',
-                'identification', 
+                'identification',
                 'position',
                 'department',
                 'hire_date',
                 'birth_date',
                 'gender'
-                'deparment'
             )
         }),
     )
 
 
-    inlines = [TeamMemberInline]
-
-    def get_inlines(self, request, obj):
-        # Mostrar el inline solo si el empleado es un supervisor
-        if obj and obj.is_supervisor:
-            return [TeamMemberInline]
-        return []
-    
-admin.site.register(Employee, EmployeeAdmin)
 
 
 @admin.register(PaymentConcept)

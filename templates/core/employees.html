@@ -43,20 +43,17 @@
     </style>
 
 <div class="container">
-        <h1 class="text-center mb-5">Nuestro Equipo</h1>
         <div class="row">
-            
+
        <div class="row">
             <!-- Ejemplo de tarjeta con datos dinámicos de Django -->
             {% for employee in employees %}
             <div class="col-md-6 col-lg-4">
                 <div class="card employee-card">
                     <div class="card-img-placeholder">
-
-                            <a href="{% url 'employees_detail' employee.id %}" class="initials">
+                            <div class="initials">
                                 {{ employee.user.first_name|first }}{{ employee.user.last_name|first }}
-                            </a>
-
+                            </div>
                     </div>
                     <div class="card-body text-center">
                         <h5 class="employee-name">
@@ -69,8 +66,8 @@
                             </small>
                         </div>
                         <div class="mt-2">
-                            <a href="{% url 'employees_detail' employee.id%}" class="btn btn-sm btn-outline-primary">
-                                Ver Detalles
+                            <a href="{% url 'employee_profile_detail' employee.id %}" class="btn btn-sm btn-outline-primary">
+                                View Details
                             </a>
                         </div>
                     </div>

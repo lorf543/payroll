@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% load filters %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Day Details - {{ date|date:"M d, Y" }} - Payroll System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a hx-boost="true" href="{% url 'attendance_history' %}">Attendance History</a>
+                        </li>
+                        <li class="breadcrumb-item active">{{ date|date:"F d, Y" }}</li>
+                    </ol>
+                </nav>
+                <h1 class="page-title">Day Details</h1>
+                <p class="page-subtitle">{{ date|date:"l, F d, Y" }}</p>
+            </div>
+            <div class="col-auto">
+                <a href="{% url 'attendance_history' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left me-2"></i>
+                    Back to History
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <div class="text-primary fs-2 fw-bold">
+                        {{ daily_stats.work_time }}
+                    </div>
+                    <small class="text-muted">Work Time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <div class="text-warning fs-2 fw-bold">
+                        {{ daily_stats.break_time }}
+                    </div>
+                    <small class="text-muted">Break Time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <div class="text-info fs-2 fw-bold">
+                        {{ daily_stats.lunch_time }}
+                    </div>
+                    <small class="text-muted">Lunch Time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-light">
+                <div class="card-body">
+                    <div class="text-success fs-2 fw-bold">{{ daily_stats.money }}</div>
+                    <small class="text-muted">Estimated Earnings</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session Timeline -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Activity Timeline</h5>
+        </div>
+        <div class="card-body">
+            {% if sessions %}
+            <div class="timeline">
+                {% for session in sessions %}
+                <div class="timeline-item {% if not session.end_time %}current-session{% endif %}">
+                    <div class="timeline-marker 
+                        {% if session.session_type == 'work' %}bg-success
+                        {% elif session.session_type == 'break' %}bg-warning
+                        {% elif session.session_type == 'lunch' %}bg-info
+                        {% elif session.session_type == 'training' %}bg-primary
+                        {% elif session.session_type == 'meeting' %}bg-danger
+                        {% else %}bg-secondary{% endif %}">
+                    </div>
+                    <div class="timeline-content">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">
+                                    <span class="badge status-{{ session.session_type }}">
+                                        {{ session.get_session_type_display }}
+                                    </span>
+                                </h6>
+                                <p class="text-muted mb-1">
+                                    <i class="bi bi-clock me-1"></i>
+                                    {{ session.start_time|date:"g:i A" }}
+                                    {% if session.end_time %}
+                                        - {{ session.end_time|date:"g:i A" }}
+                                    {% else %}
+                                        - Present
+                                    {% endif %}
+                                </p>
+                                {% if session.duration %}
+                                <small class="text-muted">
+                                    Duration: {{ session.duration|format_duration }}
+                                </small>
+                                {% endif %}
+                            </div>
+                            {% if session.notes %}
+                            <div class="text-end">
+                                <small class="text-muted">{{ session.notes }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="bi bi-clock-history display-4 text-muted d-block mb-3"></i>
+                <p class="text-muted">No activity recorded for this day.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Day Information -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Day Information</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Date</dt>
+                        <dd class="col-sm-8">{{ date|date:"F d, Y" }}</dd>
+
+                        <dt class="col-sm-4">Day</dt>
+                        <dd class="col-sm-8">{{ date|date:"l" }}</dd>
+
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge {% if work_day.status == 'completed' %}bg-success{% elif work_day.status == 'active' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                {{ work_day.get_status_display }}
+                            </span>
+                        </dd>
+
+                        {% if work_day.check_in %}
+                        <dt class="col-sm-4">Check In</dt>
+                        <dd class="col-sm-8">{{ work_day.check_in|date:"g:i A" }}</dd>
+                        {% endif %}
+
+                        {% if work_day.check_out %}
+                        <dt class="col-sm-4">Check Out</dt>
+                        <dd class="col-sm-8">{{ work_day.check_out|date:"g:i A" }}</dd>
+                        {% endif %}
+
+                        <dt class="col-sm-4">Total Sessions</dt>
+                        <dd class="col-sm-8">{{ sessions|length }}</dd>
+
+                        <dt class="col-sm-4">Break Count</dt>
+                        <dd class="col-sm-8">{{ daily_stats.break_count }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline-item {
+    position: relative;
+    padding: 15px 0;
+    border-left: 2px solid #e9ecef;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -30px;
+    top: 20px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 0 2px;
+}
+
+.timeline-content {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.current-session .timeline-content {
+    background: #f8f9fa;
+    border-color: #007bff;
+}
+
+.timeline-item:last-child {
+    border-left: 2px solid transparent;
+}
+
+.status-work { background-color: #28a745; color: white; }
+.status-break { background-color: #ffc107; color: black; }
+.status-lunch { background-color: #6c757d; color: white; }
+.status-training { background-color: #007bff; color: white; }
+.status-meeting { background-color: #dc3545; color: white; }
+.status-technical { background-color: #fd7e14; color: white; }
+</style>
+{% endblock %}

@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Day Details - {{ work_day.date|date:"M d, Y" }} - {{ work_day.employee.user.get_full_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'supervisor_dashboard' %}">Supervisor Dashboard</a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'employee_attendance_detail' work_day.employee.id %}">{{ work_day.employee.user.get_full_name }}</a>
+                        </li>
+                        <li class="breadcrumb-item active">{{ work_day.date|date:"F d, Y" }}</li>
+                    </ol>
+                </nav>
+                <div class="d-flex align-items-center">
+                    <div class="avatar-lg me-3">
+                        <div class="avatar-title bg-primary text-white rounded-circle">
+                            {{ work_day.employee.user.first_name.0 }}{{ work_day.employee.user.last_name.0 }}
+                        </div>
+                    </div>
+                    <div>
+                        <h1 class="page-title mb-1">{{ work_day.employee.user.get_full_name }}</h1>
+                        <p class="page-subtitle mb-0">{{ work_day.date|date:"l, F d, Y" }} • {{ work_day.employee.position.title|default:"Employee" }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group">
+                    <a href="{% url 'employee_attendance_detail' work_day.employee.id %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left me-2"></i>
+                        Back to Employee
+                    </a>
+                    <a href="{% url 'supervisor_dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-speedometer2 me-2"></i>
+                        Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center border-start border-success border-4">
+                <div class="card-body">
+                    <div class="text-success fs-2 fw-bold">
+                        {% if work_day.total_work_time %}
+                            {% with total_seconds=work_day.total_work_time.total_seconds %}
+                                {{ total_seconds|divisibleby:3600|floatformat:"0" }}h
+                            {% endwith %}
+                        {% else %}
+                            0h
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">Work Time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-start border-warning border-4">
+                <div class="card-body">
+                    <div class="text-warning fs-2 fw-bold">
+                        {% if work_day.total_break_time %}
+                            {% with total_seconds=work_day.total_break_time.total_seconds %}
+                                {{ total_seconds|divisibleby:3600|floatformat:"0" }}h
+                            {% endwith %}
+                        {% else %}
+                            0h
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">Break Time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-start border-info border-4">
+                <div class="card-body">
+                    <div class="text-info fs-2 fw-bold">
+                        {% if work_day.total_lunch_time %}
+                            {% with total_seconds=work_day.total_lunch_time.total_seconds %}
+                                {{ total_seconds|divisibleby:3600|floatformat:"0" }}h
+                            {% endwith %}
+                        {% else %}
+                            0h
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">Lunch Time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-start border-primary border-4">
+                <div class="card-body">
+                    <div class="text-primary fs-2 fw-bold">{{ work_day.break_count }}</div>
+                    <small class="text-muted">Break Count</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session Timeline -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-clock-history me-2"></i>
+                Activity Timeline
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if sessions %}
+            <div class="timeline">
+                {% for session in sessions %}
+                <div class="timeline-item {% if not session.end_time %}current-session{% endif %}">
+                    <div class="timeline-marker 
+                        {% if session.session_type == 'work' %}bg-success
+                        {% elif session.session_type == 'break' %}bg-warning
+                        {% elif session.session_type == 'lunch' %}bg-info
+                        {% elif session.session_type == 'training' %}bg-primary
+                        {% elif session.session_type == 'meeting' %}bg-danger
+                        {% else %}bg-secondary{% endif %}">
+                    </div>
+                    <div class="timeline-content">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="mb-0">
+                                        <span class="badge status-{{ session.session_type }}">
+                                            {{ session.get_session_type_display }}
+                                        </span>
+                                    </h6>
+                                    <div class="text-end">
+                                        <small class="text-muted">
+                                            {{ session.start_time|date:"g:i A" }}
+                                            {% if session.end_time %}
+                                                - {{ session.end_time|date:"g:i A" }}
+                                            {% else %}
+                                                - Present
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                {% if session.duration %}
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="bi bi-clock me-1"></i>
+                                        Duration: 
+                                        {% with total_seconds=session.duration.total_seconds %}
+                                            {% with hours=total_seconds|divisibleby:3600 %}
+                                            {% with minutes=total_seconds|divisibleby:60 %}
+                                                {% if hours > 0 %}
+                                                    {{ hours|floatformat:"0" }}h {{ minutes|floatformat:"0" }}m
+                                                {% else %}
+                                                    {{ minutes|floatformat:"0" }}m
+                                                {% endif %}
+                                            {% endwith %}
+                                            {% endwith %}
+                                        {% endwith %}
+                                    </small>
+                                    {% if session.campaign %}
+                                    <small class="text-muted">
+                                        <i class="bi bi-megaphone me-1"></i>
+                                        {{ session.campaign.name }}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                
+                                {% if session.notes %}
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small class="text-muted">
+                                        <i class="bi bi-chat-left-text me-1"></i>
+                                        {{ session.notes }}
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="bi bi-clock-history display-4 text-muted d-block mb-3"></i>
+                <p class="text-muted">No activity recorded for this day.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Day & Employee Information -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-calendar-check me-2"></i>
+                        Day Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Date</dt>
+                        <dd class="col-sm-8">{{ work_day.date|date:"F d, Y" }}</dd>
+
+                        <dt class="col-sm-4">Day</dt>
+                        <dd class="col-sm-8">{{ work_day.date|date:"l" }}</dd>
+
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge {% if work_day.status == 'completed' %}bg-success{% elif work_day.status == 'active' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                {{ work_day.get_status_display }}
+                            </span>
+                        </dd>
+
+                        {% if work_day.check_in %}
+                        <dt class="col-sm-4">Check In</dt>
+                        <dd class="col-sm-8">{{ work_day.check_in|date:"g:i A" }}</dd>
+                        {% endif %}
+
+                        {% if work_day.check_out %}
+                        <dt class="col-sm-4">Check Out</dt>
+                        <dd class="col-sm-8">{{ work_day.check_out|date:"g:i A" }}</dd>
+                        {% endif %}
+
+                        <dt class="col-sm-4">Total Sessions</dt>
+                        <dd class="col-sm-8">{{ sessions|length }}</dd>
+
+                        <dt class="col-sm-4">Break Count</dt>
+                        <dd class="col-sm-8">{{ work_day.break_count }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person-badge me-2"></i>
+                        Employee Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Name</dt>
+                        <dd class="col-sm-8">{{ work_day.employee.user.get_full_name }}</dd>
+
+                        <dt class="col-sm-4">Employee Code</dt>
+                        <dd class="col-sm-8">{{ work_day.employee.employee_code }}</dd>
+
+                        <dt class="col-sm-4">Position</dt>
+                        <dd class="col-sm-8">{{ work_day.employee.position.title|default:"Not assigned" }}</dd>
+
+                        <dt class="col-sm-4">Department</dt>
+                        <dd class="col-sm-8">{{ work_day.employee.department.name|default:"Not assigned" }}</dd>
+
+                        <dt class="col-sm-4">Current Campaign</dt>
+                        <dd class="col-sm-8">{{ work_day.employee.current_campaign.name|default:"No campaign" }}</dd>
+
+                        <dt class="col-sm-4">Supervisor</dt>
+                        <dd class="col-sm-8">
+                            {% if work_day.employee.supervisor %}
+                                {{ work_day.employee.supervisor.user.get_full_name }}
+                            {% else %}
+                                <span class="text-muted">Not assigned</span>
+                            {% endif %}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.avatar-lg {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.avatar-title {
+    font-weight: bold;
+    font-size: 1.25rem;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline-item {
+    position: relative;
+    padding: 20px 0;
+    border-left: 2px solid #e9ecef;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -31px;
+    top: 25px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 0 2px;
+}
+
+.timeline-content {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.current-session .timeline-content {
+    background: #f8f9fa;
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+}
+
+.timeline-item:last-child {
+    border-left: 2px solid transparent;
+}
+
+.status-work { background-color: #28a745; color: white; }
+.status-break { background-color: #ffc107; color: black; }
+.status-lunch { background-color: #6c757d; color: white; }
+.status-training { background-color: #007bff; color: white; }
+.status-meeting { background-color: #dc3545; color: white; }
+.status-technical { background-color: #fd7e14; color: white; }
+
+.card {
+    border: none;
+    border-radius: 12px;
+}
+
+.border-start {
+    border-left-width: 4px !important;
+}
+</style>
+{% endblock %}

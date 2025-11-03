@@ -8,7 +8,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="mb-0"><i class="bi bi-person-gear me-2"></i>Edit Employee Profile</h4>
-                    <a class="btn btn-outline-secondary" href="{% url 'employees_detail' employee.id %}">
+                    <a class="btn btn-outline-secondary" href="{% url 'employee_profile' %}">
                         <i class="bi bi-arrow-left me-2"></i>Back to Profile
                     </a>
                 </div>
@@ -47,10 +47,10 @@
                     <form method="post" id="employeeForm" novalidate>
                         {% csrf_token %}
                         
-                        <!-- Personal Information -->
+                        <!-- User Account Information -->
                         <div class="card mb-4">
                             <div class="card-header bg-light">
-                                <h6 class="mb-0"><i class="bi bi-person-vcard me-2"></i>Personal Information</h6>
+                                <h6 class="mb-0"><i class="bi bi-person-vcard me-2"></i>User Account Information</h6>
                             </div>
                             <div class="card-body">
                                 <div class="row">
@@ -62,16 +62,22 @@
                                     </div>
                                 </div>
                                 <div class="row">
-                                    <div class="col-md-6 mb-3">
+                                    <div class="col-12 mb-3">
                                         {{ form.email|as_crispy_field }}
                                     </div>
-                                    <div class="col-md-6 mb-3">
-                                        {{ form.phone|as_crispy_field }}
-                                    </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Employee Information -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Employee Information</h6>
+                            </div>
+                            <div class="card-body">
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        {{ form.birth_date|as_crispy_field }}
+                                        {{ form.identification|as_crispy_field }}
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         {{ form.gender|as_crispy_field }}
@@ -82,49 +88,29 @@
                                         {{ form.marital_status|as_crispy_field }}
                                     </div>
                                     <div class="col-md-6 mb-3">
-                                        {{ form.education|as_crispy_field }}
+                                        <!-- Employee Code (readonly) -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Employee Code</label>
+                                            <input type="text" class="form-control" value="{{ employee.employee_code }}" readonly>
+                                            <small class="form-text text-muted">Employee code cannot be changed</small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Skills & Bio -->
+                        <!-- Bank Information -->
                         <div class="card mb-4">
                             <div class="card-header bg-light">
-                                <h6 class="mb-0"><i class="bi bi-tools me-2"></i>Skills & Biography</h6>
+                                <h6 class="mb-0"><i class="bi bi-bank me-2"></i>Bank Information</h6>
                             </div>
                             <div class="card-body">
                                 <div class="row">
-                                    <div class="col-12 mb-3">
-                                        {{ form.skills|as_crispy_field }}
-                                        <small class="form-text text-muted">Separate skills with commas (e.g., JavaScript, Python, React)</small>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-12 mb-3">
-                                        {{ form.bio|as_crispy_field }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Address Information -->
-                        <div class="card mb-4">
-                            <div class="card-header bg-light">
-                                <h6 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Address Information</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-12 mb-3">
-                                        {{ form.address|as_crispy_field }}
-                                    </div>
-                                </div>
-                                <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        {{ form.city|as_crispy_field }}
+                                        {{ form.bank_name|as_crispy_field }}
                                     </div>
                                     <div class="col-md-6 mb-3">
-                                        {{ form.country|as_crispy_field }}
+                                        {{ form.bank_account|as_crispy_field }}
                                     </div>
                                 </div>
                             </div>
@@ -132,7 +118,7 @@
 
                         <!-- Submit Button -->
                         <div class="d-flex justify-content-between mt-4">
-                            <a href="{% url 'employees_detail' employee.id %}" class="btn btn-outline-secondary">
+                            <a href="{% url 'employee_profile' %}" class="btn btn-outline-secondary">
                                 <i class="bi bi-x-circle me-2"></i>Cancel
                             </a>
                             <button type="submit" class="btn btn-primary">
@@ -145,4 +131,33 @@
         </div>
     </div>
 </div>
+
+<style>
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+    background-color: #f8f9fa !important;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.btn {
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.alert {
+    border-radius: 8px;
+    border: none;
+}
+</style>
 {% endblock %}

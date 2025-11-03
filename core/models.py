@@ -1,4 +1,4 @@
-# models.py
+# models.py core 
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -31,12 +31,6 @@ class Campaign(models.Model):
     ]
     bonus_type = models.CharField(max_length=10, choices=BONUS_TYPE_CHOICES, blank=True, null=True)
     bonus_value = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-
-    employees = models.ManyToManyField(
-        'Employee',
-        related_name='campaign',
-        blank=True
-    )
 
     def __str__(self):
         return self.name
@@ -116,11 +110,26 @@ class Employee(models.Model):
     position = models.ForeignKey(Position, on_delete=models.SET_NULL, null=True)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True)
 
+    campaigns = models.ManyToManyField('Campaign', related_name='employees', blank=True)
+    current_campaign = models.ForeignKey(
+        'Campaign',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='active_employees',
+        help_text='Campaign where the employee is currently active.'
+    )
+
+    is_logged_in = models.BooleanField(default=False)
+    last_login = models.DateTimeField(null=True, blank=True)
+    last_logout = models.DateTimeField(null=True, blank=True)
+
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
-    identification = models.CharField(max_length=50)
     employee_code = models.CharField(max_length=20, unique=True)
+    identification = models.CharField(max_length=50)
 
+    #personal info
     hire_date = models.DateField()
     birth_date = models.DateField()
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
@@ -134,10 +143,10 @@ class Employee(models.Model):
     #Profile
     bio = models.TextField(blank=True)
     education = models.CharField(max_length=50, null=True, blank=True)
-    phone = models.CharField(max_length=50, null=True, blank=True)
     email = models.EmailField(max_length=60, null=True, blank=True)
     skills = models.CharField(max_length=250, null=True, blank=True)
     
+    #payment info
     fixed_rate = models.BooleanField(default=False)
     custom_base_salary = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True)
 

@@ -1,14 +1,34 @@
-<div id="current-status">
-    {% if current_status %}
-    <span class="badge status-{{ current_status.status }} px-3 py-2">
-        {{ current_status.get_status_display }}
-    </span>
-    <small class="text-muted d-block mt-1">
-        Since: <span id="live-time" data-start-time="{{ current_status.start_time|date:'c' }}">
-
-        </span>
-    </small>
-    {% else %}
-    <span class="badge status-offline px-3 py-2">Offline</span>
-    {% endif %}
+<div class="current-status-card card bg-light border-0">
+    <div class="card-body py-3">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h5 class="card-title mb-2">Current Status</h5>
+                <div class="d-flex align-items-center">
+                    <span class="badge status-{{ current_session.session_type|default:'offline' }} px-3 py-2 me-3 fs-6"
+                        {% if current_session %}data-start-time="{{ current_session.start_time|date:'c' }}"{% endif %}>
+                        {{ current_session.get_session_type_display|default:"Offline" }}
+                    </span>
+                    {% if current_session %}
+                    <div>
+                        <small class="text-muted d-block">Started: {{ current_session.start_time|date:"g:i A" }}</small>
+                        <div class="live-duration">
+                            <small class="text-muted">Duration: <span class="fw-bold text-primary" id="current-duration">Calculating...</span></small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                {% if current_session %}
+                <div class="text-muted">
+                    <small>Active session</small>
+                </div>
+                {% else %}
+                <div class="text-muted">
+                    <small>No active session</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>

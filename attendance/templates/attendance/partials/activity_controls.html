@@ -1,0 +1,148 @@
+<div class="activity-controls">
+    <!-- Status Change Form -->
+<form method="post" 
+      hx-post="{% url 'start_activity' %}" 
+      hx-target="body" 
+      hx-swap="innerHTML"
+      class="mb-4">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="session_type" class="form-label fw-bold">Change Status</label>
+            <select name="session_type" id="session_type" class="form-select form-select-lg" required>
+                <option value="work">Work</option>
+                <option value="break">Break</option>
+                <option value="lunch">Lunch</option>
+                <option value="training">Training</option>
+                <option value="meeting">Meeting</option>
+                <option value="technical">Technical Issue</option>
+                <option value="end_of_day">End Work Day</option>
+            </select>
+        </div>
+        
+        <div class="mb-3">
+            <label for="notes" class="form-label">Notes (Optional)</label>
+            <textarea name="notes" id="notes" class="form-control" rows="2" 
+                      placeholder="Add any notes about this status change..."></textarea>
+        </div>
+        
+        <button type="submit" class="btn btn-primary w-100 btn-lg">
+            Update Status
+        </button>
+    </form>
+
+    <!-- Current Status Display -->
+    <div class="current-status-info p-3 bg-light rounded">
+        <h6 class="fw-bold mb-2">Current Status</h6>
+        {% if current_session %}
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="badge status-{{ current_session.session_type }} px-3 py-2">
+                {{ current_session.get_session_type_display }}
+            </span>
+            <div class="text-end">
+                <small class="text-muted d-block">Started: {{ current_session.start_time|date:"g:i A" }}</small>
+                <div id="live-duration" class="fw-bold text-primary">
+                    <small>Duration: <span id="duration-counter">Calculating...</span></small>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-2">
+            <i class="bi bi-dash-circle d-block fs-2 mb-2"></i>
+            No active status
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Status Legend -->
+    <div class="mt-3 p-3 bg-light rounded">
+        <h6 class="fw-bold mb-2">Status Legend</h6>
+        <div class="d-flex flex-wrap gap-1">
+            <span class="badge status-work">Work</span>
+            <span class="badge status-break">Break</span>
+            <span class="badge status-lunch">Lunch</span>
+            <span class="badge status-training">Training</span>
+            <span class="badge status-meeting">Meeting</span>
+            <span class="badge status-technical">Technical</span>
+        </div>
+    </div>
+</div>
+
+<script>
+// Live duration counter for current session
+function updateDurationCounter() {
+    const liveDurationEl = document.getElementById('live-duration');
+    if (!liveDurationEl) return;
+
+    const currentSession = {% if current_session %}{
+        startTime: new Date('{{ current_session.start_time|date:"c" }}'),
+        sessionType: '{{ current_session.session_type }}'
+    }{% else %}null{% endif %};
+
+    if (!currentSession) return;
+
+    function update() {
+        const now = new Date();
+        const diffMs = now - currentSession.startTime;
+        const diffSeconds = Math.floor(diffMs / 1000);
+        const hours = Math.floor(diffSeconds / 3600);
+        const minutes = Math.floor((diffSeconds % 3600) / 60);
+        const seconds = diffSeconds % 60;
+
+        let durationText = '';
+        if (hours > 0) {
+            durationText = `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
+        } else {
+            durationText = `${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
+        }
+
+        const counterEl = document.getElementById('duration-counter');
+        if (counterEl) {
+            counterEl.textContent = durationText;
+        }
+    }
+
+    // Update immediately and then every second
+    update();
+    setInterval(update, 1000);
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    updateDurationCounter();
+});
+
+// Re-initialize after HTMX swaps
+document.body.addEventListener('htmx:afterSwap', function() {
+    updateDurationCounter();
+    
+    // Auto-hide messages
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(function(alert) {
+        setTimeout(function() {
+            if (alert && alert.classList.contains('show')) {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }
+        }, 5000);
+    });
+});
+
+// Form loading state
+document.addEventListener('htmx:beforeRequest', function(e) {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Updating...';
+    }
+});
+
+document.addEventListener('htmx:afterRequest', function(e) {
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        setTimeout(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Update Status';
+        }, 1000);
+    }
+});
+</script>

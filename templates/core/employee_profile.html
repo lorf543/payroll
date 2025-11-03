@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card profile-card shadow-lg">
+                <!-- Encabezado del perfil -->
+                <div class="profile-header text-center py-4 bg-gradient-primary text-white">
+                    <div class="profile-avatar mx-auto mb-3">
+                        <span class="initials">
+                            {% if employee.user.first_name and employee.user.last_name %}
+                                {{ employee.user.first_name.0 }}{{ employee.user.last_name.0 }}
+                            {% else %}
+                                {{ employee.user.username.0|upper }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    <h2 class="mb-1">
+                        {% if employee.user.get_full_name %}
+                            {{ employee.user.get_full_name }}
+                        {% else %}
+                            {{ employee.user.username }}
+                        {% endif %}
+                    </h2>
+                    <p class="mb-2">
+                        {% if employee.position %}
+                            {{ employee.position.title }}
+                        {% else %}
+                            Employee
+                        {% endif %}
+                    </p>
+                    <div class="employee-status">
+                        <span class="badge bg-success">Active</span>
+                        <span class="badge bg-light text-dark ms-2">{{ employee.employee_code }}</span>
+                    </div>
+                </div>
+                
+                <div class="card-body p-4">
+                    <div class="row">
+                        <!-- Columna izquierda: Información personal -->
+                        <div class="col-md-6">
+                            <div class="section-block mb-4">
+                                <h4 class="section-title d-flex align-items-center mb-3">
+                                    <i class="bi bi-person-circle me-2"></i>Personal Information
+                                </h4>
+                                <div class="info-list">
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Username</span>
+                                        <span class="info-value text-muted">{{ employee.user.username }}</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Full Name</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.user.get_full_name %}
+                                                {{ employee.user.get_full_name }}
+                                            {% else %}
+                                                Not specified
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Email</span>
+                                        <span class="info-value text-muted">{{ employee.user.email }}</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Employee Code</span>
+                                        <span class="info-value text-muted">{{ employee.employee_code }}</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Identification</span>
+                                        <span class="info-value text-muted">{{ employee.identification }}</span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2">
+                                        <span class="info-label fw-medium">Gender</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.gender %}
+                                                {{ employee.get_gender_display }}
+                                            {% else %}
+                                                Not specified
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Información de pago unificada -->
+                            {% if request.user.id == employee.user.id or request.user.is_superuser %}
+                                <div class="section-block mb-4">
+                                    <h4 class="section-title d-flex align-items-center mb-3">
+                                        <i class="bi bi-cash me-2"></i>Payment Information
+                                    </h4>
+                                    <div class="info-list">
+                                        <!-- Método de pago -->
+                                        <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                            <span class="info-label fw-medium">Payment Method</span>
+                                            <span class="info-value text-muted">
+                                                {% if employee.fixed_rate %}
+                                                    <span class="badge bg-warning text-dark">Fixed Salary</span>
+                                                {% else %}
+                                                    <span class="badge bg-info">Hourly Rate</span>
+                                                {% endif %}
+                                            </span>
+                                        </div>
+
+                                        <!-- Tarifa base -->
+                                        <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                            <span class="info-label fw-medium">Base Rate</span>
+                                            <span class="info-value text-muted">
+                                                {% if employee.position and employee.position.hour_rate %}
+                                                    ${{ employee.position.hour_rate|intcomma }}/hour
+                                                {% else %}
+                                                    Rate not set
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Proyección mensual -->
+                                        <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                            <span class="info-label fw-medium">Monthly Projection</span>
+                                            <span class="info-value text-success fw-bold">
+                                                {% if payment_stats %}
+                                                    ${{ payment_stats.monthly_earnings|intcomma }}
+                                                {% else %}
+                                                    Not available
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Tipo de cálculo -->
+                                        <div class="info-item d-flex justify-content-between align-items-center py-2">
+                                            <span class="info-label fw-medium">Calculation Type</span>
+                                            <span class="info-value text-muted">
+                                                {% if payment_stats %}
+                                                    {{ payment_stats.pay_method|title }}
+                                                {% else %}
+                                                    Not available
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Columna derecha: Información laboral -->
+                        <div class="col-md-6">
+                            <div class="section-block mb-4">
+                                <h4 class="section-title d-flex align-items-center mb-3">
+                                    <i class="bi bi-building me-2"></i>Work Information
+                                </h4>
+                                <div class="info-list">
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Department</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.department %}
+                                                {{ employee.department.name }}
+                                            {% else %}
+                                                Not assigned
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Position</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.position %}
+                                                {{ employee.position.title }}
+                                            {% else %}
+                                                Not assigned
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2">
+                                        <span class="info-label fw-medium">IT Staff</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.is_it %}
+                                                <span class="badge bg-primary">Yes</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">No</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="section-block mb-4">
+                                <h4 class="section-title d-flex align-items-center mb-3">
+                                    <i class="bi bi-card-checklist me-2"></i>Campaign Information
+                                </h4>
+                                <div class="info-list">
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Current Campaign</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.current_campaign %}
+                                                {{ employee.current_campaign.name }}
+                                            {% else %}
+                                                No campaign assigned
+                                            {% endif %}
+                                        </span>
+                                    </div>
+
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Shutdown Time</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.current_campaign and employee.current_campaign.shutdown_time %}
+                                                {{ employee.current_campaign.shutdown_time|time:"g:i A" }}
+                                            {% else %}
+                                                Not set
+                                            {% endif %}
+                                        </span>
+                                    </div>
+
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2">
+                                        <span class="info-label fw-medium">Login Status</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.is_logged_in %}
+                                                <span class="badge bg-success">Logged In</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Logged Out</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+{% comment %} 
+                            <div class="section-block">
+                                <h4 class="section-title d-flex align-items-center mb-3">
+                                    <i class="bi bi-clock me-2"></i>Login History
+                                </h4>
+                                <div class="info-list">
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                                        <span class="info-label fw-medium">Last Login</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.last_login %}
+                                                {{ employee.last_login|date:"M d, Y g:i A" }}
+                                            {% else %}
+                                                Never
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    <div class="info-item d-flex justify-content-between align-items-center py-2">
+                                        <span class="info-label fw-medium">Last Logout</span>
+                                        <span class="info-value text-muted">
+                                            {% if employee.last_logout %}
+                                                {{ employee.last_logout|date:"M d, Y g:i A" }}
+                                            {% else %}
+                                                Never
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div> {% endcomment %}
+                        </div>
+                    </div>
+                    
+                    <!-- Sección de acciones -->
+                    <div class="profile-actions mt-4 pt-3 border-top">
+                        <div class="d-flex justify-content-center gap-3">
+                            {% if request.user == employee.user or request.user.is_superuser %}
+                                <a href="{% url 'edit_employee_profile' employee.id %}" class="btn btn-primary">
+                                    <i class="bi bi-pencil me-2"></i>Edit Profile
+                                </a>
+                            {% endif %} 
+
+                            <button class="btn btn-outline-primary">
+                                <i class="bi bi-printer me-2"></i>Print Profile
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Estilos específicos para el perfil */
+    .profile-card {
+        border-radius: 12px;
+        overflow: hidden;
+        border: none;
+    }
+    
+    .profile-header {
+        background: linear-gradient(135deg, var(--secondary-color), var(--accent-color));
+        position: relative;
+    }
+    
+    .profile-header::after {
+        content: '';
+        position: absolute;
+        bottom: -10px;
+        left: 0;
+        width: 100%;
+        height: 20px;
+        background: white;
+        border-radius: 20px 20px 0 0;
+    }
+    
+    .profile-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .profile-avatar .initials {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: white;
+    }
+    
+    .employee-status {
+        margin-top: 10px;
+    }
+    
+    .section-block {
+        margin-bottom: 2rem;
+    }
+    
+    .section-title {
+        color: var(--primary-color);
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    
+    .info-list .info-item {
+        transition: background-color 0.2s;
+    }
+    
+    .info-list .info-item:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+        border-radius: 4px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    .profile-actions .btn {
+        border-radius: 6px;
+        padding: 8px 20px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .profile-actions .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .profile-actions .d-flex {
+            flex-direction: column;
+            gap: 10px !important;
+        }
+        
+        .profile-actions .btn {
+            width: 100%;
+        }
+        
+        .profile-header {
+            padding: 2rem 1rem !important;
+        }
+    }
+</style>
+{% endblock content %}

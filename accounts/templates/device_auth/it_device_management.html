@@ -3,14 +3,7 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Device Token Management</h2>
-    
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-        {% endfor %}
-    {% endif %}
-    
+    <h2>Device Token Management</h2>    
     <div class="card">
         <div class="card-header">
             <h5>Registered Devices</h5>

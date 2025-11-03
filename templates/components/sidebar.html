@@ -1,35 +1,38 @@
         <nav id="sidebar" class="sidebar text-white p-3 d-flex flex-column">
           <ul class="nav flex-column">
             <li class="nav-item">
-              <a class="nav-link text-white" href="{% url 'agent_status_dashboard' %}">
+              <a hx-boost="true" class="nav-link text-white" href="/">
                 <i class="bi bi-house-door"></i> Inicio
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link text-white" href="{% url 'employees' %}">
+              <a class="nav-link text-white" href="">
                 <i class="bi bi-people"></i> Empleados
               </a>
             </li>
-
-
-            {% comment %} <li class="nav-item">
-              <a class="nav-link text-white" hx-boost="false" href="{% url 'admin_dashboard' %}">
-                <i class="bi bi-speedometer2"></i> Admin - Dashboard
+            <li class="nav-item">
+              <a class="nav-link text-white" href="{% url 'agent_dashboard' %}">
+                <i class="bi bi-people"></i> Status Dashboard
               </a>
-            </li> {% endcomment %}
-            {% if not employee.is_supervisor.name == "Management" %}                     
-              <li class="nav-item">
-                <a class="nav-link text-white" hx-boost="false" href="{% url 'supervisor_dashboard' %}">
-                    <i class="bi bi-speedometer2"></i> supervisor - Dashboard
+            </li>
+            
+            
+            {% if employee.is_it %}
+            <li class="nav-item">
+                <a class="nav-link text-white" href="{% url 'supervisor_dashboard' %}">
+                    <i class="bi bi-speedometer2 me-1"></i>Supervisor Dashboard
                 </a>
-              </li>              
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-white" href="{% url 'it_device_management' %}">
+                    <i class="bi bi-keyboard me-1"></i>Device Management
+                </a>
+            </li>
             {% endif %}
+              
+              
 
-            {% comment %} <li class="nav-item">
-              <a class="nav-link text-white" hx-boost="false" href="{% url 'agent_status_dashboard' %}">
-                <i class="bi bi-speedometer2"></i> Agent status
-              </a>
-            </li> {% endcomment %}
+
           </ul>
           <div class="pt-5 mt-5"> 
               <a class="btn btn-outline-light w-100" href="{% url 'account_logout' %}">

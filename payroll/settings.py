@@ -31,7 +31,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    'web-production-8d8b.up.railway.app',
+    'payroll-production-890f.up.railway.app',
     'localhost',
     '127.0.0.1'
 ]
@@ -111,19 +111,19 @@ WSGI_APPLICATION = 'payroll.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
-
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.getenv("DATABASE_URL")
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
+
+
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default=os.getenv("DATABASE_URL")
+#     )
+# }
 
 
 
@@ -139,12 +139,13 @@ Q_CLUSTER = {
     'name': 'DjangoQ',
     'workers': 4,
     'recycle': 500,
-    'timeout': 60,
+    'timeout': 90,
     'retry': 120,
     'queue_limit': 50,
     'bulk': 10,
-    'orm': 'default',
+    'redis': os.getenv("CELERY_BROKER_UR"),
     'catch_up': False, 
+    'max_attempts':3,
 }
 
 
@@ -230,8 +231,7 @@ TIME_ZONE = 'America/Santo_Domingo'
 
 USE_I18N = True
 
-USE_TZ = True
-
+USE_TZ = False
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
@@ -247,3 +247,15 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}

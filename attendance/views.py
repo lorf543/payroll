@@ -1,694 +1,963 @@
-from django.contrib.auth import logout
 from django.shortcuts import render, get_object_or_404, redirect,HttpResponse
+from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
 from django.utils import timezone
-from core.models import Department
-from decimal import Decimal, ROUND_HALF_UP
 from django.contrib import messages
 from django.contrib.sessions.models import Session
 from django.db import transaction
-from django.utils.timezone import now
 from datetime import datetime, time, timedelta
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
-from django.db.models import Case, When, ExpressionWrapper, F, DurationField, Sum
 from django.core.paginator import Paginator
+from django.db.models import Q
+from .forms import EmployeeProfileForm
 
-
+import openpyxl
+from openpyxl.styles import Font, Alignment
+from openpyxl.utils import get_column_letter
 import csv
 
 
-from core.models import Employee
-from .forms import AgentStatusForm
-from .models import Attendance, AgentStatus, Campaign
-from core.models import PayPeriod
+from core.models import Employee, Campaign
+from .models import WorkDay,ActivitySession
 from .status_helpers import close_active_status
 from .utility import *
 from core.utils.payroll import get_effective_pay_rate
 # Create your views here.
+@login_required
+def agent_dashboard(request):
+    employee = get_object_or_404(Employee, user=request.user)
+    today = timezone.now().date()
+    now = timezone.now()
 
+    work_day, _ = WorkDay.objects.get_or_create(employee=employee, date=today)
+    current_session = work_day.sessions.filter(end_time__isnull=True).last()
+    history = work_day.sessions.all().order_by('start_time')
 
+    def fmt(td):
+        """Formatea timedelta a formato legible"""
+        if not td: return "0h 00m"
+        total_sec = int(td.total_seconds())
+        h, m = divmod(total_sec // 60, 60)
+        return f"{h}h {m:02d}m" if h else f"{m}m"
 
+    # 🔥 CÁLCULO EN TIEMPO REAL
+    # Obtener todas las sesiones completadas
+    completed_sessions = work_day.sessions.filter(end_time__isnull=False)
+    
+    # Calcular tiempos de sesiones completadas
+    completed_work = timedelta(0)
+    completed_break = timedelta(0)
+    completed_lunch = timedelta(0)
+    break_count = 0
+    
+    for session in completed_sessions:
+        if session.duration:
+            if session.session_type == 'work':
+                completed_work += session.duration
+            elif session.session_type == 'break':
+                completed_break += session.duration
+                break_count += 1
+            elif session.session_type == 'lunch':
+                completed_lunch += session.duration
 
-@login_required(login_url='account_login')
-def employee_payroll_dashboard(request):
-    """Dashboard para que empleados vean su historial, horas trabajadas y ganancias"""
-    employee = Employee.objects.get(user=request.user)
+    # 🔥 Si hay sesión activa, añadir su tiempo transcurrido
+    active_work_time = timedelta(0)
+    active_break_time = timedelta(0)
+    active_lunch_time = timedelta(0)
     
-    # Fechas para los últimos 6 periodos de pago (quincenales)
-    today = timezone.localdate()
-    pay_periods = get_pay_periods(today, periods=6)
+    if current_session:
+        elapsed = now - current_session.start_time
+        if current_session.session_type == 'work':
+            active_work_time = elapsed
+        elif current_session.session_type == 'break':
+            active_break_time = elapsed
+        elif current_session.session_type == 'lunch':
+            active_lunch_time = elapsed
+
+    # Totales en tiempo real
+    total_work = completed_work + active_work_time
+    total_break = completed_break + active_break_time
+    total_lunch = completed_lunch + active_lunch_time
+    total_time = total_work + total_break + total_lunch
+
+    # 🔥 CÁLCULO DE GANANCIAS DINÁMICO
+    payable_hours = total_work.total_seconds() / 3600
     
-    payroll_data = []
-    for period in pay_periods:
-        period_data = calculate_pay_period_data(employee, period['start_date'], period['end_date'])
-        payroll_data.append(period_data)
+    # Obtener rate del campaign del empleado
+    rate = 0.0
+    if employee.current_campaign and employee.current_campaign.hour_rate:
+        rate = float(employee.current_campaign.hour_rate)
     
-    # Estadísticas del mes actual
-    current_month_start = today.replace(day=1)
-    current_month_end = (current_month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-    month_stats = calculate_pay_period_data(employee, current_month_start, current_month_end)
+    estimated_earnings = payable_hours * rate
+
+    # Datos para el timer de sesión actual
+    current_duration = str(now - current_session.start_time).split('.')[0] if current_session else "0:00:00"
+    start_time_iso = current_session.start_time.isoformat() if current_session else None
+
+    # 🔥 Datos adicionales para cálculos dinámicos en frontend
+    check_in_iso = work_day.check_in.isoformat() if work_day.check_in else None
     
-    # Historial diario de los últimos 7 días (usando la nueva función)
-    recent_days = get_recent_daily_stats(employee, days=7)
-    
+    daily_stats = {
+        'total': fmt(total_time),
+        'payable': fmt(total_work),
+        'break': fmt(total_break),
+        'lunch': fmt(total_lunch),
+        'payable_hours': round(payable_hours, 2),
+        'money': f"${estimated_earnings:.2f}",
+        'break_count': break_count,
+        'hourly_rate': rate,
+        # 🔥 Datos en segundos para JavaScript
+        'total_work_seconds': int(total_work.total_seconds()),
+        'total_break_seconds': int(total_break.total_seconds()),
+        'total_lunch_seconds': int(total_lunch.total_seconds()),
+        'completed_work_seconds': int(completed_work.total_seconds()),
+        'completed_break_seconds': int(completed_break.total_seconds()),
+        'completed_lunch_seconds': int(completed_lunch.total_seconds()),
+    }
+
     context = {
         'employee': employee,
-        'payroll_data': payroll_data,
-        'month_stats': month_stats,
-        'recent_days': recent_days,
-        'current_period': pay_periods[0] if pay_periods else None,
+        'work_day': work_day,
+        'current_session': current_session,
+        'current_duration': current_duration,
+        'start_time_iso': start_time_iso,
+        'check_in_iso': check_in_iso,
+        'is_active_session': bool(current_session),
+        'daily_stats': daily_stats,
+        'history': history,
+        'today': today,
+        'current_session_type': current_session.session_type if current_session else '',
     }
+
+    return render(request, 'attendance/agent_dashboard.html', context)
+
+
+
+@require_http_methods(["POST"])
+@login_required
+def start_activity(request):
+    """
+    Iniciar una nueva actividad (HTMX endpoint)
+    """
+    employee = get_object_or_404(Employee, user=request.user)
+    today = timezone.now().date()
+
+    # ✅ Crear o recuperar el WorkDay automáticamente
+    work_day, _ = WorkDay.objects.get_or_create(employee=employee, date=today)
+
+    session_type = request.POST.get('session_type', 'work')
+
+    # ✅ Si es "end_of_day", usar la función específica
+
     
-    return render(request, 'attendance/payroll_dashboard.html', context)
+    if session_type == 'end_of_day':
+        return end_work_day(request)
+
+    # ✅ Iniciar nueva sesión y registrar el check_in si aplica
+    session = work_day.start_work_session(
+        session_type=session_type,
+        notes=request.POST.get('notes', '')
+    )
+
+    # ✅ Recalcular estadísticas actualizadas
+    daily_stats = calculate_daily_stats(work_day)
+    history = work_day.sessions.all().order_by('start_time')
+
+    context = {
+        'employee': employee,
+        'work_day': work_day,
+        'current_session': session,
+        'daily_stats': daily_stats,
+        'history': history,
+        'today': today,
+    }
 
 
-#agent_status.html
+    messages.success(request, f"Status changed to {session.get_session_type_display()}")
 
-@login_required(login_url='account_login')
-def employee_status_history(request):
-    """Historial completo de todos los status del empleado"""
+
+    return render(request, 'attendance/agent_dashboard.html', context)
+
+@require_http_methods(["POST"])
+@login_required
+def end_work_day(request):
+    """
+    Finalizar día completo (HTMX endpoint)
+    """
+    employee = get_object_or_404(Employee, user=request.user)
+    today = timezone.now().date()
+    
     try:
-        employee = Employee.objects.get(user=request.user)
+        work_day = WorkDay.objects.get(employee=employee, date=today)
+        work_day.end_work_day()
         
-        # Obtener todos los status del empleado ordenados por fecha
-        status_history = AgentStatus.objects.filter(
-            agent=employee
-        ).select_related('campaign').order_by('-start_time')
-
-        ready_statuses = AgentStatus.objects.filter(
-            agent=employee,
-            status='ready'
-        )
-        total_ready_duration = sum(
-            (
-                (status.end_time or timezone.now()) - status.start_time
-                for status in ready_statuses
-                if status.start_time
-            ),
-            timedelta(0)
-        )
-        # Convert timedelta → hours (float)
-        total_ready_hours = total_ready_duration.total_seconds() / 3600
-        hours, remainder = divmod(total_ready_duration.total_seconds(), 3600)
-        minutes = remainder // 60
-        formatted_ready_time = f"{int(hours)}h {int(minutes)}m"
+        # Recalcular estadísticas finales
+        daily_stats = calculate_daily_stats(work_day)
+        history = work_day.sessions.all().order_by('start_time')
         
-        # Paginación - 50 registros por página
-        paginator = Paginator(status_history, 50)
-        page_number = request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
-        
-        # Estadísticas
-        total_records = status_history.count()
-
-                
         context = {
             'employee': employee,
-            'page_obj': page_obj,
-            'total_records': total_records,
-            'total_ready_hours':formatted_ready_time
-
+            'work_day': work_day,
+            'current_session': None,
+            'daily_stats': daily_stats,
+            'history': history,
+            'today': today,
         }
         
-        return render(request, 'attendance/employee_status_history.html', context)
+        # Mensaje de éxito
+        messages.success(request, "Work day ended successfully")
         
-    except Employee.DoesNotExist:
-        messages.error(request, "Employee profile not found.")
-        return redirect('home')        
+        # Retornar todo el dashboard actualizado
+        return render(request, 'attendance/agent_dashboard.html', context)
+        
+    except WorkDay.DoesNotExist:
+        return JsonResponse({'error': 'No active work day found'}, status=400)
 
-def agent_status_dashboard(request):
-    if not request.user.is_authenticated:
-        return redirect('account_login')
+def calculate_daily_stats(work_day):
+    """
+    Calcular estadísticas diarias - versión simple
+    """
+    employee = work_day.employee
+    current_campaign = employee.current_campaign
     
-    employee = Employee.objects.get(user=request.user)
-    today = timezone.localdate()
-    start_of_day = timezone.make_aware(datetime.combine(today, time.min))
-    end_of_day = timezone.make_aware(datetime.combine(today, time.max))
-
-    # Handle form submission
-    if request.method == 'POST':
-        form = AgentStatusForm(request.POST)
-        if form.is_valid():
-            status_record = form.save(commit=False)
-            status_record.agent = employee
-            
-            # End current status if exists
-            current_active = AgentStatus.objects.filter(
-                agent=employee,
-                end_time__isnull=True
-            ).first()
-            
-            if current_active:
-                current_active.end_time = timezone.now()
-                current_active.save()
-                messages.info(request, f"Ended {current_active.get_status_display()} status")
-            
-            status_record.save()
-            messages.success(request, f"Status changed to {status_record.get_status_display()}")
-            return redirect('agent_status_dashboard')
-    else:
-        form = AgentStatusForm()
-
-    records = AgentStatus.objects.filter(
-        agent=employee,
-        start_time__range=(start_of_day, end_of_day)
-    )
-
-    total = break_time = lunch_time = payable = timedelta()
-    now = timezone.now()
-    history = []
-
-    for rec in records:
-        end_time = rec.end_time or now
-        duration = end_time - rec.start_time
-
-        total += duration
-        if rec.status == 'break':
-            break_time += duration
-        elif rec.status == 'lunch':
-            lunch_time += duration
-        elif rec.status == 'ready':
-            payable += duration
-
-        history.append({
-            'status': rec.status,
-            'start_time': rec.start_time,
-            'end_time': rec.end_time,
-            'notes': rec.notes,
-            'duration_str': format_timedelta(duration),
-        })
-
-    daily_earnings, pay_method = calculate_employee_pay(employee, payable)
-    payment_info = get_payment_method_display(employee)
-
-    context = {
-        'employee': employee,
-        'current_status': records.filter(end_time__isnull=True).first(),
-        'form': form,
-        'daily_stats': {
-            'total': format_timedelta(total),
-            'break': format_timedelta(break_time),
-            'lunch': format_timedelta(lunch_time),
-            'payable': format_timedelta(payable),
-            'money': daily_earnings,
-            'pay_method': pay_method,
-            'payment_info': payment_info,
-            'payable_hours': round(timedelta_to_hours(payable), 2),
-        },
-        'history': history,
-    }
-    return render(request, 'attendance/agent_status.html', context)
-
-@require_POST
-@login_required
-def change_agent_status(request, agent_id):
-    employee = get_object_or_404(Employee, id=agent_id, user=request.user)
-    form = AgentStatusForm(request.POST)
-    if form.is_valid():
-        # Cerrar cualquier estado activo
-        close_active_status(employee)
-
-        new_status = form.save(commit=False)
-        new_status.agent = employee
-        new_status.start_time = timezone.now()
-        new_status.end_time = None
-        new_status.save()
-
-        return render(request, 'attendance/partials/current_status.html', {
-            'current_status': new_status
-        })
-
-    return render(request, 'attendance/partials/status_form.html', {
-        'form': form,
-        'employee': employee,
-    })
-
-@login_required
-def attendance_dashboard(request):
-    today = timezone.now().date()
+    # Tiempos
+    total_work_time = work_day.total_work_time or timedelta(0)
+    total_break_time = work_day.total_break_time or timedelta(0)
+    total_lunch_time = work_day.total_lunch_time or timedelta(0)
+    total_time = total_work_time + total_break_time + total_lunch_time
     
-    # Today's statistics
-    today_attendance = Attendance.objects.filter(date=today).select_related(
-        'employee__user', 'employee__department'
-    )
-    
-    total_employees = Employee.objects.filter(is_active=True).count()
-    present_today = today_attendance.filter(status__in=['present', 'late', 'half_day']).count()
-    late_today = today_attendance.filter(status='late').count()
-    
-    today_stats = {
-        'present': present_today,
-        'late': late_today,
-        'attendance_rate': round((present_today / total_employees) * 100) if total_employees > 0 else 0,
-        'late_rate': round((late_today / total_employees) * 100) if total_employees > 0 else 0,
-    }
-    
-    # Monthly statistics
-    month_start = today.replace(day=1)
-    monthly_attendance = Attendance.objects.filter(date__gte=month_start, date__lte=today)
-    
-    monthly_stats = {
-        'avg_daily_attendance': round(monthly_attendance.filter(status__in=['present', 'late', 'half_day']).count() / today.day),
-        'attendance_rate': 95,  # Calculate based on your logic
-        'absences': monthly_attendance.filter(status='absent').count(),
-        'avg_daily_absence': round(monthly_attendance.filter(status='absent').count() / today.day),
-    }
-    
-    # Department statistics
-    departments = Department.objects.all()
-    department_stats = []
-    for dept in departments:
-        dept_employees = dept.employee_set.filter(is_active=True).count()
-        dept_present = today_attendance.filter(
-            employee__department=dept,
-            status__in=['present', 'late', 'half_day']
-        ).count()
+    def format_duration(duration):
+        """Formatear timedelta a formato legible: 1h 30m"""
+        if not duration:
+            return "0h 00m"
         
-        department_stats.append({
-            'name': dept.name,
-            'total': dept_employees,
-            'present': dept_present,
-            'attendance_rate': round((dept_present / dept_employees) * 100) if dept_employees > 0 else 0,
-        })
-    
-    context = {
-        'today_stats': today_stats,
-        'monthly_stats': monthly_stats,
-        'department_stats': department_stats,
-        'today_attendance': today_attendance,
-        'employees': Employee.objects.filter(is_active=True),
-        'departments': departments,
-    }
-    
-    return render(request, 'attendance/attendance_dashboard.html', context)
-
-
-@login_required
-def supervisor_dashboard(request):
-    """Dashboard para supervisores ver el estado de sus agentes"""
-    try:
-        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
-        team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
-
-        # Agregar el estado actual a cada agente
-        for agent in team_members:
-            agent.current_status = AgentStatus.get_current_status(agent)
-
-        context = {
-            'supervisor': supervisor,
-            'team_members': team_members,
-            'current_time': timezone.now(),
-        }
-
-        return render(request, 'attendance/supervisor_dashboard.html', context)
-
-    except Employee.DoesNotExist:
-        messages.error(request, "You are not a supervisor.")
-        return redirect('home')
-
-
-@login_required
-def supervisor_dashboard_partial(request):
-    """Renderiza solo la tabla de agentes (para refresco con HTMX)"""
-    supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
-    team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
-
-    for agent in team_members:
-        agent.current_status = AgentStatus.get_current_status(agent)
-
-    return render(request, 'attendance/partials/agents_table.html', {
-        'team_members': team_members,
-        'current_time': timezone.now(),
-    })
-
-
-
-
-@login_required
-# @cache_control(no_cache=True, must_revalidate=True, no_store=True)
-def supervisor_stats_api(request):
-    """API endpoint para obtener estadísticas actualizadas del equipo"""
-    try:
-        # Get supervisor
-        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+        total_seconds = int(duration.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
         
-        # Get team members
-        team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
-        
-        # Get current statuses
-        current_statuses = AgentStatus.objects.filter(
-            agent__in=team_members,
-            end_time__isnull=True  # Estados activos
-        ).select_related('agent')
-        
-        # Create status map
-        agent_status_map = {status.agent_id: status for status in current_statuses}
-        
-        # Team statistics
-        team_stats = {
-            'total_agents': team_members.count(),
-            'ready_count': current_statuses.filter(status='ready').count(),
-            'break_count': current_statuses.filter(status='break').count(),
-            'lunch_count': current_statuses.filter(status='lunch').count(),
-            'training_count': current_statuses.filter(status='training').count(),
-            'meeting_count': current_statuses.filter(status='meeting').count(),
-            'offline_count': current_statuses.filter(status='offline').count(),
-        }
-        
-        # Today's activity (last 10 activities)
-        today = timezone.localdate()
-        start_of_day = timezone.make_aware(datetime.combine(today, time.min))
-        
-        today_activity = AgentStatus.objects.filter(
-            agent__in=team_members,
-            start_time__gte=start_of_day
-        ).select_related('agent').order_by('-start_time')[:10]
-        
-        context = {
-            'team_stats': team_stats,
-            'today_activity': today_activity,
-            'agent_status_map': agent_status_map,
-            'current_time': timezone.now(),
-        }
-        
-        return render(request, 'attendance/partials/supervisor_stats.html', context)
-        
-    except Employee.DoesNotExist:
-        return HttpResponse(status=403)
-    
-
-
-@login_required
-def supervisor_agents_api(request):
-    """API para la tabla de agentes"""
-    try:
-        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
-        team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
-        
-        current_statuses = AgentStatus.objects.filter(
-            agent__in=team_members,
-            end_time__isnull=True
-        ).select_related('agent')
-        
-        agent_status_map = {status.agent_id: status for status in current_statuses}
-        
-        context = {
-            'team_members': team_members,
-            'agent_status_map': agent_status_map,
-            'current_time': timezone.now(),
-        }
-        
-        return render(request, 'attendance/partials/agents_table.html', context)
-    except Employee.DoesNotExist:
-        return HttpResponse(status=403)
-
-@login_required
-def supervisor_activity_api(request):
-    """API para la línea de tiempo de actividad"""
-    try:
-        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
-        team_members = Employee.objects.filter(supervisor=supervisor, is_active=True)
-        
-        today = timezone.localdate()
-        start_of_day = timezone.make_aware(datetime.combine(today, time.min))
-        
-        today_activity = AgentStatus.objects.filter(
-            agent__in=team_members,
-            start_time__gte=start_of_day
-        ).select_related('agent').order_by('-start_time')[:5]
-        
-        context = {
-            'today_activity': today_activity,
-        }
-        
-        return render(request, 'attendance/partials/activity_timeline.html', context)
-    except Employee.DoesNotExist:
-        return HttpResponse(status=403)
-    
-def employee_status_list(request, id_employee):
-    employee = get_object_or_404(Employee, id=id_employee)
-    today = now().date()
-
-    statuses = AgentStatus.objects.filter(
-        agent=employee,
-        start_time__date=today  # 👈 filtrado directo por fecha
-    ).order_by('-start_time')
-
-    return render(request, 'attendance/employee_status_list.html', {
-        'employee': employee,
-        'statuses': statuses,
-        'today': today,
-    })
-
-@login_required
-def add_status_note(request, status_id):
-    """Add note to existing status record"""
-    status_record = get_object_or_404(AgentStatus, id=status_id)
-    
-    if request.method == 'POST':
-        notes = request.POST.get('notes', '').strip()
-        if notes:
-            status_record.notes = notes
-            status_record.save()
-            messages.success(request, 'Note added successfully.')
+        if hours > 0:
+            return f"{hours}h {minutes:02d}m"
         else:
-            messages.error(request, 'Note cannot be empty.')
+            return f"{minutes}m"
     
-    return redirect(request.META.get('HTTP_REFERER', 'supervisor_dashboard'))
-
-
-def employee_force_logout(request, employee_id):
-    target_employee = get_object_or_404(Employee, id=employee_id)
-
-    try:
-        requester_employee = Employee.objects.get(user=request.user)
-    except Employee.DoesNotExist:
-        messages.error(request, 'You need an employee profile to perform this action.')
-        return redirect('supervisor_dashboard')
-
-    if (
-        requester_employee.is_supervisor and 
-        target_employee.supervisor == requester_employee and
-        target_employee.user
-    ):
-        # Cerrar sesiones activas
-        sessions = Session.objects.filter(expire_date__gte=timezone.now())
-        for session in sessions:
-            data = session.get_decoded()
-            if data.get('_auth_user_id') == str(target_employee.user.id):
-                session.delete()
-                break
-
-        # Actualizar estado del agente
-        with transaction.atomic():
-            close_active_status(target_employee)  # 👈 usa la misma función
-            new_status = AgentStatus.objects.create(
-                agent=target_employee,
-                status='offline',
-                start_time=timezone.now(),
-                notes='Forced logout by supervisor'
-            )
-
-            if hasattr(target_employee, 'current_status'):
-                target_employee.current_status = new_status
-                target_employee.save(update_fields=['current_status'])
-
-        messages.success(
-            request,
-            f'{target_employee.user.get_full_name()} has been logged out and set to Offline.'
-        )
-
+    # Cálculo simple de ganancias
+    payable_hours = total_work_time.total_seconds() / 3600
+    
+    # Tomar el pay rate de la campaña o usar default
+    if current_campaign and current_campaign.hour_rate:
+        hourly_rate = float(current_campaign.hour_rate)
     else:
-        messages.error(request, 'You can only logout employees from your own team.')
+        hourly_rate = 1.00  # Default
+    
+    estimated_earnings = payable_hours * hourly_rate
+    
+    return {
+        'total': format_duration(total_time),
+        'payable': format_duration(total_work_time),
+        'break': format_duration(total_break_time),
+        'lunch': format_duration(total_lunch_time),
+        'payable_hours': round(payable_hours, 2),
+        'money': f"${estimated_earnings:.2f}",
+        'break_count': work_day.break_count or 0,
+        'hourly_rate': hourly_rate,
+    }
 
-    return redirect('supervisor_dashboard')
 
 
-def export_employees_excel(request):
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename=employees_payroll_detailed.csv'
+@login_required
+def attendance_history(request):
+    """
+    Vista principal del historial de asistencia - CORREGIDA
+    """
+    employee = get_object_or_404(Employee, user=request.user)
+    
+    # Parámetros de filtrado
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Obtener todos los WorkDays del empleado
+    work_days = WorkDay.objects.filter(employee=employee).order_by('-date')
+    
+    # Aplicar filtros
+    if date_from:
+        work_days = work_days.filter(date__gte=date_from)
+    if date_to:
+        work_days = work_days.filter(date__lte=date_to)
+    
+    # Paginación
+    paginator = Paginator(work_days, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Función auxiliar para formatear duración
+    def format_duration_simple(duration):
+        if not duration:
+            return "0h 00m"
+        total_seconds = int(duration.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        if hours > 0:
+            return f"{hours}h {minutes:02d}m"
+        return f"{minutes}m"
+    
+    # Preparar datos para cada día
+    days_data = []
+    for work_day in page_obj:
+        sessions = work_day.sessions.all().order_by('start_time')
+        days_data.append({
+            'work_day': work_day,
+            'sessions': sessions,
+            'work_time': format_duration_simple(work_day.total_work_time),
+            'break_time': format_duration_simple(work_day.total_break_time),
+            'lunch_time': format_duration_simple(work_day.total_lunch_time),
+        })
+    
+    context = {
+        'employee': employee,
+        'days_data': days_data,
+        'page_obj': page_obj,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_days': work_days.count(),
+    }
+    
+    return render(request, 'attendance/attendance_history.html', context)
+
+
+@login_required
+def export_attendance_csv(request):
+    """
+    Exporta el historial de asistencia filtrado a un archivo CSV
+    """
+    employee = get_object_or_404(Employee, user=request.user)
+
+    # Mismos filtros que en attendance_history
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    work_days = WorkDay.objects.filter(employee=employee).order_by('-date')
+    if date_from:
+        work_days = work_days.filter(date__gte=date_from)
+    if date_to:
+        work_days = work_days.filter(date__lte=date_to)
+
+    # Preparar respuesta CSV
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="attendance_history_{employee.user.username}.csv"'
 
     writer = csv.writer(response)
-    
-    # Encabezados más detallados
     writer.writerow([
-        'Employee Code', 'First Name', 'Last Name', 'Email', 
-        'Identification', 'Department', 'Position', 'Supervisor',
-        'Pay Type', 'Base Rate', 'Overtime Rate', 'Bonus',
-        'Total Hours', 'Regular Hours', 'Overtime Hours',
-        'Gross Salary', 'AFP (2.87%)', 'SFS (3.04%)', 'ISR', 
-        'Other Deductions', 'Total Deductions', 'Net Salary',
-        'Bank Name', 'Account Number', 'Period'
+        'Date',
+        'Work Time',
+        'Break Time',
+        'Lunch Time',
+        'Total Sessions',
     ])
 
-    today = timezone.now().date()
-    period_start = today.replace(day=1)
-    period_end = today
-    period_name = f"{period_start.strftime('%b %Y')}"
+    def format_duration_simple(duration):
+        if not duration:
+            return "0h 00m"
+        total_seconds = int(duration.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        return f"{hours}h {minutes:02d}m" if hours > 0 else f"{minutes}m"
 
-    employees = Employee.objects.select_related('user', 'position', 'department', 'supervisor').all()
-
-    for employee in employees:
-        # ✅ Calculate total hours and separate regular/overtime
-        ready_statuses = AgentStatus.objects.filter(
-            agent=employee,
-            status='ready',
-            start_time__date__range=[period_start, period_end]
-        )
-
-        total_seconds = 0
-        for status in ready_statuses:
-            end_time = status.end_time or timezone.now()
-            if end_time.date() > period_end:
-                end_time = timezone.make_aware(datetime.combine(period_end, datetime.max.time()))
-            
-            duration = end_time - status.start_time
-            total_seconds += duration.total_seconds()
-
-        total_hours = Decimal(total_seconds) / Decimal(3600) if total_seconds > 0 else Decimal('0')
-        total_hours = round(total_hours, 2)
-        
-        # Calcular horas regulares y extra (simplificado)
-        regular_hours = min(total_hours, Decimal('160'))  # 160 horas mensuales
-        overtime_hours = max(total_hours - Decimal('160'), Decimal('0'))
-
-        # ✅ Get payroll info
-        payroll_info = get_effective_pay_rate(employee, total_hours=total_hours)
-        
-        # ✅ Calcular deducciones
-        gross_salary = payroll_info['net_salary']
-        deductions = calculate_employee_deductions(gross_salary)
-        
-        # Información del supervisor
-        supervisor_name = ""
-        if employee.supervisor and employee.supervisor.user:
-            supervisor_name = f"{employee.supervisor.user.get_full_name()}"
-
+    for work_day in work_days:
+        sessions = work_day.sessions.all().order_by('start_time')
         writer.writerow([
-            employee.employee_code,
-            employee.user.first_name if employee.user else '',
-            employee.user.last_name if employee.user else '',
-            employee.user.email if employee.user else '',
-            employee.identification,
-            employee.department.name if employee.department else 'N/A',
-            employee.position.name if employee.position else 'N/A',
-            supervisor_name,
-            payroll_info['pay_type'].title(),
-            float(payroll_info['base_rate']),
-            float(payroll_info['overtime_rate']),
-            float(payroll_info['bonus']),
-            float(total_hours),
-            float(regular_hours),
-            float(overtime_hours),
-            float(gross_salary),
-            float(deductions['afp']),
-            float(deductions['sfs']),
-            float(deductions['isr']),
-            float(deductions['other_deductions']),
-            float(deductions['total_deductions']),
-            float(deductions['net_income']),
-            employee.bank_name or 'N/A',
-            employee.bank_account or 'N/A',
-            period_name
+            work_day.date.strftime("%Y-%m-%d"),
+            format_duration_simple(work_day.total_work_time),
+            format_duration_simple(work_day.total_break_time),
+            format_duration_simple(work_day.total_lunch_time),
+            sessions.count(),
         ])
 
     return response
 
-def calculate_employee_deductions(total_earnings, year=None):
+
+@login_required
+def day_detail(request, date_str):
     """
-    Calcular deducciones legales para República Dominicana
+    Vista detallada de un día específico - CORREGIDA
     """
-    if year is None:
-        year = datetime.now().year
+    employee = get_object_or_404(Employee, user=request.user)
     
-    # Validar que total_earnings sea Decimal
-    if not isinstance(total_earnings, Decimal):
-        total_earnings = Decimal(str(total_earnings))
+    try:
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        work_day = WorkDay.objects.get(employee=employee, date=date_obj)
+        
+        sessions = work_day.sessions.all().order_by('start_time')
+
+
+                
+        # Función para formatear duración
+        def format_duration_simple(duration):
+            if not duration:
+                return "0h 00m"
+            total_seconds = int(duration.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            if hours > 0:
+                return f"{hours}h {minutes:02d}m"
+            return f"{minutes}m"
+        
+        # Calcular estadísticas del día con formato correcto
+        daily_stats = {
+            'work_time': format_duration_simple(work_day.total_work_time),
+            'break_time': format_duration_simple(work_day.total_break_time),
+            'lunch_time': format_duration_simple(work_day.total_lunch_time),
+            'money': calculate_daily_stats(work_day)['money'],
+            'break_count': work_day.break_count or 0,
+        }
+        
+        context = {
+            'employee': employee,
+            'work_day': work_day,
+            'sessions': sessions,
+            'daily_stats': daily_stats,
+            'date': date_obj,
+        }
+        
+        return render(request, 'attendance/day_detail.html', context)
+        
+    except (ValueError, WorkDay.DoesNotExist):
+        messages.error(request, "Day not found or no data available.")
+        return redirect('attendance_history')
     
-    # Asegurar que sea positivo
-    total_earnings = max(total_earnings, Decimal('0'))
+
+
+@login_required
+def employee_profile(request, employee_id=None):
+    """
+    Vista del perfil del empleado
+    """
+    # Si no se proporciona employee_id, mostrar el perfil del usuario actual
+    if employee_id is None:
+        employee = get_object_or_404(Employee, user=request.user)
+    else:
+        employee = get_object_or_404(Employee, id=employee_id)
     
-    # AFP (Administradora de Fondos de Pensiones) - 2.87%
-    afp = (total_earnings * Decimal('0.0287')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    # Verificar permisos: solo el propio empleado o superusers pueden ver información sensible
+    can_view_sensitive = (request.user == employee.user) or request.user.is_superuser
     
-    # SFS (Sistema de Fondo de Salud) - 3.04%
-    sfs = (total_earnings * Decimal('0.0304')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    # Calcular estadísticas de pago si tiene permisos
+    payment_stats = calculate_payment_stats(employee) if can_view_sensitive else None
     
-    # Base para ISR (Ingreso imponible)
-    taxable_income = total_earnings - afp - sfs
+    # Obtener campaña actual
+    current_campaign = employee.current_campaign
     
-    # Calcular ISR según las escalas
-    isr = calculate_isr(taxable_income, year)
+    # Preparar skills como lista
+    skills_list = []
+    if employee.skills:
+        skills_list = [skill.strip() for skill in employee.skills.split(',')]
     
-    # Otras deducciones (podrían incluir préstamos, etc.)
-    other_deductions = Decimal('0')
+    context = {
+        'employee': employee,
+        'current_campaign': current_campaign,
+        'payment_stats': payment_stats,
+        'skills_list': skills_list,
+        'can_view_sensitive': can_view_sensitive,
+    }
     
-    total_deductions = afp + sfs + isr + other_deductions
+    return render(request, 'core/employee_profile.html', context)
+
+def calculate_payment_stats(employee):
+    """
+    Calcular estadísticas de pago para el empleado
+    """
+    pay_method = None
+    base_rate = 0
+    monthly_earnings = 0
+    
+    # Usar hourly rate del puesto como base
+    if employee.position and employee.position.hour_rate:
+        base_rate = float(employee.position.hour_rate)
+        monthly_earnings = base_rate * 160  # 160 horas mensuales aproximadas
+        pay_method = 'hourly_position'
+    else:
+        base_rate = 15.00  # Default
+        monthly_earnings = base_rate * 160
+        pay_method = 'hourly_default'
     
     return {
-        'afp': afp,
-        'sfs': sfs, 
-        'isr': isr,
-        'other_deductions': other_deductions,
-        'total_deductions': total_deductions,
-        'taxable_income': taxable_income,
-        'net_income': total_earnings - total_deductions
+        'pay_method': pay_method,
+        'base_rate': base_rate,
+        'monthly_earnings': monthly_earnings,
     }
 
-def calculate_isr(taxable_income, year=2024):
+@login_required
+def edit_employee_profile(request, employee_id):
     """
-    Calcular Impuesto Sobre la Renta según escalas oficiales de RD
-    Escalas basadas en el año 2024
+    Vista para editar el perfil del empleado
     """
-    if not isinstance(taxable_income, Decimal):
-        taxable_income = Decimal(str(taxable_income))
+    employee = get_object_or_404(Employee, id=employee_id)
     
-    # Asegurar que sea positivo
-    taxable_income = max(taxable_income, Decimal('0'))
+    # Verificar que el usuario puede editar este perfil
+    if request.user != employee.user and not request.user.is_superuser:
+        messages.error(request, "You don't have permission to edit this profile.")
+        return redirect('employee_profile', employee_id=employee_id)
     
-    # Escalas ISR 2024 para República Dominicana
-    # (Estas escalas pueden cambiar anualmente)
-    if year == 2024:
-        scales = [
-            (Decimal('416220.00'), Decimal('0.00'), Decimal('0.00')),    # Exento
-            (Decimal('624329.00'), Decimal('0.15'), Decimal('416220.01')), # 15%
-            (Decimal('867123.00'), Decimal('0.20'), Decimal('624329.01')), # 20%
-            (Decimal('999999999.00'), Decimal('0.25'), Decimal('867123.01'))  # 25%
-        ]
-        
-        # Montos fijos por escalón (acumulado de escalones anteriores)
-        fixed_amounts = {
-            1: Decimal('0'),      # Escalón 1: Exento
-            2: Decimal('31216'),  # Escalón 2: 31,216
-            3: Decimal('79776')   # Escalón 3: 79,776
-        }
+    if request.method == 'POST':
+        form = EmployeeProfileForm(request.POST, instance=employee)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Profile updated successfully!")
+            return redirect('employee_profile', employee_id=employee_id)
     else:
-        # Para otros años, usar escalas por defecto (2024)
-        # En una implementación real, tendrías diferentes escalas por año
-        scales = [
-            (Decimal('416220.00'), Decimal('0.00'), Decimal('0.00')),
-            (Decimal('624329.00'), Decimal('0.15'), Decimal('416220.01')),
-            (Decimal('867123.00'), Decimal('0.20'), Decimal('624329.01')),
-            (Decimal('999999999.00'), Decimal('0.25'), Decimal('867123.01'))
-        ]
-        fixed_amounts = {
-            1: Decimal('0'),
-            2: Decimal('31216'), 
-            3: Decimal('79776')
+        form = EmployeeProfileForm(instance=employee)
+    
+    context = {
+        'employee': employee,  # ← Asegúrate de pasar esto
+        'form': form,
+    }
+    
+    return render(request, 'core/edit_profile.html', context)
+
+
+
+
+@login_required
+def supervisor_dashboard(request):
+    """
+    Dashboard principal para supervisores
+    """
+    try:
+        # Obtener el empleado que es supervisor
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+    except Employee.DoesNotExist:
+        messages.error(request, "You don't have supervisor privileges.")
+        return redirect('employee_profile')
+    
+    # Obtener los miembros del equipo
+    team_members = Employee.objects.filter(supervisor=supervisor).select_related(
+        'user', 'position', 'department', 'current_campaign'
+    )
+    
+    # Estadísticas del equipo
+    total_team_members = team_members.count()
+    logged_in_count = team_members.filter(is_logged_in=True).count()
+    active_in_campaign = team_members.filter(current_campaign__isnull=False).count()
+    
+    # Obtener WorkDays de hoy para el equipo
+    today = timezone.now().date()
+    team_workdays = WorkDay.objects.filter(
+        employee__in=team_members,
+        date=today
+    ).select_related('employee')
+    
+    # Preparar datos para cada miembro del equipo
+    team_data = []
+    for member in team_members:
+        try:
+            workday_today = team_workdays.get(employee=member)
+            current_session = workday_today.get_active_session()
+            daily_stats = calculate_daily_stats(workday_today)
+        except WorkDay.DoesNotExist:
+            workday_today = None
+            current_session = None
+            daily_stats = None
+        
+        team_data.append({
+            'employee': member,
+            'workday': workday_today,
+            'current_session': current_session,
+            'daily_stats': daily_stats,
+        })
+    
+    context = {
+        'supervisor': supervisor,
+        'team_data': team_data,
+        'total_team_members': total_team_members,
+        'logged_in_count': logged_in_count,
+        'active_in_campaign': active_in_campaign,
+        'today': today,
+    }
+    
+    return render(request, 'supervisor/supervisor_dashboard.html', context)
+
+
+
+@login_required
+def export_team_report_excel(request):
+    """
+    Exporta el reporte general de asistencia del equipo supervisado a Excel.
+    Cada fila representa un empleado por fecha.
+    Incluye hasta 2 breaks y 1 lunch con horas de inicio, fin y duración.
+    """
+    try:
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+    except Employee.DoesNotExist:
+        messages.error(request, "You don't have supervisor privileges.")
+        return redirect('employee_profile')
+
+    # Filtros
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    campaign_id = request.GET.get('campaign')
+    include_offline = request.GET.get('include_offline') == 'true'
+
+    # Validación de fechas
+    if not date_from or not date_to:
+        messages.error(request, "Please select valid start and end dates before generating the report.")
+        return redirect('supervisor_dashboard')
+
+    try:
+        date_from_dt = datetime.strptime(date_from, "%Y-%m-%d").date()
+        date_to_dt = datetime.strptime(date_to, "%Y-%m-%d").date()
+    except ValueError:
+        messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+        return redirect('supervisor_dashboard')
+
+    # Miembros del equipo
+    team_members = Employee.objects.filter(supervisor=supervisor).select_related('user', 'current_campaign')
+    if campaign_id:
+        team_members = team_members.filter(current_campaign_id=campaign_id)
+    if not include_offline:
+        team_members = team_members.filter(is_logged_in=True)
+
+    # WorkDays filtrados
+    work_days = WorkDay.objects.filter(
+        employee__in=team_members,
+        date__gte=date_from_dt,
+        date__lte=date_to_dt
+    ).select_related('employee', 'employee__current_campaign').prefetch_related('sessions').order_by('date', 'employee__user__last_name')
+
+    # Crear workbook y hoja
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Team Report"
+
+    bold_font = Font(bold=True)
+    center_align = Alignment(horizontal="center")
+
+    # Título del reporte
+    ws.merge_cells('A1:L1')
+    ws['A1'] = f"Team Report - Supervisor: {supervisor.user.get_full_name()}"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = center_align
+
+    ws.merge_cells('A2:L2')
+    ws['A2'] = f"Generated at: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    ws['A2'].alignment = center_align
+
+    ws.append([])
+
+    # Encabezados
+    headers = [
+        "Date", "Employee", "Total Work Time",
+        "Break1 Start", "Break1 End", "Break1 Duration",
+        "Break2 Start", "Break2 End", "Break2 Duration",
+        "Lunch Start", "Lunch End", "Lunch Duration",
+        "Work Sessions Count"
+    ]
+    ws.append(headers)
+    for col in range(1, len(headers) + 1):
+        ws.cell(row=4, column=col).font = bold_font
+        ws.cell(row=4, column=col).alignment = center_align
+
+    # Agrupar WorkDays por fecha y empleado
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for wd in work_days:
+        grouped[(wd.date, wd.employee)].append(wd)
+
+    # Filas de datos
+    for (date, employee), wds in sorted(grouped.items(), key=lambda x: (x[0][0], x[0][1].user.last_name)):
+        wd = wds[0]  # Solo habrá un WorkDay por fecha y empleado
+
+        employee_name = employee.user.get_full_name()
+        total_work = str(wd.total_work_time) if wd.total_work_time else "0:00:00"
+
+        # Filtrar sesiones
+        breaks = [s for s in wd.sessions.all() if s.session_type == 'break'][:2]
+        lunch = [s for s in wd.sessions.all() if s.session_type == 'lunch'][:1]
+
+        # Obtener tiempos y duración
+        def format_duration(s):
+            if s.start_time and s.end_time:
+                delta = s.end_time - s.start_time
+                return str(delta)
+            return "—"
+
+        break1_start = breaks[0].start_time.strftime("%H:%M:%S") if len(breaks) > 0 else "—"
+        break1_end = breaks[0].end_time.strftime("%H:%M:%S") if len(breaks) > 0 and breaks[0].end_time else "—"
+        break1_duration = format_duration(breaks[0]) if len(breaks) > 0 else "—"
+
+        break2_start = breaks[1].start_time.strftime("%H:%M:%S") if len(breaks) > 1 else "—"
+        break2_end = breaks[1].end_time.strftime("%H:%M:%S") if len(breaks) > 1 and breaks[1].end_time else "—"
+        break2_duration = format_duration(breaks[1]) if len(breaks) > 1 else "—"
+
+        lunch_start = lunch[0].start_time.strftime("%H:%M:%S") if lunch else "—"
+        lunch_end = lunch[0].end_time.strftime("%H:%M:%S") if lunch and lunch[0].end_time else "—"
+        lunch_duration = format_duration(lunch[0]) if lunch else "—"
+
+        # Contar sesiones de trabajo
+        work_sessions_count = wd.sessions.filter(session_type='work').count()
+
+        ws.append([
+            date.strftime("%Y-%m-%d"),
+            employee_name,
+            total_work,
+            break1_start, break1_end, break1_duration,
+            break2_start, break2_end, break2_duration,
+            lunch_start, lunch_end, lunch_duration,
+            work_sessions_count
+        ])
+
+    # Ajustar ancho de columnas automáticamente
+    for i, column_cells in enumerate(ws.columns, 1):
+        length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
+        ws.column_dimensions[get_column_letter(i)].width = length + 2
+
+    # Crear respuesta
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f"team_report_{supervisor.user.last_name}_{timezone.now().strftime('%Y%m%d')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
+
+
+
+
+@login_required
+def team_attendance_history(request):
+    """
+    Historial de asistencia del equipo completo
+    """
+    try:
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+    except Employee.DoesNotExist:
+        messages.error(request, "You don't have supervisor privileges.")
+        return redirect('employee_profile')
+    
+    # Parámetros de filtrado
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    employee_id = request.GET.get('employee')
+    
+    # Obtener miembros del equipo
+    team_members = Employee.objects.filter(supervisor=supervisor)
+    
+    # Obtener WorkDays del equipo
+    work_days = WorkDay.objects.filter(employee__in=team_members).order_by('-date')
+    
+    # Aplicar filtros
+    if date_from:
+        work_days = work_days.filter(date__gte=date_from)
+    if date_to:
+        work_days = work_days.filter(date__lte=date_to)
+    if employee_id:
+        work_days = work_days.filter(employee_id=employee_id)
+    
+    # Paginación
+    paginator = Paginator(work_days, 15)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Preparar datos para cada día
+    days_data = []
+    for work_day in page_obj:
+        sessions = work_day.sessions.all().order_by('start_time')
+        days_data.append({
+            'work_day': work_day,
+            'sessions': sessions,
+            'work_time': format_duration_simple(work_day.total_work_time),
+            'break_time': format_duration_simple(work_day.total_break_time),
+            'lunch_time': format_duration_simple(work_day.total_lunch_time),
+        })
+    
+    context = {
+        'supervisor': supervisor,
+        'team_members': team_members,
+        'days_data': days_data,
+        'page_obj': page_obj,
+        'date_from': date_from,
+        'date_to': date_to,
+        'selected_employee': employee_id,
+        'total_days': work_days.count(),
+    }
+    
+    return render(request, 'supervisor/team_attendance_history.html', context)
+
+@login_required
+def employee_attendance_detail(request, employee_id):
+    """
+    Vista detallada de asistencia de un empleado específico
+    """
+    try:
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+    except Employee.DoesNotExist:
+        messages.error(request, "You don't have supervisor privileges.")
+        return redirect('employee_profile')
+    
+    # Verificar que el empleado pertenezca al equipo del supervisor
+    employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
+    
+    # Parámetros de filtrado
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Obtener WorkDays del empleado
+    work_days = WorkDay.objects.filter(employee=employee).order_by('-date')
+    
+    if date_from:
+        work_days = work_days.filter(date__gte=date_from)
+    if date_to:
+        work_days = work_days.filter(date__lte=date_to)
+    
+    # Paginación
+    paginator = Paginator(work_days, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Estadísticas del empleado
+    total_work_days = work_days.count()
+    total_work_time = sum((wd.total_work_time.total_seconds() for wd in work_days if wd.total_work_time), 0)
+    avg_work_time = total_work_time / total_work_days if total_work_days > 0 else 0
+    
+    context = {
+        'supervisor': supervisor,
+        'employee': employee,
+        'page_obj': page_obj,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_work_days': total_work_days,
+        'total_work_time': format_duration_simple(timedelta(seconds=total_work_time)),
+        'avg_work_time': format_duration_simple(timedelta(seconds=avg_work_time)),
+    }
+    
+    return render(request, 'supervisor/employee_attendance_detail.html', context)
+
+
+@login_required
+def export_employee_attendance_csv(request, employee_id):
+    """Exporta los registros de asistencia de un empleado específico a CSV."""
+    try:
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+    except Employee.DoesNotExist:
+        messages.error(request, "You don't have supervisor privileges.")
+        return redirect('employee_profile')
+
+    employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
+
+    # Filtros aplicados
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    # Validación de fechas
+    if not date_from or not date_to:
+        messages.error(request, "You must select a valid start and end date before generating the report.")
+        return redirect(request.META.get('HTTP_REFERER', 'employee_profile'))
+
+    try:
+        date_from_parsed = datetime.strptime(date_from, "%Y-%m-%d").date()
+        date_to_parsed = datetime.strptime(date_to, "%Y-%m-%d").date()
+
+        if date_from_parsed > date_to_parsed:
+            messages.error(request, "The start date cannot be later than the end date.")
+            return redirect(request.META.get('HTTP_REFERER', 'employee_profile'))
+
+    except ValueError:
+        messages.error(request, "Invalid date format. Please select valid dates.")
+        return redirect(request.META.get('HTTP_REFERER', 'employee_profile'))
+
+    # Obtener WorkDays filtrados
+    work_days = WorkDay.objects.filter(employee=employee, date__range=(date_from_parsed, date_to_parsed)).order_by('-date')
+
+    # Nombre del archivo
+    safe_name = f"{employee.user.first_name}_{employee.user.last_name}".replace(" ", "_")
+    filename = f"attendance_{safe_name}.csv"
+
+    # Crear respuesta CSV
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow([f"Attendance Report for {employee.user.get_full_name()}"])
+    writer.writerow([f"Date range: {date_from} to {date_to}"])
+    writer.writerow(["Generated at:", timezone.now().strftime("%Y-%m-%d %H:%M:%S")])
+    writer.writerow([])
+
+    # Encabezados
+    writer.writerow([
+        "Date", "Day", "Status", "Check In", "Check Out",
+        "Total Work Time", "Breaks", "Sessions Count"
+    ])
+
+    # Sumar total de horas trabajadas
+    total_seconds = 0
+
+    # Filas
+    for wd in work_days:
+        total_time = wd.total_work_time
+        if total_time:
+            total_seconds += total_time.total_seconds()
+        total_time_str = format_duration_simple(total_time) if total_time else "0h 00m"
+
+        writer.writerow([
+            wd.date.strftime("%Y-%m-%d"),
+            wd.date.strftime("%A"),
+            wd.get_status_display(),
+            wd.check_in.strftime("%I:%M %p") if wd.check_in else "—",
+            wd.check_out.strftime("%I:%M %p") if wd.check_out else "—",
+            total_time_str,
+            wd.break_count,
+            wd.sessions.count(),
+        ])
+
+    # Agregar fila resumen
+    writer.writerow([])
+    writer.writerow(["TOTAL WORK TIME:", format_duration_simple(timedelta(seconds=total_seconds))])
+
+    return response
+
+# Función auxiliar para formatear duración
+def format_duration_simple(duration):
+    """Formatear timedelta a formato legible"""
+    if not duration:
+        return "0h 00m"
+    
+    total_seconds = int(duration.total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    
+    if hours > 0:
+        return f"{hours}h {minutes:02d}m"
+    return f"{minutes}m"
+
+
+
+@login_required
+def supervisor_day_detail(request, employee_id, date_str):
+    """
+    Vista detallada de un día específico para supervisores
+    """
+    try:
+        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+    except Employee.DoesNotExist:
+        messages.error(request, "You don't have supervisor privileges.")
+        return redirect('employee_profile')
+    
+    # Verificar que el empleado pertenezca al equipo del supervisor
+    employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
+    
+    try:
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        work_day = WorkDay.objects.get(employee=employee, date=date_obj)
+        
+        sessions = work_day.sessions.all().order_by('start_time')
+        
+        context = {
+            'supervisor': supervisor,
+            'employee': employee,
+            'work_day': work_day,
+            'sessions': sessions,
+            'date': date_obj,
         }
-    
-    # Encontrar el escalón correspondiente
-    for i, (limit, rate, base) in enumerate(scales, 1):
-        if taxable_income <= limit:
-            if i == 1:  # Primer escalón (exento)
-                return Decimal('0')
-            else:
-                # Calcular ISR para este escalón
-                excess = taxable_income - base
-                calculated_isr = fixed_amounts[i] + (excess * rate)
-                return calculated_isr.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    
-    # Si excede todas las escalas (no debería pasar)
-    return Decimal('0')
+        
+        return render(request, 'supervisor/supervisor_day_detail.html', context)
+        
+    except (ValueError, WorkDay.DoesNotExist):
+        messages.error(request, "Day not found or no data available.")
+        return redirect('employee_attendance_detail', employee_id=employee_id)

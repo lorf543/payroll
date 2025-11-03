@@ -1,9 +1,327 @@
 {% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Employee Dashboard - Payroll System{% endblock %}
 
 {% block content %}
+<div class="container-fluid">
+    <!-- Welcome Header -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">Welcome, {{ employee.user.first_name }}!</h1>
+                <p class="page-subtitle">Your payroll dashboard and payment summary</p>
+            </div>
+            <div class="col-auto">
+                <div class="badge bg-success px-3 py-2">
+                    <i class="bi bi-person-check me-2"></i>
+                    Employee ID: {{ employee.id }}
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <!-- Quick Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card border-start border-primary border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-primary text-uppercase small fw-bold">Year to Date</div>
+                            <div class="number">${{ total_year|floatformat:2|intcomma }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-calendar-check text-primary fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        {% include "core/components/employee_dashboard.html" %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card border-start border-success border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-success text-uppercase small fw-bold">Monthly Average</div>
+                            <div class="number">${{ avg_monthly|floatformat:2|intcomma }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-graph-up text-success fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card border-start border-warning border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-warning text-uppercase small fw-bold">Payments This Year</div>
+                            <div class="number">{{ total_payments }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-cash-stack text-warning fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-{% endblock content %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card summary-card border-start border-info border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-info text-uppercase small fw-bold">Last Payment</div>
+                            <div class="number">
+                                {% if last_payment %}
+                                    ${{ last_payment.net_salary|floatformat:2|intcomma }}
+                                {% else %}
+                                    $0.00
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-wallet2 text-info fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Payments -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Recent Payments
+                    </h5>
+                    <a href="" class="btn btn-outline-primary btn-sm">
+                        View All Payments
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    {% if payments %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Payment Date</th>
+                                    <th>Period</th>
+                                    <th>Gross Salary</th>
+                                    <th>Deductions</th>
+                                    <th>Net Salary</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payment in payments %}
+                                <tr>
+                                    <td>{{ payment.pay_date|date:"M d, Y" }}</td>
+                                    <td>
+                                        {% if payment.period %}
+                                            {{ payment.period.start_date|date:"M d" }} - {{ payment.period.end_date|date:"M d, Y" }}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>${{ payment.gross_salary|floatformat:2|intcomma }}</td>
+                                    <td class="text-danger">-${{ payment.total_deductions|floatformat:2|intcomma }}</td>
+                                    <td class="fw-bold text-success">${{ payment.net_salary|floatformat:2|intcomma }}</td>
+                                    <td>
+                                        <span class="badge {% if payment.status == 'paid' %}bg-success{% else %}bg-warning{% endif %}">
+                                            {{ payment.get_status_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-receipt display-4 text-muted d-block mb-3"></i>
+                        <p class="text-muted mb-0">No payment records found.</p>
+                        <small class="text-muted">Your payment history will appear here once available.</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Employee Info & Quick Actions -->
+        <div class="col-lg-4 mb-4">
+            <!-- Employee Profile Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-person-circle me-2"></i>
+                        Employee Profile
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="employee-avatar bg-primary me-3">
+                            {{ employee.user.first_name|first }}{{ employee.user.last_name|first }}
+                        </div>
+                        <div>
+                            <h6 class="mb-1">{{ employee.first_name }} {{ employee.last_name }}</h6>
+                            <small class="text-muted">
+                                {% if employee.position %}
+                                    {{ employee.position.title }}
+                                {% else %}
+                                    Employee
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="employee-details">
+                        <div class="row small text-muted">
+                            <div class="col-12 mb-2">
+                                <i class="bi bi-building me-2"></i>
+                                {% if employee.department %}
+                                    {{ employee.department.name }}
+                                {% else %}
+                                    No Department
+                                {% endif %}
+                            </div>
+                            <div class="col-12 mb-2">
+                                <i class="bi bi-person-badge me-2"></i>
+                                Employee #{{ employee.id }}
+                            </div>
+                            {% if employee.user.email %}
+                            <div class="col-12">
+                                <i class="bi bi-envelope me-2"></i>
+                                {{ employee.user.email }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-lightning me-2"></i>
+                        Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-primary">
+                            <i class="bi bi-clock me-2"></i>
+                            Time & Attendance
+                        </a>
+                        <a href="" class="btn btn-outline-success">
+                            <i class="bi bi-cash-coin me-2"></i>
+                            Payroll Details
+                        </a>
+                        <button class="btn btn-outline-info">
+                            <i class="bi bi-download me-2"></i>
+                            Download Payslips
+                        </button>
+                        <button class="btn btn-outline-secondary">
+                            <i class="bi bi-person-gear me-2"></i>
+                            Update Profile
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Last Payment Details (if exists) -->
+    {% if last_payment %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm bg-light">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Last Payment Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div class="text-primary fw-bold fs-4">${{ last_payment.net_salary|floatformat:2|intcomma }}</div>
+                            <small class="text-muted">Net Amount</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="fw-bold">{{ last_payment.pay_date|date:"F d, Y" }}</div>
+                            <small class="text-muted">Payment Date</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="fw-bold">${{ last_payment.gross_salary|floatformat:2|intcomma }}</div>
+                            <small class="text-muted">Gross Salary</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="fw-bold text-danger">${{ last_payment.total_deductions|floatformat:2|intcomma }}</div>
+                            <small class="text-muted">Total Deductions</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.employee-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.summary-card {
+    transition: transform 0.2s ease;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.card {
+    border: none;
+    border-radius: 12px;
+}
+
+.card-header {
+    background: white;
+    border-bottom: 1px solid #eaeaea;
+    border-radius: 12px 12px 0 0 !important;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+}
+</style>
+{% endblock %}

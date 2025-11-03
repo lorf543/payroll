@@ -38,11 +38,7 @@ class DeviceNotAuthorizedView(View):
             return redirect('account_login')
         return render(request, 'device_auth/device_not_authorized.html')
 
-def is_it_staff(user):
-    return user.is_staff or user.is_superuser
-
 @login_required
-@user_passes_test(is_it_staff)
 def it_device_management(request):
     device_tokens = DeviceToken.objects.select_related('user').all()
     
@@ -72,7 +68,6 @@ def it_device_management(request):
     })
 
 @login_required
-@user_passes_test(is_it_staff)
 def reset_user_device(request, user_id):
     from django.contrib.auth.models import User
     
