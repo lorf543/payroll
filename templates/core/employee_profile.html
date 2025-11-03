@@ -171,16 +171,7 @@
                                             {% endif %}
                                         </span>
                                     </div>
-                                    <div class="info-item d-flex justify-content-between align-items-center py-2">
-                                        <span class="info-label fw-medium">IT Staff</span>
-                                        <span class="info-value text-muted">
-                                            {% if employee.is_it %}
-                                                <span class="badge bg-primary">Yes</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">No</span>
-                                            {% endif %}
-                                        </span>
-                                    </div>
+
                                 </div>
                             </div>
 
@@ -263,9 +254,9 @@
                                 </a>
                             {% endif %} 
 
-                            <button class="btn btn-outline-primary">
+                            {% comment %} <button class="btn btn-outline-primary">
                                 <i class="bi bi-printer me-2"></i>Print Profile
-                            </button>
+                            </button> {% endcomment %}
                         </div>
                     </div>
                 </div>

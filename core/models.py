@@ -16,8 +16,9 @@ class Campaign(models.Model):
     end_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
-    break_duraction = models.TimeField(null=True, blank=True)
-    lunch = models.TimeField(null=True, blank=True)
+    break_duraction = models.IntegerField(null=True, blank=True)
+    lunch = models.IntegerField(null=True, blank=True)
+
     head_count = models.IntegerField(null=True, blank=True)
     hours_required = models.IntegerField(null=True, blank=True)
     shutdown_time = models.TimeField(null=True, blank=True)
@@ -178,6 +179,9 @@ class Employee(models.Model):
     class Meta:
         verbose_name = "Employee"
         verbose_name_plural = "Employees"
+
+
+
 
 
 

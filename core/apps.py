@@ -13,3 +13,4 @@ class CoreConfig(AppConfig):
     def ready(self):
         from django.db.models.signals import post_migrate
         post_migrate.connect(setup_schedules, sender=self)
+        import core.signals

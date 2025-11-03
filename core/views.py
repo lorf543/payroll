@@ -26,29 +26,29 @@ def home_view(request):
             # Obtener o crear defaults
             default_dept, _ = Department.objects.get_or_create(
                 name="General Department",
-                defaults={'description': 'Departamento por defecto'}
+                defaults={'description': 'Default Department'}
             )
             default_position, _ = Position.objects.get_or_create(
                 title="General Position", 
-                defaults={'description': 'Posición por defecto'}
+                defaults={'description': 'Default position'}
             )
             
             employee = Employee.objects.create(
                 user=request.user,
                 first_name=request.user.first_name or request.user.username,
-                last_name=request.user.last_name or "Usuario",
+                last_name=request.user.last_name or "User",
                 department=default_dept,
                 position=default_position,
                 is_supervisor=False,
                 is_it=False
             )
             
-            messages.success(request, "¡Bienvenido! Tu perfil de empleado ha sido creado automáticamente.")
+            messages.success(request, "Welcome! Your employee profile has been automatically created.")
             
         except Exception as e:
             messages.error(request, f"Error creando perfil: {str(e)}")
             return render(request, "error.html", {
-                "error": "No se pudo crear tu perfil de empleado. Contacta al administrador."
+                "error": "Your employee profile could not be created. Contact the administrator.."
             })
     
     # Resto de tu código original...

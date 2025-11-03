@@ -327,13 +327,13 @@ def attendance_history(request):
 
 
 @login_required
-def export_attendance_csv(request):
+def export_attendance_excel(request):
     """
-    Exporta el historial de asistencia filtrado a un archivo CSV
+    Exporta el historial de asistencia filtrado a un archivo Excel (.xlsx)
     """
     employee = get_object_or_404(Employee, user=request.user)
 
-    # Mismos filtros que en attendance_history
+    # Filtros (mismos que en attendance_history)
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
 
@@ -343,19 +343,30 @@ def export_attendance_csv(request):
     if date_to:
         work_days = work_days.filter(date__lte=date_to)
 
-    # Preparar respuesta CSV
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="attendance_history_{employee.user.username}.csv"'
+    # Crear workbook y hoja
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Attendance History"
 
-    writer = csv.writer(response)
-    writer.writerow([
-        'Date',
-        'Work Time',
-        'Break Time',
-        'Lunch Time',
-        'Total Sessions',
-    ])
+    # Título
+    ws.merge_cells("A1:E1")
+    title_cell = ws["A1"]
+    title_cell.value = f"Attendance History - {employee.user.username}"
+    title_cell.font = Font(size=14, bold=True)
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
 
+    # Encabezados
+    headers = ['Date', 'Work Time', 'Break Time', 'Lunch Time', 'Total Sessions']
+    ws.append(headers)
+
+    # Estilos para encabezados
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=2, column=col_num)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.column_dimensions[get_column_letter(col_num)].width = 18
+
+    # Función auxiliar para formato
     def format_duration_simple(duration):
         if not duration:
             return "0h 00m"
@@ -364,9 +375,10 @@ def export_attendance_csv(request):
         minutes = (total_seconds % 3600) // 60
         return f"{hours}h {minutes:02d}m" if hours > 0 else f"{minutes}m"
 
+    # Agregar datos
     for work_day in work_days:
         sessions = work_day.sessions.all().order_by('start_time')
-        writer.writerow([
+        ws.append([
             work_day.date.strftime("%Y-%m-%d"),
             format_duration_simple(work_day.total_work_time),
             format_duration_simple(work_day.total_break_time),
@@ -374,6 +386,14 @@ def export_attendance_csv(request):
             sessions.count(),
         ])
 
+    # Preparar respuesta HTTP
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"attendance_history_{employee.user.username}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    wb.save(response)
     return response
 
 
@@ -497,19 +517,19 @@ def edit_employee_profile(request, employee_id):
     # Verificar que el usuario puede editar este perfil
     if request.user != employee.user and not request.user.is_superuser:
         messages.error(request, "You don't have permission to edit this profile.")
-        return redirect('employee_profile', employee_id=employee_id)
+        return redirect('employee_profile')
     
     if request.method == 'POST':
         form = EmployeeProfileForm(request.POST, instance=employee)
         if form.is_valid():
             form.save()
             messages.success(request, "Profile updated successfully!")
-            return redirect('employee_profile', employee_id=employee_id)
+            return redirect('employee_profile')
     else:
         form = EmployeeProfileForm(instance=employee)
     
     context = {
-        'employee': employee,  # ← Asegúrate de pasar esto
+        'employee': employee, 
         'form': form,
     }
     

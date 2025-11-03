@@ -1,12 +1,15 @@
         <nav id="sidebar" class="sidebar text-white p-3 d-flex flex-column">
           <ul class="nav flex-column">
             <li class="nav-item">
-              <a hx-boost="true" class="nav-link text-white" href="/">
+            {% if employee.is_it %}
+              <a  class="nav-link text-white" href="/">
                 <i class="bi bi-house-door"></i> Inicio
               </a>
             </li>
+            {% endif %}
+
             <li class="nav-item">
-              <a class="nav-link text-white" href="">
+              <a class="nav-link text-white" href="{% url 'list_employees' %}">
                 <i class="bi bi-people"></i> Empleados
               </a>
             </li>

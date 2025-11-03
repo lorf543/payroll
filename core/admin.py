@@ -53,8 +53,8 @@ class SupervisorForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
 
-        # Primero quitamos a los empleados que antes estaban bajo este supervisor
-        Employee.objects.filter(supervisor=instance).update(supervisor=None)
+        # # Primero quitamos a los empleados que antes estaban bajo este supervisor
+        # Employee.objects.filter(supervisor=instance).update(supervisor=None)
 
         # Asignamos los seleccionados como subordinados
         for emp in self.cleaned_data['team_members']:

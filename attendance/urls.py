@@ -19,7 +19,7 @@ urlpatterns = [
     path('employee/<int:employee_id>/attendance/', views.employee_attendance_detail, name='employee_attendance_detail'),
     path('employee/<int:employee_id>/day/<str:date_str>/', views.supervisor_day_detail, name='supervisor_day_detail'),
 
-    path('attendance/export-csv/', views.export_attendance_csv, name='export_attendance_csv'),
+    path('attendance/export-csv/', views.export_attendance_excel, name='export_attendance_excel'),
     path('employee/<int:employee_id>/export-csv/', views.export_employee_attendance_csv, name='export_employee_attendance_csv'),
     path('team/report/export/', views.export_team_report_excel, name='export_team_report_excel'),
 

@@ -11,8 +11,7 @@
                     <a class="btn btn-outline-secondary" href="{% url 'employee_profile' %}">
                         <i class="bi bi-arrow-left me-2"></i>Back to Profile
                     </a>
-                </div>
-                
+                </div>                
                 <div class="card-body">
                     <!-- Messages -->
                     {% if messages %}
@@ -146,27 +145,6 @@
                                         {{ form.bio|as_crispy_field }}
                                         <small class="form-text text-muted">Tell us about yourself, your experience, and your goals</small>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Banking Information -->
-                        <div class="card mb-4">
-                            <div class="card-header bg-info text-white">
-                                <h5 class="mb-0"><i class="bi bi-bank me-2"></i>Banking Information</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        {{ form.bank_name|as_crispy_field }}
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        {{ form.bank_account|as_crispy_field }}
-                                    </div>
-                                </div>
-                                <div class="alert alert-warning mt-3">
-                                    <i class="bi bi-exclamation-triangle me-2"></i>
-                                    <strong>Important:</strong> This information is used for payroll processing. Please ensure it is accurate.
                                 </div>
                             </div>
                         </div>

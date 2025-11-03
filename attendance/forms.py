@@ -24,7 +24,7 @@ class EmployeeProfileForm(forms.ModelForm):
             # Profile  
             'education', 'email', 'skills', 'bio',
             # Banking
-            'bank_name', 'bank_account'
+            # 'bank_name', 'bank_account'
         ]
         widgets = {
             # Personal Info
@@ -75,14 +75,14 @@ class EmployeeProfileForm(forms.ModelForm):
                 'placeholder': 'Enter a brief biography'
             }),
             # Banking
-            'bank_name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Enter bank name'
-            }),
-            'bank_account': forms.TextInput(attrs={
-                'class': 'form-control', 
-                'placeholder': 'Enter bank account number'
-            }),
+            # 'bank_name': forms.TextInput(attrs={
+            #     'class': 'form-control',
+            #     'placeholder': 'Enter bank name'
+            # }),
+            # 'bank_account': forms.TextInput(attrs={
+            #     'class': 'form-control', 
+            #     'placeholder': 'Enter bank account number'
+            # }),
         }
         labels = {
             # Personal Info

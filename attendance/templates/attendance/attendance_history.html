@@ -59,10 +59,10 @@
                 </div>
                     <div class="">
                         <h5>Attendance History</h5>
-                        <a href="{% url 'export_attendance_csv' %}?date_from={{ date_from }}&date_to={{ date_to }}" 
-                        class="btn btn-outline-success btn-sm">
-                            <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
-                        </a>
+<a href="{% url 'export_attendance_excel' %}?date_from={{ date_from }}&date_to={{ date_to }}" 
+   class="btn btn-outline-success btn-sm">
+    <i class="bi bi-file-earmark-excel"></i> Export Excel
+</a>
                     </div>
             </form>
         </div>
@@ -190,4 +190,38 @@
     font-size: 0.75rem;
 }
 </style>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const exportBtn = document.querySelector("a.btn.btn-outline-success"); // Botón Export CSV
+    const dateFrom = document.getElementById("date_from");
+    const dateTo = document.getElementById("date_to");
+
+    exportBtn.addEventListener("click", function(event) {
+        const fromValue = dateFrom.value.trim();
+        const toValue = dateTo.value.trim();
+
+        // Si alguna fecha está vacía
+        if (!fromValue || !toValue) {
+            event.preventDefault(); // Evita la navegación
+            alert("Please select both dates: 'From Date' and 'To Date' before exporting.");
+            return;
+        }
+
+        // Si la fecha inicial es mayor que la final
+        if (fromValue > toValue) {
+            event.preventDefault();
+            alert("The 'From Date' cannot be later than the 'To Date'.");
+            return;
+        }
+
+        // Si todo está bien, actualizar el href dinámicamente (por si el usuario no aplicó filtros)
+        const baseUrl = "{% url 'export_attendance_excel' %}";
+        exportBtn.href = `${baseUrl}?date_from=${encodeURIComponent(fromValue)}&date_to=${encodeURIComponent(toValue)}`;
+    });
+});
+</script>
+
+
 {% endblock %}

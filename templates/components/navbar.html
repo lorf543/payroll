@@ -31,7 +31,6 @@
               aria-labelledby="navbarDropdown"
               hx-boost="false">
             <li><a class="dropdown-item" href="{% url 'employee_profile' %}" hx-boost="false">Mi Perfil</a></li>
-            <li><a class="dropdown-item" href="" aria-label="Go to Admin Dashboard" hx-boost="false">Admin Dashboard</a></li>
             <li><a class="dropdown-item" href="{% url 'list_employees' %}" aria-label="View Employees" hx-boost="false">Employees</a></li>
             <li><hr class="dropdown-divider" hx-boost="false" /></li>
             {% if request.user.is_authenticated %}
