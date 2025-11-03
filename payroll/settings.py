@@ -125,12 +125,7 @@ DATABASES = {
     )
 }
 
-
-
-
-
 ### Redus Configuration
-
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_UR")
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
