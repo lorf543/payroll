@@ -24,6 +24,7 @@ from .status_helpers import close_active_status
 from .utility import *
 from core.utils.payroll import get_effective_pay_rate
 # Create your views here.
+
 @login_required
 def agent_dashboard(request):
     employee = get_object_or_404(Employee, user=request.user)
