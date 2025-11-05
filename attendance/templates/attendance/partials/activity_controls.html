@@ -66,9 +66,58 @@
         </div>
     </div>
 </div>
+<!-- Modal Bootstrap -->
+<div class="modal fade" id="returnTimeModal" tabindex="-1" aria-labelledby="returnTimeModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="returnTimeModalLabel">Break/Lunch Info</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        You should return by <span id="returnTimeText"></span>.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
-// Live duration counter for current session
+// Función para mostrar la hora de regreso en el modal
+function showReturnTime(minutes) {
+    const returnTime = new Date();
+    returnTime.setMinutes(returnTime.getMinutes() + minutes);
+
+    let hours = returnTime.getHours();
+    const mins = returnTime.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0 => 12
+    document.getElementById('returnTimeText').textContent = `${hours}:${mins} ${ampm}`;
+
+    const modal = new bootstrap.Modal(document.getElementById('returnTimeModal'));
+    modal.show();
+}
+
+// Evento al cambiar status
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.getElementById('session_type');
+    statusSelect.addEventListener('change', function() {
+        const val = this.value;
+
+        if (val === 'break') {
+            const minutes = {{ employee.current_campaign.break_duraction|default:15 }};
+            showReturnTime(minutes);
+        } else if (val === 'lunch') {
+            const minutes = {{ employee.current_campaign.lunch|default:30 }};
+            showReturnTime(minutes);
+        }
+    });
+});
+
+// Mantener contador de duración como antes
 function updateDurationCounter() {
     const liveDurationEl = document.getElementById('live-duration');
     if (!liveDurationEl) return;
@@ -88,61 +137,18 @@ function updateDurationCounter() {
         const minutes = Math.floor((diffSeconds % 3600) / 60);
         const seconds = diffSeconds % 60;
 
-        let durationText = '';
-        if (hours > 0) {
-            durationText = `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
-        } else {
-            durationText = `${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
-        }
+        let durationText = hours > 0
+            ? `${hours}h ${minutes.toString().padStart(2,'0')}m ${seconds.toString().padStart(2,'0')}s`
+            : `${minutes.toString().padStart(2,'0')}m ${seconds.toString().padStart(2,'0')}s`;
 
         const counterEl = document.getElementById('duration-counter');
-        if (counterEl) {
-            counterEl.textContent = durationText;
-        }
+        if (counterEl) counterEl.textContent = durationText;
     }
 
-    // Update immediately and then every second
     update();
     setInterval(update, 1000);
 }
 
-// Initialize when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    updateDurationCounter();
-});
-
-// Re-initialize after HTMX swaps
-document.body.addEventListener('htmx:afterSwap', function() {
-    updateDurationCounter();
-    
-    // Auto-hide messages
-    const alerts = document.querySelectorAll('.alert');
-    alerts.forEach(function(alert) {
-        setTimeout(function() {
-            if (alert && alert.classList.contains('show')) {
-                const bsAlert = new bootstrap.Alert(alert);
-                bsAlert.close();
-            }
-        }, 5000);
-    });
-});
-
-// Form loading state
-document.addEventListener('htmx:beforeRequest', function(e) {
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Updating...';
-    }
-});
-
-document.addEventListener('htmx:afterRequest', function(e) {
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    if (submitBtn) {
-        setTimeout(() => {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Update Status';
-        }, 1000);
-    }
-});
+document.addEventListener('DOMContentLoaded', updateDurationCounter);
+document.body.addEventListener('htmx:afterSwap', updateDurationCounter);
 </script>

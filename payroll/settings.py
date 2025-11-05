@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
+from django.urls import reverse_lazy
 import os
 
 load_dotenv()
@@ -202,6 +203,7 @@ ACCOUNT_SESSION_REMEMBER = None
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/auth/login/'
 ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = '/'
+ACCOUNT_PASSWORD_CHANGE_REDIRECT_URL = reverse_lazy('password_change_done')
 
 
 # Custom forms (opcional)
@@ -213,9 +215,9 @@ ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = '/'
 
 
 # URLs de redirección
-LOGIN_URL = '/auth/login/'
-LOGIN_REDIRECT_URL = 'home'
-ACCOUNT_LOGOUT_REDIRECT_URL = 'home'
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 
 # Internationalization

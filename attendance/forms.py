@@ -2,6 +2,28 @@ from django import forms
 from .models import Employee
 from django.contrib.auth.models import User
 
+from .models import ActivitySession
+
+class ActivitySessionForm(forms.ModelForm):
+    class Meta:
+        model = ActivitySession
+        fields = ['session_type', 'start_time', 'end_time']
+        widgets = {
+            'session_type': forms.Select(attrs={
+                'class': 'form-select',  # estilo Bootstrap
+            }),
+            'start_time': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': 'form-control',
+            }),
+            'end_time': forms.DateTimeInput(attrs={
+                'type': 'datetime-local',
+                'class': 'form-control',
+            }),
+        }
+
+
+
 class EmployeeProfileForm(forms.ModelForm):
     # Campos del User model
     first_name = forms.CharField(

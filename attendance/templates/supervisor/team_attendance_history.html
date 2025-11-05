@@ -97,11 +97,12 @@
                             <th>Lunch Time</th>
                             <th>Sessions</th>
                             <th>Campaign</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for day in days_data %}
+
+                        
                         <tr>
                             <td>
                                 <strong>{{ day.work_day.date|date:"M d, Y" }}</strong>
@@ -110,15 +111,9 @@
                             </td>
                             <td>
                                 <div class="d-flex align-items-center">
-                                    <div class="avatar-sm me-2">
-                                        <div class="avatar-title bg-primary text-white rounded-circle">
-                                            {{ day.work_day.employee.user.first_name.0 }}{{ day.work_day.employee.user.last_name.0 }}
-                                        </div>
-                                    </div>
-                                    <div>
+
+                                    <a href="{% url 'employee_attendance_detail' day.work_day.employee.id %}" class="me-2">
                                         <strong>{{ day.work_day.employee.user.get_full_name }}</strong>
-                                        <br>
-                                        <small class="text-muted">{{ day.work_day.employee.position.title|default:"No Position" }}</small>
                                     </div>
                                 </div>
                             </td>
@@ -147,18 +142,6 @@
                                 {% else %}
                                     <span class="text-muted">—</span>
                                 {% endif %}
-                            </td>
-                            <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'employee_attendance_detail' day.work_day.employee.id %}" 
-                                    class="btn btn-outline-primary" title="View Day Details">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    <a href="{% url 'employee_profile' %}" 
-                                       class="btn btn-outline-info" title="View Profile">
-                                        <i class="bi bi-person"></i>
-                                    </a>
-                                </div>
                             </td>
                         </tr>
                         {% endfor %}

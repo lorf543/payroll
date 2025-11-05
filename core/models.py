@@ -167,8 +167,8 @@ class Employee(models.Model):
     @property
     def skills_list(self):
         if not self.skills:
-            return []
-        return [skill.strip() for skill in self.skills.split(',') if skill.strip()]
+            return ""
+        return ', '.join(skill.strip() for skill in self.skills.split(',') if skill.strip())
 
     @property
     def age(self):

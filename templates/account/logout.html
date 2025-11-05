@@ -1,0 +1,57 @@
+{% extends "account/auth_base.html" %}
+
+{% block content %}
+<div class="auth-card d-flex gap-4" id="logout-card">
+    <div class="card-body p-4 text-center">
+        <div class="auth-header mb-4">
+            <div class="auth-icon">
+                <i class="bi bi-box-arrow-right"></i>
+            </div>
+            <h2>Sign Out</h2>
+            <p class="text-muted">Are you sure you want to log out?</p>
+        </div>
+
+        <form method="POST" action="{% url 'account_logout' %}">
+            {% csrf_token %}
+
+            {% if redirect_field_value %}
+            <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+            {% endif %}
+
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-danger btn-lg">
+                    <i class="bi bi-box-arrow-left me-1"></i> Log Out
+                </button>
+                <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-arrow-left me-1"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .auth-card {
+        max-width: 420px;
+        margin: 2rem auto;
+        background: #fff;
+        border-radius: 1rem;
+        box-shadow: 0 0.25rem 1rem rgba(0,0,0,0.1);
+    }
+
+    .auth-header .auth-icon {
+        font-size: 3rem;
+        color: #dc3545;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #f8f9fa;
+    }
+
+    @media (max-width: 576px) {
+        .auth-card {
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock content %}

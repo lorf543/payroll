@@ -1,7 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect,HttpResponse
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.http import JsonResponse, HttpResponseForbidden
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import user_passes_test
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.contrib import messages
@@ -10,7 +11,7 @@ from django.db import transaction
 from datetime import datetime, time, timedelta
 from django.core.paginator import Paginator
 from django.db.models import Q
-from .forms import EmployeeProfileForm
+from .forms import EmployeeProfileForm,ActivitySessionForm
 
 import openpyxl
 from openpyxl.styles import Font, Alignment
@@ -25,6 +26,9 @@ from .utility import *
 from core.utils.payroll import get_effective_pay_rate
 # Create your views here.
 
+def is_supervisor(user):
+    return user.is_staff or user.groups.filter(name='Supervisors').exists()
+
 @login_required
 def agent_dashboard(request):
     employee = get_object_or_404(Employee, user=request.user)
@@ -33,7 +37,7 @@ def agent_dashboard(request):
 
     work_day, _ = WorkDay.objects.get_or_create(employee=employee, date=today)
     current_session = work_day.sessions.filter(end_time__isnull=True).last()
-    history = work_day.sessions.all().order_by('start_time')
+    history = work_day.sessions.all().order_by('-start_time')
 
     def fmt(td):
         """Formatea timedelta a formato legible"""
@@ -483,28 +487,26 @@ def employee_profile(request, employee_id=None):
     
     return render(request, 'core/employee_profile.html', context)
 
+
 def calculate_payment_stats(employee):
     """
     Calcular estadísticas de pago para el empleado
     """
     pay_method = None
-    base_rate = 0
-    monthly_earnings = 0
+
     
     # Usar hourly rate del puesto como base
-    if employee.position and employee.position.hour_rate:
-        base_rate = float(employee.position.hour_rate)
-        monthly_earnings = base_rate * 160  # 160 horas mensuales aproximadas
-        pay_method = 'hourly_position'
-    else:
-        base_rate = 15.00  # Default
-        monthly_earnings = base_rate * 160
-        pay_method = 'hourly_default'
+    if employee.current_campaign.hour_rate:
+        base_rate = float(employee.current_campaign.hour_rate)
+        pay_method = 'Campaign Rate / hour'
+
+    
+    print(base_rate)
     
     return {
         'pay_method': pay_method,
         'base_rate': base_rate,
-        'monthly_earnings': monthly_earnings,
+        'monthly_earnings': base_rate * 160,
     }
 
 @login_required
@@ -615,8 +617,7 @@ def export_team_report_excel(request):
     # Filtros
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
-    campaign_id = request.GET.get('campaign')
-    include_offline = request.GET.get('include_offline') == 'true'
+
 
     # Validación de fechas
     if not date_from or not date_to:
@@ -632,10 +633,7 @@ def export_team_report_excel(request):
 
     # Miembros del equipo
     team_members = Employee.objects.filter(supervisor=supervisor).select_related('user', 'current_campaign')
-    if campaign_id:
-        team_members = team_members.filter(current_campaign_id=campaign_id)
-    if not include_offline:
-        team_members = team_members.filter(is_logged_in=True)
+
 
     # WorkDays filtrados
     work_days = WorkDay.objects.filter(
@@ -951,34 +949,77 @@ def format_duration_simple(duration):
 
 @login_required
 def supervisor_day_detail(request, employee_id, date_str):
-    """
-    Vista detallada de un día específico para supervisores
-    """
     try:
         supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
     except Employee.DoesNotExist:
         messages.error(request, "You don't have supervisor privileges.")
         return redirect('employee_profile')
-    
-    # Verificar que el empleado pertenezca al equipo del supervisor
+
     employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
-    
+
     try:
         date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
         work_day = WorkDay.objects.get(employee=employee, date=date_obj)
-        
         sessions = work_day.sessions.all().order_by('start_time')
-        
+
+        if not sessions.exists():
+            messages.warning(request, "No sessions found for this day.")
+            return redirect('employee_attendance_detail', employee_id=employee.id)
+
+        # Calcular hora de inicio y fin del día
+        day_start = sessions.first().start_time
+        day_end = sessions.last().end_time or datetime.now()
+        total_day_duration = day_end - day_start
+
+        # Totales por tipo de sesión
+        def total_duration_for(session_type):
+            total = timedelta()
+            for s in sessions.filter(session_type=session_type, end_time__isnull=False):
+                total += (s.end_time - s.start_time)
+            return total
+
+        total_work = total_duration_for('work')
+        total_break = total_duration_for('break')
+        total_lunch = total_duration_for('lunch')
+
+        # Horas pagables (solo 'work')
+        payable_hours = total_work
+
         context = {
             'supervisor': supervisor,
             'employee': employee,
             'work_day': work_day,
             'sessions': sessions,
             'date': date_obj,
+            'total_day_duration': total_day_duration,
+            'total_work': total_work,
+            'total_break': total_break,
+            'total_lunch': total_lunch,
+            'payable_hours': payable_hours,
+            'day_start': day_start,
+            'day_end': day_end,
         }
-        
+
         return render(request, 'supervisor/supervisor_day_detail.html', context)
-        
+
     except (ValueError, WorkDay.DoesNotExist):
         messages.error(request, "Day not found or no data available.")
         return redirect('employee_attendance_detail', employee_id=employee_id)
+    
+
+
+@login_required(login_url='/accounts/login/')
+def edit_session(request, pk):
+    session = get_object_or_404(ActivitySession, pk=pk)
+
+
+    # if not is_supervisor(request.user):
+    #     return HttpResponseForbidden(render(request, "403.html"))
+    if request.method == 'POST':
+        form = ActivitySessionForm(request.POST, instance=session)
+        if form.is_valid():
+            form.save()
+            return redirect('supervisor_day_detail', employee_id=session.work_day.employee.id, date_str=session.work_day.date.strftime('%Y-%m-%d'))
+    else:
+        form = ActivitySessionForm(instance=session)
+    return render(request, 'supervisor/edit_session.html', {'form': form, 'session': session})

@@ -107,10 +107,12 @@
                                     {% else %}
                                         - Present
                                     {% endif %}
+                                    
                                 </p>
                                 {% if session.duration %}
                                 <small class="text-muted">
                                     Duration: {{ session.duration|format_duration }}
+    
                                 </small>
                                 {% endif %}
                             </div>
