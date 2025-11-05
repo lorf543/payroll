@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 from .models import Campaign, Employee
 from attendance.models import WorkDay, ActivitySession
 
+# python manage.py shell
+# from core.tasks import auto_logout_by_campaign
+# auto_logout_by_campaign()
+
 
 # --------------------------------------------------
 # 🔐 Session utilities
