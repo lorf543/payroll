@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% load humanize %}
+{% load filters %}
 
 {% block title %}Day Details - {{ work_day.date|date:"M d, Y" }} - {{ work_day.employee.user.get_full_name }}{% endblock %}
 
@@ -45,7 +45,7 @@
             <div class="card text-center border-start border-primary border-4">
                 <div class="card-body">
                     <div class="text-primary fs-2 fw-bold">
-                        {{ total_work|naturaltime  }}h
+                        {{ total_work|format_timedelta }}h
                     </div>
                     <small class="text-muted">Total Time (Check-in → Check-out)</small>
                 </div>
@@ -55,7 +55,7 @@
             <div class="card text-center border-start border-success border-4">
                 <div class="card-body">
                     <div class="text-success fs-2 fw-bold">
-                        {{payable_hours|naturaltime }}h
+                        {{payable_hours|format_timedelta }}h
                     </div>
                     <small class="text-muted">Payable Work Hours (excluding Break & Lunch)</small>
                 </div>
@@ -65,7 +65,7 @@
             <div class="card text-center border-start border-success border-4">
                 <div class="card-body">
                     <div class="text-success fs-2 fw-bold">
-                        {{total_break|naturaltime}}
+                        {{total_break|format_timedelta}}
                     </div>
                     <small class="text-muted">Total break time</small>
                 </div>
@@ -75,7 +75,7 @@
             <div class="card text-center border-start border-success border-4">
                 <div class="card-body">
                     <div class="text-success fs-2 fw-bold">
-                        {{total_lunch|naturaltime  }}
+                        {{total_lunch|format_timedelta }}
                     </div>
                     <small class="text-muted">Total break time</small>
                 </div>

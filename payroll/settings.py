@@ -188,12 +188,12 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
 ACCOUNT_LOGIN_METHODS = {'email'}
 # ACCOUNT_SIGNUP_FIELDS = ["email", "password1", "password2"]
 
-# ACCOUNT_RATE_LIMITS = {
-#     'login_failed': '5/5m',    # 5 intentos fallidos en 5 minutos
-#     'login': '10/1h',          # 10 logins exitosos por hora
-#     'signup': '10/1h',         # 10 registros por hora
-#     'password_reset': '3/1h',  # 3 reseteos de password por hora
-# }
+ACCOUNT_RATE_LIMITS = {
+    'login_failed': '5/5m',    # 5 intentos fallidos en 5 minutos
+    'login': '10/1h',          # 10 logins exitosos por hora
+    'signup': '10/1h',         # 10 registros por hora
+    'password_reset': '3/1h',  # 3 reseteos de password por hora
+}
 
 # URLs y redirecciones
 ACCOUNT_LOGOUT_ON_GET = False

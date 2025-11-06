@@ -12,6 +12,8 @@ from datetime import datetime, time, timedelta
 from django.core.paginator import Paginator
 from django.db.models import Q
 from .forms import EmployeeProfileForm,ActivitySessionForm
+from django.contrib.auth.models import User
+from django.contrib.auth import logout
 
 import openpyxl
 from openpyxl.styles import Font, Alignment
@@ -552,7 +554,7 @@ def supervisor_dashboard(request):
         messages.error(request, "You don't have supervisor privileges.")
         return redirect('employee_profile')
     
-    # Obtener los miembros del equipo
+    # Obtener los miembros del equipo con información del usuario
     team_members = Employee.objects.filter(supervisor=supervisor).select_related(
         'user', 'position', 'department', 'current_campaign'
     )
@@ -568,6 +570,12 @@ def supervisor_dashboard(request):
         employee__in=team_members,
         date=today
     ).select_related('employee')
+    
+    # Obtener información de sesiones (logins) más recientes
+    from django.contrib.sessions.models import Session
+    from django.contrib.auth import get_user_model
+    
+    User = get_user_model()
     
     # Preparar datos para cada miembro del equipo
     team_data = []
@@ -1023,3 +1031,72 @@ def edit_session(request, pk):
     else:
         form = ActivitySessionForm(instance=session)
     return render(request, 'supervisor/edit_session.html', {'form': form, 'session': session})
+
+
+
+@login_required
+def force_logout(request, employee_id):
+    """
+    Desconecta forzosamente al empleado:
+    - Elimina sesiones Django activas.
+    - Cierra la sesión de trabajo activa (ActivitySession).
+    - Finaliza el WorkDay y recalcula métricas.
+    - Marca al empleado como desconectado.
+    """
+    employee = get_object_or_404(Employee, id=employee_id)
+    user = employee.user
+    now = timezone.localtime(timezone.now())
+    count = 0
+
+    # 1️⃣ Eliminar sesiones activas del usuario
+    for session in Session.objects.all():
+        data = session.get_decoded()
+        if data.get('_auth_user_id') == str(user.id):
+            session.delete()
+            count += 1
+
+    # 2️⃣ Buscar WorkDay activo
+    work_day = WorkDay.objects.filter(employee=employee, status='active').first()
+    if work_day:
+
+
+        # 3️⃣ Obtener sesión activa
+        active_session = work_day.get_active_session()
+        if active_session:
+            # Cerrar sesión activa y añadir nota
+            active_session.end_time = now
+            active_session.notes = ((active_session.notes or "") + "\nLogout by supervisor").strip()
+            active_session.save(update_fields=["end_time", "notes"])
+
+        else:
+            # Si no hay sesión activa, crear una técnica para registrar el evento
+            ActivitySession.objects.create(
+                work_day=work_day,
+                session_type="technical",
+                start_time=now,
+                end_time=now,
+                notes="Logout by supervisor (no active session)",
+                auto_created=True
+            )
+
+
+        # 4️⃣ Finalizar WorkDay
+        work_day.end_work_day()  # Usa tu método ya implementado
+        work_day.status = "completed"
+        work_day.notes = ((work_day.notes or "") + "\nLogout by supervisor").strip()
+        work_day.save(update_fields=["status", "notes"])
+
+
+        # 5️⃣ Actualizar estado del empleado
+        employee.is_logged_in = False
+        employee.last_logout = now
+        employee.save(update_fields=["is_logged_in", "last_logout"])
+
+
+    # 6️⃣ Mensaje al supervisor
+    messages.success(
+        request,
+        f"El usuario {user.username} ha sido desconectado ({count} sesión(es) terminada(s))."
+    )
+
+    return redirect(request.META.get('HTTP_REFERER', '/'))

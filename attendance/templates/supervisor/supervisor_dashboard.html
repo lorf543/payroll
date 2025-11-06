@@ -13,6 +13,7 @@
                 <h1 class="page-title">
                     <i class="bi bi-speedometer2 me-2"></i>
                     Supervisor Dashboard
+
                 </h1>
                 <p class="page-subtitle">Real-time team monitoring and management</p>
             </div>
@@ -126,14 +127,16 @@
                             <th>Status</th>
                             <th>Work Time</th>
                             <th>Login</th>
-                            <th>Logout</th>
+                            {% comment %} <th>Actions</th> {% endcomment %}
                         </tr>
                     </thead>
                     <tbody id="team-status-body">
                         {% for data in team_data %}
                         <tr>
                             <td>
-                                <strong>{{ data.employee.full_name }}</strong>
+                                <a href="{% url 'employee_attendance_detail' data.employee.id %}">
+                                    <strong>{{ data.employee.full_name }}</strong>
+                                </a>
                                 <br>
                                 <small class="text-muted">{{ data.employee.position }}</small>
                             </td>
@@ -169,20 +172,24 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if data.employee.last_login %}
-                                    {{ data.employee.last_login|date:"M j, g:i A" }}
+                                {% if data.employee.user.last_login %}
+                                    {{ data.employee.user.last_login|date:"M j, g:i A" }}
                                 {% else %}
                                     <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
-                            <td>
-                                {% if data.employee.last_logout %}
-                                    {{ data.employee.last_logout|date:"M j, g:i A" }}
-                                {% else %}
-                                    <span class="text-muted">—</span>
-                                {% endif %}
-                            </td>
-                        </tr>
+                            {% comment %} <td>
+                                <button 
+                                class="btn btn-outline-danger btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#forceLogoutModal"
+                                data-employee-id="{{ employee.id }}"
+                                data-employee-name="{{ employee.user.username }}"
+                                >
+                                <i class="bi bi-power"></i> Logout
+                                </button>
+                            </td> {% endcomment %}
+                        </tr>   
                         {% empty %}
                         <tr>
                             <td colspan="7" class="text-center text-muted py-4">No employees found in your team.</td>
@@ -250,6 +257,37 @@
 
 
 
+<!-- 🔒 Modal de Confirmación -->
+<div class="modal fade" id="forceLogoutModal" tabindex="-1" aria-labelledby="forceLogoutLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="forceLogoutLabel">
+          <i class="bi bi-exclamation-triangle"></i> Confirmar Cierre de Sesión
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">
+          ¿Estás seguro de que deseas forzar el cierre de sesión de 
+          <strong id="employeeName"></strong>?
+        </p>
+        <small class="text-muted">Esto cerrará todas sus sesiones activas y finalizará su jornada actual.</small>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form id="forceLogoutForm" method="POST" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-power"></i> Forzar Logout
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <!-- Team Report Modal -->
 <div class="modal fade" id="teamReportModal" tabindex="-1" aria-labelledby="teamReportModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -309,6 +347,25 @@
 </div>
 <!-- Live Timer Script -->
 <script>
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    const modal = document.getElementById("forceLogoutModal");
+    const form = document.getElementById("forceLogoutForm");
+    const namePlaceholder = document.getElementById("employeeName");
+
+    modal.addEventListener("show.bs.modal", function (event) {
+        const button = event.relatedTarget;
+        const employeeId = button.getAttribute("data-employee-id");
+        const employeeName = button.getAttribute("data-employee-name");
+
+        // Actualiza el texto del modal
+        namePlaceholder.textContent = employeeName;
+
+        // Actualiza la acción del formulario dinámicamente
+        form.action = `/force-logout/${employeeId}/`;
+    });
+});
 
 
     document.addEventListener('DOMContentLoaded', function() {
