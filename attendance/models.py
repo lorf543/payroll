@@ -152,6 +152,25 @@ class WorkDay(models.Model):
         self.save()
         logger.info(f"🏁 Día laboral finalizado para {self.employee}")
 
+
+
+    def get_formatted_session(self):
+        """Obtener sesión formateada para display"""
+        session = self.get_active_session()
+        if not session:
+            return None
+            
+        # Si es un objeto ActivitySession
+        if hasattr(session, 'start_time'):
+            return session.start_time.strftime("%H:%M:%S")
+        
+        # Si es un string
+        session_str = str(session)
+        if ' - ' in session_str:
+            return session_str.split(' - ')[-1]
+        
+        return session_str
+
 class ActivitySession(models.Model):
     SESSION_TYPES = [
         ('work', 'Working'),

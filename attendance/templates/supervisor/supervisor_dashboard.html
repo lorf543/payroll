@@ -149,15 +149,36 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if data.current_status %}
-                                    <span class="badge status-{{ data.current_status.status }}">
-                                        {{ data }}
-                                    </span><br>
-                                    <small class="text-muted">
-                                        Since {{ data.current_status.start_time|date:"g:i A" }}
-                                    </small>
+                                {% if data.workday %}
+                                    {% if data.workday.current_status != 'inactive' %}
+                                        <span class="badge 
+                                            {% if data.workday.current_status == 'work' %}bg-success
+                                            {% elif data.workday.current_status == 'break' %}bg-warning
+                                            {% elif data.workday.current_status == 'lunch' %}bg-info
+                                            {% else %}bg-primary{% endif %}">
+                                            <i class="bi 
+                                                {% if data.workday.current_status == 'work' %}bi-play-circle
+                                                {% elif data.workday.current_status == 'break' %}bi-cup-hot
+                                                {% elif data.workday.current_status == 'lunch' %}bi-egg-fried
+                                                {% else %}bi-gear{% endif %} me-1"></i>
+                                            {{ data.workday.current_status|title }}
+                                        </span><br>
+                                        <small class="text-muted">
+                                            {% if data.current_session %}
+                                                Since {{ data.current_session.start_time|time:"g:i A" }}
+                                            {% endif %}
+                                        </small>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-pause-circle me-1"></i>
+                                            Offline
+                                        </span>
+                                    {% endif %}
                                 {% else %}
-                                    <span class="text-muted">No status</span>
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-dash-circle me-1"></i>
+                                        No Workday
+                                    </span>
                                 {% endif %}
                             </td>
                             <td>

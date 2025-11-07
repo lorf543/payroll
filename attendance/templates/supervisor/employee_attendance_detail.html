@@ -124,9 +124,9 @@
             </form>
                 <div class="mt-5">
                     <h5>Attendance History</h5>
-                    <a href="{% url 'export_employee_attendance_csv' employee.id %}?date_from={{ date_from }}&date_to={{ date_to }}"
+                    <a href="{% url 'export_employee_attendance_excel' employee.id %}?date_from={{ date_from }}&date_to={{ date_to }}"
                     class="btn btn-outline-success btn-sm">
-                        <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+                        <i class="bi bi-file-earmark-spreadsheet"></i> Export to Excel
                     </a>
                 </div>
         </div>

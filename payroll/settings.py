@@ -173,39 +173,53 @@ AUTHENTICATION_BACKENDS = [
 
 ]
 
-# Django Allauth Configuration
-ACCOUNT_EMAIL_SUBJECT_PREFIX = 'Payroll'
-ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
-ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
-ACCOUNT_USERNAME_MIN_LENGTH = 3
-ACCOUNT_USERNAME_BLACKLIST = ['admin', 'administrator', 'moderator']
-ACCOUNT_PRESERVE_USERNAME_CASING = False
-ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_MAX_EMAIL_ADDRESSES = 3
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
+# ==============================================================================
+# DJANGO-ALLAUTH CONFIGURATION - OPTIMIZED
+# ==============================================================================
 
-# Nuevas configuraciones (sin deprecated warnings)
-ACCOUNT_LOGIN_METHODS = {'email'}
-# ACCOUNT_SIGNUP_FIELDS = ["email", "password1", "password2"]
+# CONFIGURACIONES BÁSICAS Y SEGURIDAD
+ACCOUNT_AUTHENTICATION_METHOD = 'username_email'  # Login con username o email
+ACCOUNT_EMAIL_REQUIRED = True                     # Email obligatorio
+ACCOUNT_USERNAME_REQUIRED = True                  # Username obligatorio
+ACCOUNT_UNIQUE_EMAIL = True                       # Email único por cuenta
+ACCOUNT_EMAIL_VERIFICATION = 'optional'           # Verificación de email
 
+# VALIDACIONES DE USUARIO
+ACCOUNT_USERNAME_MIN_LENGTH = 3                   # Longitud mínima de username
+ACCOUNT_USERNAME_BLACKLIST = ['admin', 'administrator', 'moderator', 'root', 'superuser']
+ACCOUNT_PRESERVE_USERNAME_CASING = False          # Usernames en minúsculas
+
+# CONFIGURACIÓN DE EMAIL
+ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Payroll] '       # Prefijo para emails
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1        # Confirmación expira en 1 día
+ACCOUNT_EMAIL_CONFIRMATION_HMAC = True            # Usar HMAC para confirmación
+ACCOUNT_MAX_EMAIL_ADDRESSES = 3                   # Máximo de emails por cuenta
+
+# COMPORTAMIENTO DE SESIONES Y REDIRECCIONES
+ACCOUNT_SESSION_REMEMBER = True                   # Recordar sesión del usuario
+ACCOUNT_LOGOUT_ON_GET = False                     # Requerir confirmación para logout
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True        # Auto-login después de confirmar email
+
+# URLs DE REDIRECCIÓN
+ACCOUNT_LOGIN_REDIRECT_URL = '/'                  # Después de login exitoso
+ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'  # Después de logout
+ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = '/'  # Después de confirmar email (logueado)
+ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/accounts/login/'  # Después de confirmar email (anónimo)
+ACCOUNT_PASSWORD_CHANGE_REDIRECT_URL = '/'        # Después de cambiar password
+
+# LIMITES DE SEGURIDAD
 ACCOUNT_RATE_LIMITS = {
     'login_failed': '5/5m',    # 5 intentos fallidos en 5 minutos
-    'login': '10/1h',          # 10 logins exitosos por hora
     'signup': '10/1h',         # 10 registros por hora
     'password_reset': '3/1h',  # 3 reseteos de password por hora
 }
 
-# URLs y redirecciones
-ACCOUNT_LOGOUT_ON_GET = False
-ACCOUNT_LOGOUT_REDIRECT_URL = '/'
-ACCOUNT_LOGIN_REDIRECT_URL = '/'
-ACCOUNT_SESSION_REMEMBER = None
-ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
-ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/auth/login/'
-ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = '/'
-ACCOUNT_PASSWORD_CHANGE_REDIRECT_URL = reverse_lazy('password_change_done')
-
-
+# ==============================================================================
+# DJANGO CORE AUTH CONFIGURATION (Compatibilidad)
+# ==============================================================================
+LOGIN_URL = '/accounts/login/'                    # URL para login
+LOGIN_REDIRECT_URL = '/'                         # Después de login (redundante con ACCOUNT_LOGIN_REDIRECT_URL)
+LOGOUT_REDIRECT_URL = '/accounts/login/'         # Después de logout (redundante con ACCOUNT_LOGOUT_REDIRECT_URL)
 # Custom forms (opcional)
 # ACCOUNT_FORMS = {
 #     'signup': 'accounts.forms.CustomSignupForm',
@@ -214,10 +228,6 @@ ACCOUNT_PASSWORD_CHANGE_REDIRECT_URL = reverse_lazy('password_change_done')
 # }
 
 
-# URLs de redirección
-LOGIN_URL = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 
 # Internationalization

@@ -1,10 +1,27 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
+from allauth.account.views import PasswordChangeView
+from django.contrib.messages.views import SuccessMessageMixin
+from django.urls import reverse_lazy
 from django.contrib import messages
 from django.views import View
 from .models import DeviceToken
 import hashlib
 
+
+
+
+
+
+class CustomPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
+    template_name = 'account/password_change.html'
+    success_url = reverse_lazy('home')
+    success_message = "Your password has been changed successfully!"
+    
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        # Aquí puedes agregar lógica adicional si es necesario
+        return response
 
 
 class FirstTimeDeviceSetupView(View):

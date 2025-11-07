@@ -1,22 +1,18 @@
 <div class="activity-controls">
     <!-- Status Change Form -->
-<form method="post" 
-      hx-post="{% url 'start_activity' %}" 
-      hx-target="body" 
-      hx-swap="innerHTML"
-      class="mb-4">
+<form id="statusForm" method="post" action="{% url 'start_activity' %}" class="mb-4">
         {% csrf_token %}
         <div class="mb-3">
             <label for="session_type" class="form-label fw-bold">Change Status</label>
-            <select name="session_type" id="session_type" class="form-select form-select-lg" required>
-                <option value="work">Work</option>
-                <option value="break">Break</option>
-                <option value="lunch">Lunch</option>
-                <option value="training">Training</option>
-                <option value="meeting">Meeting</option>
-                <option value="technical">Technical Issue</option>
-                <option value="end_of_day">End Work Day</option>
-            </select>
+                <select name="session_type" id="session_type" class="form-select form-select-lg" required>
+                    <option value="work" {% if current_session and current_session.session_type == 'work' %}selected{% endif %}>Work</option>
+                    <option value="break" {% if current_session and current_session.session_type == 'break' %}selected{% endif %}>Break</option>
+                    <option value="lunch" {% if current_session and current_session.session_type == 'lunch' %}selected{% endif %}>Lunch</option>
+                    <option value="training" {% if current_session and current_session.session_type == 'training' %}selected{% endif %}>Training</option>
+                    <option value="meeting" {% if current_session and current_session.session_type == 'meeting' %}selected{% endif %}>Meeting</option>
+                    <option value="technical" {% if current_session and current_session.session_type == 'technical' %}selected{% endif %}>Technical Issue</option>
+                    <option value="end_of_day" {% if current_session and current_session.session_type == 'end_of_day' %}selected{% endif %}>End Work Day</option>
+                </select>
         </div>
         
         <div class="mb-3">
@@ -85,7 +81,106 @@
 </div>
 
 <script>
-// Función para mostrar la hora de regreso en el modal
+// Función para actualizar el color del body según el estado
+function updateBodyColor(sessionType) {
+    const classes = [
+        'status-work','status-break','status-lunch',
+        'status-training','status-meeting','status-technical',
+        'status-end_of_day'
+    ];
+    document.body.classList.remove(...classes);
+    if(sessionType) document.body.classList.add(`status-${sessionType}`);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.getElementById('session_type');
+    const form = document.getElementById('statusForm');
+
+    // Estado actual del usuario
+    const currentStatus = "{{ current_session.session_type|default:'' }}";
+
+    // Inicial: mostrar color del estado actual
+    updateBodyColor(currentStatus);
+
+    // Manejo del cambio de estado
+    statusSelect.addEventListener('change', function() {
+        if (this.value === currentStatus) {
+            Swal.fire({
+                icon: 'info',
+                title: 'No status change',
+                text: `You are already in "${currentStatus}" status.`,
+                timer: 1500,
+                showConfirmButton: false,
+                position: 'top-end'
+            });
+            this.value = currentStatus; // Mantener el estado original
+        }
+    });
+
+    // Manejo del submit
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const selected = statusSelect.value;
+
+        // 🚫 Evitar enviar request si es el mismo estado
+        if (selected === currentStatus) {
+            Swal.fire({
+                icon: 'info',
+                title: 'No status change',
+                text: `You are already in "${currentStatus}" status.`,
+                timer: 1500,
+                showConfirmButton: false,
+                position: 'top-end'
+            });
+            return;
+        }
+
+        const formData = new FormData(form);
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            });
+
+            if (response.ok) {
+                // Solo después de que backend confirme el cambio
+                updateBodyColor(selected);
+
+                // SweetAlert de éxito
+                Swal.fire({
+                    position: "top-end",
+                    icon: "success",
+                    title: `Status changed to "${selected}" successfully!`,
+                    showConfirmButton: false,
+                    timer: 1500,
+                    didOpen: () => {
+                        document.body.style.transition = "background-color 0.5s ease";
+                    }
+                });
+
+                // Recargar la página o actualizar dinámicamente
+                window.location.reload();
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error updating status.'
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error sending request.'
+            });
+        }
+    });
+});
+
+// 🕒 Modal de break/lunch
 function showReturnTime(minutes) {
     const returnTime = new Date();
     returnTime.setMinutes(returnTime.getMinutes() + minutes);
@@ -93,38 +188,17 @@ function showReturnTime(minutes) {
     let hours = returnTime.getHours();
     const mins = returnTime.getMinutes().toString().padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12; // 0 => 12
-    document.getElementById('returnTimeText').textContent = `${hours}:${mins} ${ampm}`;
+    hours = hours % 12 || 12;
 
+    document.getElementById('returnTimeText').textContent = `${hours}:${mins} ${ampm}`;
     const modal = new bootstrap.Modal(document.getElementById('returnTimeModal'));
     modal.show();
 }
 
-// Evento al cambiar status
-document.addEventListener('DOMContentLoaded', function() {
-    const statusSelect = document.getElementById('session_type');
-    statusSelect.addEventListener('change', function() {
-        const val = this.value;
-
-        if (val === 'break') {
-            const minutes = {{ employee.current_campaign.break_duraction|default:15 }};
-            showReturnTime(minutes);
-        } else if (val === 'lunch') {
-            const minutes = {{ employee.current_campaign.lunch|default:30 }};
-            showReturnTime(minutes);
-        }
-    });
-});
-
-// Mantener contador de duración como antes
+// ⏱️ Contador de duración
 function updateDurationCounter() {
-    const liveDurationEl = document.getElementById('live-duration');
-    if (!liveDurationEl) return;
-
     const currentSession = {% if current_session %}{
-        startTime: new Date('{{ current_session.start_time|date:"c" }}'),
-        sessionType: '{{ current_session.session_type }}'
+        startTime: new Date('{{ current_session.start_time|date:"c" }}')
     }{% else %}null{% endif %};
 
     if (!currentSession) return;
@@ -137,9 +211,10 @@ function updateDurationCounter() {
         const minutes = Math.floor((diffSeconds % 3600) / 60);
         const seconds = diffSeconds % 60;
 
-        let durationText = hours > 0
-            ? `${hours}h ${minutes.toString().padStart(2,'0')}m ${seconds.toString().padStart(2,'0')}s`
-            : `${minutes.toString().padStart(2,'0')}m ${seconds.toString().padStart(2,'0')}s`;
+        const durationText =
+            hours > 0
+                ? `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`
+                : `${minutes.toString().padStart(2,'0')}m ${seconds.toString().padStart(2,'0')}s`;
 
         const counterEl = document.getElementById('duration-counter');
         if (counterEl) counterEl.textContent = durationText;
@@ -150,5 +225,4 @@ function updateDurationCounter() {
 }
 
 document.addEventListener('DOMContentLoaded', updateDurationCounter);
-
 </script>

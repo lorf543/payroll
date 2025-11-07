@@ -593,9 +593,10 @@ def supervisor_dashboard(request):
             'employee': member,
             'workday': workday_today,
             'current_session': current_session,
+            'formatted_session': workday_today.get_formatted_session() if workday_today else None,
             'daily_stats': daily_stats,
         })
-    
+            
     context = {
         'supervisor': supervisor,
         'team_data': team_data,
@@ -611,11 +612,6 @@ def supervisor_dashboard(request):
 
 @login_required
 def export_team_report_excel(request):
-    """
-    Exporta el reporte general de asistencia del equipo supervisado a Excel.
-    Cada fila representa un empleado por fecha.
-    Incluye hasta 2 breaks y 1 lunch con horas de inicio, fin y duración.
-    """
     try:
         supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
     except Employee.DoesNotExist:
@@ -625,7 +621,6 @@ def export_team_report_excel(request):
     # Filtros
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
-
 
     # Validación de fechas
     if not date_from or not date_to:
@@ -642,7 +637,6 @@ def export_team_report_excel(request):
     # Miembros del equipo
     team_members = Employee.objects.filter(supervisor=supervisor).select_related('user', 'current_campaign')
 
-
     # WorkDays filtrados
     work_days = WorkDay.objects.filter(
         employee__in=team_members,
@@ -657,6 +651,20 @@ def export_team_report_excel(request):
 
     bold_font = Font(bold=True)
     center_align = Alignment(horizontal="center")
+
+    # Función auxiliar para formatear timedelta como HH:MM:SS
+    def format_timedelta(td):
+        total_seconds = int(td.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    # Función auxiliar para formatear sesiones
+    def format_duration(s):
+        if s.start_time and s.end_time:
+            delta = s.end_time - s.start_time
+            return format_timedelta(delta)
+        return "—"
 
     # Título del reporte
     ws.merge_cells('A1:L1')
@@ -683,7 +691,7 @@ def export_team_report_excel(request):
         ws.cell(row=4, column=col).font = bold_font
         ws.cell(row=4, column=col).alignment = center_align
 
-    # Agrupar WorkDays por fecha y empleado
+    # Agrupar WorkDays
     from collections import defaultdict
     grouped = defaultdict(list)
     for wd in work_days:
@@ -691,21 +699,14 @@ def export_team_report_excel(request):
 
     # Filas de datos
     for (date, employee), wds in sorted(grouped.items(), key=lambda x: (x[0][0], x[0][1].user.last_name)):
-        wd = wds[0]  # Solo habrá un WorkDay por fecha y empleado
+        wd = wds[0]
 
         employee_name = employee.user.get_full_name()
-        total_work = str(wd.total_work_time) if wd.total_work_time else "0:00:00"
+        total_work = format_timedelta(wd.total_work_time) if wd.total_work_time else "00:00:00"
 
         # Filtrar sesiones
         breaks = [s for s in wd.sessions.all() if s.session_type == 'break'][:2]
         lunch = [s for s in wd.sessions.all() if s.session_type == 'lunch'][:1]
-
-        # Obtener tiempos y duración
-        def format_duration(s):
-            if s.start_time and s.end_time:
-                delta = s.end_time - s.start_time
-                return str(delta)
-            return "—"
 
         break1_start = breaks[0].start_time.strftime("%H:%M:%S") if len(breaks) > 0 else "—"
         break1_end = breaks[0].end_time.strftime("%H:%M:%S") if len(breaks) > 0 and breaks[0].end_time else "—"
@@ -719,7 +720,6 @@ def export_team_report_excel(request):
         lunch_end = lunch[0].end_time.strftime("%H:%M:%S") if lunch and lunch[0].end_time else "—"
         lunch_duration = format_duration(lunch[0]) if lunch else "—"
 
-        # Contar sesiones de trabajo
         work_sessions_count = wd.sessions.filter(session_type='work').count()
 
         ws.append([
@@ -732,7 +732,7 @@ def export_team_report_excel(request):
             work_sessions_count
         ])
 
-    # Ajustar ancho de columnas automáticamente
+    # Ajustar ancho de columnas
     for i, column_cells in enumerate(ws.columns, 1):
         length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
         ws.column_dimensions[get_column_letter(i)].width = length + 2
@@ -856,10 +856,9 @@ def employee_attendance_detail(request, employee_id):
     
     return render(request, 'supervisor/employee_attendance_detail.html', context)
 
-
 @login_required
-def export_employee_attendance_csv(request, employee_id):
-    """Exporta los registros de asistencia de un empleado específico a CSV."""
+def export_employee_attendance_excel(request, employee_id):
+    """Exporta los registros de asistencia de un empleado específico a Excel (.xlsx) con detalle de breaks y lunch."""
     try:
         supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
     except Employee.DoesNotExist:
@@ -868,11 +867,9 @@ def export_employee_attendance_csv(request, employee_id):
 
     employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
 
-    # Filtros aplicados
+    # Filtros de fechas
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
-
-    # Validación de fechas
     if not date_from or not date_to:
         messages.error(request, "You must select a valid start and end date before generating the report.")
         return redirect(request.META.get('HTTP_REFERER', 'employee_profile'))
@@ -880,64 +877,160 @@ def export_employee_attendance_csv(request, employee_id):
     try:
         date_from_parsed = datetime.strptime(date_from, "%Y-%m-%d").date()
         date_to_parsed = datetime.strptime(date_to, "%Y-%m-%d").date()
-
         if date_from_parsed > date_to_parsed:
             messages.error(request, "The start date cannot be later than the end date.")
             return redirect(request.META.get('HTTP_REFERER', 'employee_profile'))
-
     except ValueError:
         messages.error(request, "Invalid date format. Please select valid dates.")
         return redirect(request.META.get('HTTP_REFERER', 'employee_profile'))
 
-    # Obtener WorkDays filtrados
-    work_days = WorkDay.objects.filter(employee=employee, date__range=(date_from_parsed, date_to_parsed)).order_by('-date')
+    # WorkDays filtrados
+    work_days = WorkDay.objects.filter(
+        employee=employee,
+        date__range=(date_from_parsed, date_to_parsed)
+    ).prefetch_related('sessions').order_by('date')
 
-    # Nombre del archivo
-    safe_name = f"{employee.user.first_name}_{employee.user.last_name}".replace(" ", "_")
-    filename = f"attendance_{safe_name}.csv"
+    # Crear workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Attendance Report"
 
-    # Crear respuesta CSV
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    bold_font = Font(bold=True)
+    center_align = Alignment(horizontal="center")
 
-    writer = csv.writer(response)
-    writer.writerow([f"Attendance Report for {employee.user.get_full_name()}"])
-    writer.writerow([f"Date range: {date_from} to {date_to}"])
-    writer.writerow(["Generated at:", timezone.now().strftime("%Y-%m-%d %H:%M:%S")])
-    writer.writerow([])
+    # Función para formatear timedelta
+    def format_timedelta(td):
+        if not td:
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    # Función para formatear sesiones
+    def format_duration(s):
+        if s.start_time and s.end_time:
+            return format_timedelta(s.end_time - s.start_time)
+        return "—"
+
+    # Título
+    ws.merge_cells('A1:M1')
+    ws['A1'] = f"Attendance Report for {employee.user.get_full_name()}"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = center_align
+
+    ws.merge_cells('A2:M2')
+    ws['A2'] = f"Date range: {date_from} to {date_to}"
+    ws['A2'].alignment = center_align
+
+    ws.merge_cells('A3:M3')
+    ws['A3'] = f"Generated at: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    ws['A3'].alignment = center_align
+
+    ws.append([])
 
     # Encabezados
-    writer.writerow([
+    headers = [
         "Date", "Day", "Status", "Check In", "Check Out",
-        "Total Work Time", "Breaks", "Sessions Count"
-    ])
+        "Total Work Time",
+        "Break1 Start", "Break1 End", "Break1 Duration",
+        "Break2 Start", "Break2 End", "Break2 Duration",
+        "Lunch Start", "Lunch End", "Lunch Duration",
+        "Work Sessions Count"
+    ]
+    ws.append(headers)
+    for col in range(1, len(headers)+1):
+        ws.cell(row=5, column=col).font = bold_font
+        ws.cell(row=5, column=col).alignment = center_align
 
-    # Sumar total de horas trabajadas
     total_seconds = 0
 
-    # Filas
+    # Filas de datos
     for wd in work_days:
-        total_time = wd.total_work_time
-        if total_time:
-            total_seconds += total_time.total_seconds()
-        total_time_str = format_duration_simple(total_time) if total_time else "0h 00m"
+        total_time = wd.total_work_time or timedelta()
+        total_seconds += total_time.total_seconds()
 
-        writer.writerow([
+        total_time_str = format_timedelta(total_time)
+        check_in = wd.check_in.strftime("%I:%M %p") if wd.check_in else "—"
+        check_out = wd.check_out.strftime("%I:%M %p") if wd.check_out else "—"
+
+        # Filtrar sesiones
+        breaks = [s for s in wd.sessions.all() if s.session_type == 'break'][:2]
+        lunch = [s for s in wd.sessions.all() if s.session_type == 'lunch'][:1]
+
+        break1_start = breaks[0].start_time.strftime("%I:%M %p") if len(breaks) > 0 else "—"
+        break1_end = breaks[0].end_time.strftime("%I:%M %p") if len(breaks) > 0 and breaks[0].end_time else "—"
+        break1_duration = format_duration(breaks[0]) if len(breaks) > 0 else "—"
+
+        break2_start = breaks[1].start_time.strftime("%I:%M %p") if len(breaks) > 1 else "—"
+        break2_end = breaks[1].end_time.strftime("%I:%M %p") if len(breaks) > 1 and breaks[1].end_time else "—"
+        break2_duration = format_duration(breaks[1]) if len(breaks) > 1 else "—"
+
+        lunch_start = lunch[0].start_time.strftime("%I:%M %p") if lunch else "—"
+        lunch_end = lunch[0].end_time.strftime("%I:%M %p") if lunch and lunch[0].end_time else "—"
+        lunch_duration = format_duration(lunch[0]) if lunch else "—"
+
+        work_sessions_count = wd.sessions.filter(session_type='work').count()
+
+        ws.append([
             wd.date.strftime("%Y-%m-%d"),
             wd.date.strftime("%A"),
             wd.get_status_display(),
-            wd.check_in.strftime("%I:%M %p") if wd.check_in else "—",
-            wd.check_out.strftime("%I:%M %p") if wd.check_out else "—",
+            check_in,
+            check_out,
             total_time_str,
-            wd.break_count,
-            wd.sessions.count(),
+            break1_start, break1_end, break1_duration,
+            break2_start, break2_end, break2_duration,
+            lunch_start, lunch_end, lunch_duration,
+            work_sessions_count
         ])
 
-    # Agregar fila resumen
-    writer.writerow([])
-    writer.writerow(["TOTAL WORK TIME:", format_duration_simple(timedelta(seconds=total_seconds))])
+    # Fila resumen
+    ws.append([])
+    total_time_final = format_timedelta(timedelta(seconds=total_seconds))
+    ws.append(["", "", "", "", "TOTAL WORK TIME:", total_time_final])
+    ws.cell(row=ws.max_row, column=5).font = bold_font
+    ws.cell(row=ws.max_row, column=6).font = bold_font
 
+    # Ajustar ancho columnas
+    for i, column_cells in enumerate(ws.columns, 1):
+        length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
+        ws.column_dimensions[get_column_letter(i)].width = length + 2
+
+    # Crear respuesta
+    safe_name = f"{employee.user.first_name}_{employee.user.last_name}".replace(" ", "_")
+    filename = f"attendance_{safe_name}_{timezone.now().strftime('%Y%m%d')}.xlsx"
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
     return response
+
+    # Fila resumen
+    ws.append([])
+    total_time_final = format_timedelta(timedelta(seconds=total_seconds))
+    ws.append(["", "", "", "", "TOTAL WORK TIME:", total_time_final])
+    ws.cell(row=ws.max_row, column=5).font = bold_font
+    ws.cell(row=ws.max_row, column=6).font = bold_font
+
+    # Ajustar ancho de columnas automáticamente
+    for i, column_cells in enumerate(ws.columns, 1):
+        length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
+        ws.column_dimensions[get_column_letter(i)].width = length + 2
+
+    # Crear respuesta
+    safe_name = f"{employee.user.first_name}_{employee.user.last_name}".replace(" ", "_")
+    filename = f"attendance_{safe_name}_{timezone.now().strftime('%Y%m%d')}.xlsx"
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
+
 
 # Función auxiliar para formatear duración
 def format_duration_simple(duration):

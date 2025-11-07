@@ -20,7 +20,7 @@ urlpatterns = [
     path('employee/<int:employee_id>/day/<str:date_str>/', views.supervisor_day_detail, name='supervisor_day_detail'),
 
     path('attendance/export-csv/', views.export_attendance_excel, name='export_attendance_excel'),
-    path('employee/<int:employee_id>/export-csv/', views.export_employee_attendance_csv, name='export_employee_attendance_csv'),
+    path('employee/<int:employee_id>/export-csv/', views.export_employee_attendance_excel, name='export_employee_attendance_excel'),
     path('team/report/export/', views.export_team_report_excel, name='export_team_report_excel'),
 
     path('edit-session/<int:pk>/', views.edit_session, name='edit_session'),
