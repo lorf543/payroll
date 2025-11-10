@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Bulk Employee Invitation</h4>
+                    <p class="text-muted mb-0">Add up to 10 employees at once</p>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="bulkInvitationForm">
+                        {% csrf_token %}
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <h5>Employee Details</h5>
+                                <div class="mb-3">
+                                    <label for="{{ main_form.campaign.id_for_label }}" class="form-label">Campaign *</label>
+                                    {{ main_form.campaign }}
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="{{ main_form.position.id_for_label }}" class="form-label">Position *</label>
+                                    {{ main_form.position }}
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="{{ main_form.department.id_for_label }}" class="form-label">Department *</label>
+                                    {{ main_form.department }}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h5>Additional Information</h5>
+                                <div class="mb-3">
+                                    <label for="{{ main_form.supervisor.id_for_label }}" class="form-label">Supervisor</label>
+                                    {{ main_form.supervisor }}
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="{{ main_form.hire_date.id_for_label }}" class="form-label">Hire Date *</label>
+                                    {{ main_form.hire_date }}
+                                </div>
+                                
+
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h5>Employee Emails </h5>
+                                <p class="text-muted">Enter email addresses and optional custom identification for each employee.</p>
+                            </div>
+                        </div>
+                        
+                        <div id="email-forms-container">
+                            {% for form in email_forms %}
+                            <div class="row email-row mb-3" id="email-row-{{ forloop.counter0 }}">
+                                <div class="col-md-5">
+                                    <label class="form-label">Email Address {{ forloop.counter }}</label>
+                                    {{ form.email }}
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Custom Identification (Optional)</label>
+                                    {{ form.identification }}
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    {% if forloop.counter0 > 0 %}
+                                    <button type="button" class="btn btn-outline-danger btn-sm remove-email" data-index="{{ forloop.counter0 }}">
+                                        Remove
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="button" id="add-email-field" class="btn btn-outline-primary btn-sm">
+                                    + Add Another Email
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary btn-lg">Send Invitations</button>
+                                <button type="button" id="preview-emails" class="btn btn-outline-secondary btn-lg">Preview</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Invitation Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="preview-content">
+                <!-- Preview content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let emailCount = {{ email_forms|length }};
+
+document.getElementById('add-email-field').addEventListener('click', function() {
+    if (emailCount >= 10) {
+        alert('Maximum 10 emails allowed.');
+        return;
+    }
+    
+    fetch('{% url "add_email_field" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: 'index=' + emailCount
+    })
+    .then(response => response.text())
+    .then(html => {
+        const container = document.getElementById('email-forms-container');
+        const newRow = document.createElement('div');
+        newRow.className = 'row email-row mb-3';
+        newRow.id = 'email-row-' + emailCount;
+        newRow.innerHTML = html;
+        container.appendChild(newRow);
+        emailCount++;
+    });
+});
+
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-email')) {
+        const index = e.target.dataset.index;
+        const row = document.getElementById('email-row-' + index);
+        row.remove();
+        // Re-number remaining rows
+        updateRowNumbers();
+    }
+});
+
+function updateRowNumbers() {
+    const rows = document.querySelectorAll('.email-row');
+    rows.forEach((row, index) => {
+        const label = row.querySelector('label');
+        if (label) {
+            label.textContent = 'Email Address ' + (index + 1);
+        }
+        const removeBtn = row.querySelector('.remove-email');
+        if (removeBtn && index > 0) {
+            removeBtn.dataset.index = index;
+        }
+    });
+    emailCount = rows.length;
+}
+
+// Preview functionality
+document.getElementById('preview-emails').addEventListener('click', function() {
+    // Collect form data and show preview
+    const formData = new FormData(document.getElementById('bulkInvitationForm'));
+    const previewContent = document.getElementById('preview-content');
+    
+    // Simple preview - in real implementation, you might want to send this to a view
+    let previewHtml = '<h6>Employees to be invited:</h6><ul>';
+    
+    const emails = [];
+    for (let [key, value] of formData.entries()) {
+        if (key.includes('email') && value) {
+            emails.push(value);
+        }
+    }
+    
+    emails.forEach(email => {
+        previewHtml += `<li>${email}</li>`;
+    });
+    
+    previewHtml += '</ul>';
+    previewContent.innerHTML = previewHtml;
+    
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    modal.show();
+});
+</script>
+{% endblock %}

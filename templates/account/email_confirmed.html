@@ -1,0 +1,78 @@
+<!-- templates/account/email_confirmed.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid bg-light min-vh-100 py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow border-0">
+                <div class="card-header bg-success text-white text-center py-4">
+                    <div class="mb-3">
+                        <i class="fas fa-check-circle fa-3x"></i>
+                    </div>
+                    <h1 class="h3 mb-0">Email Verified Successfully!</h1>
+                </div>
+                
+                <div class="card-body p-4 p-md-5 text-center">
+                    <div class="mb-4">
+                        <p class="lead text-muted mb-3">
+                            Your email address has been confirmed and verified.
+                        </p>
+                        <p class="text-muted">
+                            You can now complete your registration by setting your password.
+                        </p>
+                    </div>
+
+                    <!-- Countdown -->
+                    <div class="alert alert-info mb-4">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <i class="fas fa-clock me-2"></i>
+                            <span>Redirecting to registration in <strong id="countdown" class="mx-1">5</strong> seconds</span>
+                        </div>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div class="progress mb-4" style="height: 8px;">
+                        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%"></div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'account_signup' %}" class="btn btn-success btn-lg">
+                            <i class="fas fa-rocket me-2"></i>
+                            Continue to Registration Now
+                        </a>
+                        <a href="{% url 'account_login' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-sign-in-alt me-2"></i>
+                            Go to Login Instead
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-redirect with countdown and progress bar
+    let countdown = 5;
+    const countdownElement = document.getElementById('countdown');
+    const progressBar = document.getElementById('progress-bar');
+    
+    // Update progress bar and countdown
+    const timer = setInterval(function() {
+        countdown--;
+        countdownElement.textContent = countdown;
+        
+        // Update progress bar (inverse - starts at 0%, ends at 100%)
+        const progress = ((5 - countdown) / 5) * 100;
+        progressBar.style.width = progress + '%';
+        
+        if (countdown <= 0) {
+            clearInterval(timer);
+            window.location.href = "{% url 'account_signup' %}";
+        }
+    }, 1000);
+</script>
+{% endblock %}

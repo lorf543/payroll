@@ -1,0 +1,113 @@
+<!-- PWA Install Floating Prompt -->
+<div id="pwa-install-prompt" class="pwa-install-prompt" style="display: none;">
+    <div class="pwa-prompt-content">
+        <button type="button" class="pwa-prompt-close" id="pwa-prompt-dismiss-btn" aria-label="Close">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        
+        <div class="pwa-prompt-icon">
+            <i class="bi bi-phone-fill"></i>
+        </div>
+        
+        <div class="pwa-prompt-text">
+            <h6 class="mb-1 fw-bold">¡Instala la App!</h6>
+            <p class="mb-0 small text-muted">Accede más rápido y sin conexión</p>
+        </div>
+        
+        <button type="button" class="btn btn-primary btn-sm" id="pwa-prompt-install-btn">
+            <i class="bi bi-download me-1"></i>
+            Instalar
+        </button>
+    </div>
+</div>
+
+<style>
+.pwa-install-prompt {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    padding: 16px;
+    z-index: 1070;
+    max-width: 320px;
+    animation: slideInUp 0.4s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translateY(100px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.pwa-prompt-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+}
+
+.pwa-prompt-close {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.pwa-prompt-close:hover {
+    background: #c82333;
+    transform: scale(1.1);
+}
+
+.pwa-prompt-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.pwa-prompt-text {
+    flex: 1;
+}
+
+.pwa-prompt-text h6 {
+    font-size: 14px;
+    color: #212529;
+}
+
+.pwa-prompt-text p {
+    font-size: 12px;
+}
+
+@media (max-width: 576px) {
+    .pwa-install-prompt {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        max-width: none;
+    }
+}
+</style>

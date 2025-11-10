@@ -22,11 +22,7 @@
                     </ol>
                 </nav>
                 <div class="d-flex align-items-center">
-                    <div class="avatar-lg me-3">
-                        <div class="avatar-title bg-primary text-white rounded-circle">
-                            {{ employee.user.first_name.0 }}{{ employee.user.last_name.0 }}
-                        </div>
-                    </div>
+
                     <div>
                         <h1 class="page-title mb-1">{{ employee.user.get_full_name }}</h1>
                         <p class="page-subtitle mb-0">Attendance Details • {{ employee.position.title|default:"Employee" }}</p>
@@ -186,13 +182,7 @@
                             </td>
                             <td>
                                 <strong class="text-success">
-                                    {% if work_day.total_work_time %}
-                                        {% with total_seconds=work_day.total_work_time.total_seconds %}
-                                            {{ total_seconds|divisibleby:3600|floatformat:"0" }}h {{ total_seconds|divisibleby:60|floatformat:"0"|stringformat:"02d" }}m
-                                        {% endwith %}
-                                    {% else %}
-                                        0h 00m
-                                    {% endif %}
+                                    {{ work_day.total_work_time }}
                                 </strong>
                             </td>
                             <td>
@@ -210,6 +200,10 @@
                                 class="btn btn-sm btn-outline-primary">
                                     View Details
                                 </a>
+                                    <a href="{% url 'workday_editor_view' work_day.id %}" 
+                                        class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-sliders"></i> Full Timeline Editor
+                                    </a>
                             </td>
                         </tr>
                         {% endfor %}

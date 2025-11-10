@@ -4,10 +4,17 @@ from import_export import resources
 from .models import (
     Department, Position, Employee,
     PaymentConcept, PayPeriod,Payment,
-    Campaign
+    Campaign,BulkInvitation
 )
 
 
+
+admin.site.site_header = "Payroll Administration"
+admin.site.site_title = "Payroll Admin Portal"
+admin.site.index_title = "Payroll Administration"
+
+
+admin.site.register(BulkInvitation)
 
 
 @admin.register(Campaign)

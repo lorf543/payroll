@@ -166,7 +166,7 @@
                                         <span class="info-label fw-medium">Position</span>
                                         <span class="info-value text-muted">
                                             {% if employee.position %}
-                                                {{ employee.position.title }}
+                                                {{ employee.position.name }}
                                             {% else %}
                                                 Not assigned
                                             {% endif %}
@@ -206,11 +206,12 @@
                                     <div class="info-item d-flex justify-content-between align-items-center py-2">
                                         <span class="info-label fw-medium">Login Status</span>
                                         <span class="info-value text-muted">
-                                            {% if employee.is_logged_in %}
-                                                <span class="badge bg-success">Logged In</span>
+                                            {%if employee.is_logged_in %}
+                                                <span class="badge bg-success">Online</span>
                                             {% else %}
-                                                <span class="badge bg-secondary">Logged Out</span>
+                                                <span class="badge bg-secondary">Offline</span>
                                             {% endif %}
+
                                         </span>
                                     </div>
                                 </div>

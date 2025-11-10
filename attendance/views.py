@@ -8,12 +8,17 @@ from django.utils import timezone
 from django.contrib import messages
 from django.contrib.sessions.models import Session
 from django.db import transaction
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta,date
 from django.core.paginator import Paginator
 from django.db.models import Q
 from .forms import EmployeeProfileForm,ActivitySessionForm
 from django.contrib.auth.models import User
 from django.contrib.auth import logout
+
+
+from django.views.generic import DetailView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+import json
 
 import openpyxl
 from openpyxl.styles import Font, Alignment
@@ -558,11 +563,12 @@ def supervisor_dashboard(request):
     team_members = Employee.objects.filter(supervisor=supervisor).select_related(
         'user', 'position', 'department', 'current_campaign'
     )
-    
+
     # Estadísticas del equipo
     total_team_members = team_members.count()
     logged_in_count = team_members.filter(is_logged_in=True).count()
     active_in_campaign = team_members.filter(current_campaign__isnull=False).count()
+
     
     # Obtener WorkDays de hoy para el equipo
     today = timezone.now().date()
@@ -884,7 +890,6 @@ def export_employee_attendance_excel(request, employee_id):
         messages.error(request, "Invalid date format. Please select valid dates.")
         return redirect(request.META.get('HTTP_REFERER', 'employee_profile'))
 
-    # WorkDays filtrados
     work_days = WorkDay.objects.filter(
         employee=employee,
         date__range=(date_from_parsed, date_to_parsed)
@@ -898,7 +903,7 @@ def export_employee_attendance_excel(request, employee_id):
     bold_font = Font(bold=True)
     center_align = Alignment(horizontal="center")
 
-    # Función para formatear timedelta
+    # Formateadores
     def format_timedelta(td):
         if not td:
             return "00:00:00"
@@ -907,92 +912,98 @@ def export_employee_attendance_excel(request, employee_id):
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-    # Función para formatear sesiones
     def format_duration(s):
         if s.start_time and s.end_time:
             return format_timedelta(s.end_time - s.start_time)
         return "—"
 
-    # Título
-    ws.merge_cells('A1:M1')
+    # Encabezado principal
+    ws.merge_cells('A1:P1')
     ws['A1'] = f"Attendance Report for {employee.user.get_full_name()}"
     ws['A1'].font = Font(bold=True, size=14)
     ws['A1'].alignment = center_align
 
-    ws.merge_cells('A2:M2')
+    ws.merge_cells('A2:P2')
     ws['A2'] = f"Date range: {date_from} to {date_to}"
     ws['A2'].alignment = center_align
 
-    ws.merge_cells('A3:M3')
+    ws.merge_cells('A3:P3')
     ws['A3'] = f"Generated at: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"
     ws['A3'].alignment = center_align
-
     ws.append([])
 
     # Encabezados
     headers = [
-        "Date", "Day", "Status", "Check In", "Check Out",
-        "Total Work Time",
+        "Date", "Day", "Status", "Check In", "Check Out", "Total Work Time",
         "Break1 Start", "Break1 End", "Break1 Duration",
         "Break2 Start", "Break2 End", "Break2 Duration",
         "Lunch Start", "Lunch End", "Lunch Duration",
         "Work Sessions Count"
     ]
     ws.append(headers)
-    for col in range(1, len(headers)+1):
-        ws.cell(row=5, column=col).font = bold_font
-        ws.cell(row=5, column=col).alignment = center_align
+
+    for col_num in range(1, len(headers) + 1):
+        cell = ws.cell(row=5, column=col_num)
+        cell.font = bold_font
+        cell.alignment = center_align
 
     total_seconds = 0
 
-    # Filas de datos
     for wd in work_days:
         total_time = wd.total_work_time or timedelta()
         total_seconds += total_time.total_seconds()
 
-        total_time_str = format_timedelta(total_time)
         check_in = wd.check_in.strftime("%I:%M %p") if wd.check_in else "—"
         check_out = wd.check_out.strftime("%I:%M %p") if wd.check_out else "—"
 
-        # Filtrar sesiones
         breaks = [s for s in wd.sessions.all() if s.session_type == 'break'][:2]
         lunch = [s for s in wd.sessions.all() if s.session_type == 'lunch'][:1]
 
-        break1_start = breaks[0].start_time.strftime("%I:%M %p") if len(breaks) > 0 else "—"
-        break1_end = breaks[0].end_time.strftime("%I:%M %p") if len(breaks) > 0 and breaks[0].end_time else "—"
-        break1_duration = format_duration(breaks[0]) if len(breaks) > 0 else "—"
+        def fmt_time(t): return t.strftime("%I:%M %p") if t else "—"
+        def fmt_duration(s): return s.end_time - s.start_time if s.start_time and s.end_time else None
 
-        break2_start = breaks[1].start_time.strftime("%I:%M %p") if len(breaks) > 1 else "—"
-        break2_end = breaks[1].end_time.strftime("%I:%M %p") if len(breaks) > 1 and breaks[1].end_time else "—"
-        break2_duration = format_duration(breaks[1]) if len(breaks) > 1 else "—"
-
-        lunch_start = lunch[0].start_time.strftime("%I:%M %p") if lunch else "—"
-        lunch_end = lunch[0].end_time.strftime("%I:%M %p") if lunch and lunch[0].end_time else "—"
-        lunch_duration = format_duration(lunch[0]) if lunch else "—"
+        break1 = fmt_duration(breaks[0]) if len(breaks) > 0 else None
+        break2 = fmt_duration(breaks[1]) if len(breaks) > 1 else None
+        lunch_d = fmt_duration(lunch[0]) if lunch else None
 
         work_sessions_count = wd.sessions.filter(session_type='work').count()
 
-        ws.append([
+        # Convertir total_time a formato Excel (fracción de día)
+        excel_total_time = total_time.total_seconds() / 86400  # 1 día = 86400 s
+
+        row = [
             wd.date.strftime("%Y-%m-%d"),
             wd.date.strftime("%A"),
             wd.get_status_display(),
             check_in,
             check_out,
-            total_time_str,
-            break1_start, break1_end, break1_duration,
-            break2_start, break2_end, break2_duration,
-            lunch_start, lunch_end, lunch_duration,
+            excel_total_time,  # numérico, no string
+            fmt_time(breaks[0].start_time) if len(breaks) > 0 else "—",
+            fmt_time(breaks[0].end_time) if len(breaks) > 0 else "—",
+            str(break1) if break1 else "—",
+            fmt_time(breaks[1].start_time) if len(breaks) > 1 else "—",
+            fmt_time(breaks[1].end_time) if len(breaks) > 1 else "—",
+            str(break2) if break2 else "—",
+            fmt_time(lunch[0].start_time) if lunch else "—",
+            fmt_time(lunch[0].end_time) if lunch else "—",
+            str(lunch_d) if lunch_d else "—",
             work_sessions_count
-        ])
+        ]
+        ws.append(row)
 
-    # Fila resumen
+        # Aplica formato h:mm a la columna "Total Work Time" (columna 6)
+        ws.cell(row=ws.max_row, column=6).number_format = "[h]:mm"
+
+    # --- Fila resumen ---
     ws.append([])
-    total_time_final = format_timedelta(timedelta(seconds=total_seconds))
-    ws.append(["", "", "", "", "TOTAL WORK TIME:", total_time_final])
+    total_time_final = timedelta(seconds=total_seconds)
+    excel_total_final = total_time_final.total_seconds() / 86400
+    ws.append(["", "", "", "", "TOTAL WORK TIME:", excel_total_final])
     ws.cell(row=ws.max_row, column=5).font = bold_font
     ws.cell(row=ws.max_row, column=6).font = bold_font
+    ws.cell(row=ws.max_row, column=6).number_format = "[h]:mm"
 
-    # Ajustar ancho columnas
+    # Ajustar anchos
     for i, column_cells in enumerate(ws.columns, 1):
         length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
         ws.column_dimensions[get_column_letter(i)].width = length + 2
@@ -1007,30 +1018,6 @@ def export_employee_attendance_excel(request, employee_id):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
-
-    # Fila resumen
-    ws.append([])
-    total_time_final = format_timedelta(timedelta(seconds=total_seconds))
-    ws.append(["", "", "", "", "TOTAL WORK TIME:", total_time_final])
-    ws.cell(row=ws.max_row, column=5).font = bold_font
-    ws.cell(row=ws.max_row, column=6).font = bold_font
-
-    # Ajustar ancho de columnas automáticamente
-    for i, column_cells in enumerate(ws.columns, 1):
-        length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
-        ws.column_dimensions[get_column_letter(i)].width = length + 2
-
-    # Crear respuesta
-    safe_name = f"{employee.user.first_name}_{employee.user.last_name}".replace(" ", "_")
-    filename = f"attendance_{safe_name}_{timezone.now().strftime('%Y%m%d')}.xlsx"
-
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    wb.save(response)
-    return response
-
 
 # Función auxiliar para formatear duración
 def format_duration_simple(duration):
@@ -1127,69 +1114,124 @@ def edit_session(request, pk):
 
 
 
-@login_required
-def force_logout(request, employee_id):
-    """
-    Desconecta forzosamente al empleado:
-    - Elimina sesiones Django activas.
-    - Cierra la sesión de trabajo activa (ActivitySession).
-    - Finaliza el WorkDay y recalcula métricas.
-    - Marca al empleado como desconectado.
-    """
-    employee = get_object_or_404(Employee, id=employee_id)
-    user = employee.user
-    now = timezone.localtime(timezone.now())
-    count = 0
+def workday_editor_view(request, workday_id):
+    workday = get_object_or_404(WorkDay, id=workday_id)
+    sessions = workday.sessions.all()
 
-    # 1️⃣ Eliminar sesiones activas del usuario
-    for session in Session.objects.all():
-        data = session.get_decoded()
-        if data.get('_auth_user_id') == str(user.id):
-            session.delete()
-            count += 1
+    sessions_data = []
+    for s in sessions:
+        sessions_data.append({
+            'id': s.id,
+            'type': s.get_session_type_display(),
+            'type_code': s.session_type,
+            'start': s.start_time.strftime('%H:%M'),
+            'end': s.end_time.strftime('%H:%M'),
+        })
 
-    # 2️⃣ Buscar WorkDay activo
-    work_day = WorkDay.objects.filter(employee=employee, status='active').first()
-    if work_day:
+    referer = request.META.get('HTTP_REFERER', '/')
+
+    return render(request, 'supervisor/workday_timeline.html', {
+        'workday': workday,
+        'sessions': sessions,
+        'sessions_json': json.dumps(sessions_data),
+        'referer': referer
+    })
 
 
-        # 3️⃣ Obtener sesión activa
-        active_session = work_day.get_active_session()
-        if active_session:
-            # Cerrar sesión activa y añadir nota
-            active_session.end_time = now
-            active_session.notes = ((active_session.notes or "") + "\nLogout by supervisor").strip()
-            active_session.save(update_fields=["end_time", "notes"])
-
-        else:
-            # Si no hay sesión activa, crear una técnica para registrar el evento
-            ActivitySession.objects.create(
-                work_day=work_day,
-                session_type="technical",
-                start_time=now,
-                end_time=now,
-                notes="Logout by supervisor (no active session)",
-                auto_created=True
+@require_POST
+def update_session(request, session_id):
+    session = get_object_or_404(ActivitySession, id=session_id)
+    workday = session.work_day
+    
+    try:
+        new_start_str = request.POST.get("start")
+        new_end_str = request.POST.get("end")
+        
+        # Parse times
+        new_start_time = datetime.strptime(new_start_str, "%H:%M").time()
+        new_end_time = datetime.strptime(new_end_str, "%H:%M").time()
+        
+        # Combine with workday date - handle timezone based on database
+        workday_date = workday.date
+        
+        # For SQLite without timezone support
+        new_start = datetime.combine(workday_date, new_start_time)
+        new_end = datetime.combine(workday_date, new_end_time)
+        
+        # Validate that end > start
+        if new_end <= new_start:
+            return JsonResponse({
+                "success": False,
+                "message": "End time must be after start time"
+            })
+        
+        # Save change using the model's adjust_times method
+        session.adjust_times(
+            new_start_time=new_start,
+            new_end_time=new_end,
+            adjusted_by=request.user,
+            notes=f"Adjusted via timeline editor"
+        )
+        
+        # Adjust following sessions automatically
+        next_sessions = workday.sessions.filter(
+            start_time__gt=session.start_time
+        ).order_by('start_time')
+        
+        current_end = new_end
+        for next_session in next_sessions:
+            # Calculate original duration of next session
+            if next_session.original_start_time:
+                original_duration = next_session.end_time - next_session.original_start_time
+            elif next_session.original_start_time:
+                # For naive datetimes
+                original_duration = next_session.end_time - next_session.original_start_time
+            else:
+                original_duration = next_session.end_time - next_session.start_time
+            
+            # Adjust next session start and end
+            next_start = current_end
+            next_end = next_start + original_duration
+            
+            next_session.adjust_times(
+                new_start_time=next_start,
+                new_end_time=next_end,
+                adjusted_by=request.user,
+                notes="Auto-adjusted due to previous session change"
             )
-
-
-        # 4️⃣ Finalizar WorkDay
-        work_day.end_work_day()  # Usa tu método ya implementado
-        work_day.status = "completed"
-        work_day.notes = ((work_day.notes or "") + "\nLogout by supervisor").strip()
-        work_day.save(update_fields=["status", "notes"])
-
-
-        # 5️⃣ Actualizar estado del empleado
-        employee.is_logged_in = False
-        employee.last_logout = now
-        employee.save(update_fields=["is_logged_in", "last_logout"])
-
-
-    # 6️⃣ Mensaje al supervisor
-    messages.success(
-        request,
-        f"El usuario {user.username} ha sido desconectado ({count} sesión(es) terminada(s))."
-    )
-
-    return redirect(request.META.get('HTTP_REFERER', '/'))
+            
+            current_end = next_end
+        
+        # Update workday check_out if necessary
+        if current_end:
+            workday.check_out = current_end
+            workday.save()
+        
+        # Recalculate totals
+        workday.calculate_daily_totals()
+        
+        # Prepare updated data for all sessions
+        updated_sessions = []
+        for s in workday.sessions.all().order_by('start_time'):
+            updated_sessions.append({
+                'id': s.id,
+                'start': s.start_time.strftime('%H:%M'),
+                'end': s.end_time.strftime('%H:%M') if s.end_time else '',
+                'duration': s.duration_minutes,
+                'type_code': s.session_type
+            })
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Session updated successfully",
+            "total_work": workday.total_work_minutes,
+            "total_breaks": workday.total_break_minutes,
+            "total_lunch": int(workday.total_lunch_time.total_seconds() / 60) if workday.total_lunch_time else 0,
+            "updated_sessions": updated_sessions
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "message": f"Error updating session: {str(e)}"
+        })

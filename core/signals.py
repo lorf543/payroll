@@ -4,21 +4,26 @@ from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.dispatch import receiver
 from .models import Employee
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 @receiver(user_logged_in)
 def set_user_logged_in(sender, request, user, **kwargs):
+    print( "User logged in signal received." )
     try:
         employee = Employee.objects.get(user=user)
         employee.is_logged_in = True
+        employee.last_login = timezone.now()
         employee.save()
     except Employee.DoesNotExist:
         pass
 
 @receiver(user_logged_out)
 def set_user_logged_out(sender, request, user, **kwargs):
+    print( "User logged out signal received." )
     try:
         employee = Employee.objects.get(user=user)
         employee.is_logged_in = False
+        employee.last_logout = timezone.now()
         employee.save()
     except Employee.DoesNotExist:
         pass

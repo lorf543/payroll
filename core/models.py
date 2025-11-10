@@ -6,6 +6,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from decimal import Decimal
+from django.utils import timezone
+import uuid
 
 
 class Campaign(models.Model):
@@ -131,8 +133,8 @@ class Employee(models.Model):
     identification = models.CharField(max_length=50)
 
     #personal info
-    hire_date = models.DateField()
-    birth_date = models.DateField()
+    hire_date = models.DateField(blank=True, null=True)
+    birth_date = models.DateField(blank=True, null=True)
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
     marital_status = models.CharField(max_length=20, choices=MARITAL_STATUS_CHOICES, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
@@ -181,7 +183,43 @@ class Employee(models.Model):
         verbose_name_plural = "Employees"
 
 
+    @property
+    def has_registered(self):
+        """Check if user has registered (has a linked User account)"""
+        return self.user is not None
+    
+    @property
+    def registration_status(self):
+        """Get comprehensive registration status"""
+        if self.user and self.profile_completed:
+            return "Completed"
+        elif self.user and not self.profile_completed:
+            return "Registered - Profile Pending"
+        else:
+            return "Invitation Sent"
+        
+    def save(self, *args, **kwargs):
+        # Ensure we have an employee code before saving
+        if not self.employee_code:
+            # This will be handled by the pre_save signal, but as backup:
+            timestamp = timezone.now().strftime('%y%m%d')
+            random_part = str(uuid.uuid4().hex[:6].upper())
+            self.employee_code = f"EMP{timestamp}{random_part}"
+        
+        if not self.identification:
+            self.identification = self.employee_code
+            
+        super().save(*args, **kwargs)
 
+
+class BulkInvitation(models.Model):
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    emails_sent = models.PositiveIntegerField(default=0)
+    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE)
+    
+    def __str__(self):
+        return f"Bulk invitation {self.id} - {self.campaign.name}"
 
 
 

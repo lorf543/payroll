@@ -22,9 +22,10 @@ from django.views.generic import TemplateView
 import os
 
 urlpatterns = [
+    path('',include('core.urls')),
+    path('', include('pwa.urls')),
     path('admin/', admin.site.urls),
     path('employee/', include('attendance.urls')),
-    path('',include('core.urls')),
     path('account/',include('accounts.urls')),
     path('accounts/', include('allauth.urls')),
 ]

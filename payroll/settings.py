@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'import_export',
     'django_q',
+    'pwa',
     
     'core',
     'payroll',
@@ -174,38 +175,52 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # ==============================================================================
-# DJANGO-ALLAUTH CONFIGURATION - OPTIMIZED
+# DJANGO-ALLAUTH CONFIGURATION - OPTIMIZADO PARA INVITACIONES
 # ==============================================================================
 
-# CONFIGURACIONES BÁSICAS Y SEGURIDAD
-ACCOUNT_AUTHENTICATION_METHOD = 'username_email'  # Login con username o email
-ACCOUNT_EMAIL_REQUIRED = True                     # Email obligatorio
-ACCOUNT_USERNAME_REQUIRED = True                  # Username obligatorio
-ACCOUNT_UNIQUE_EMAIL = True                       # Email único por cuenta
-ACCOUNT_EMAIL_VERIFICATION = 'optional'           # Verificación de email
+# SESIONES
+SESSION_COOKIE_AGE = 1209600  # 2 semanas
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
-# VALIDACIONES DE USUARIO
-ACCOUNT_USERNAME_MIN_LENGTH = 3                   # Longitud mínima de username
+# CONFIGURACIONES BÁSICAS Y SEGURIDAD
+ACCOUNT_AUTHENTICATION_METHOD = 'email'           # Login solo con email
+ACCOUNT_EMAIL_REQUIRED = True                     # Email obligatorio
+ACCOUNT_USERNAME_REQUIRED = False                 # NO requerir username (solo email)
+ACCOUNT_UNIQUE_EMAIL = True                       # Email único por cuenta
+ACCOUNT_EMAIL_VERIFICATION = 'none'               # SIN verificación de email (flujo rápido)
+
+# VALIDACIONES DE USUARIO (si usas username)
+ACCOUNT_USERNAME_MIN_LENGTH = 3
 ACCOUNT_USERNAME_BLACKLIST = ['admin', 'administrator', 'moderator', 'root', 'superuser']
-ACCOUNT_PRESERVE_USERNAME_CASING = False          # Usernames en minúsculas
+ACCOUNT_PRESERVE_USERNAME_CASING = False
 
 # CONFIGURACIÓN DE EMAIL
-ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Payroll] '       # Prefijo para emails
-ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1        # Confirmación expira en 1 día
-ACCOUNT_EMAIL_CONFIRMATION_HMAC = True            # Usar HMAC para confirmación
-ACCOUNT_MAX_EMAIL_ADDRESSES = 3                   # Máximo de emails por cuenta
+ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Payroll] '
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3        
+ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
+ACCOUNT_MAX_EMAIL_ADDRESSES = 1
+
+# Deshabilitar emails automáticos (solo enviaremos el de invitación)
+ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = None
+ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = None
 
 # COMPORTAMIENTO DE SESIONES Y REDIRECCIONES
-ACCOUNT_SESSION_REMEMBER = True                   # Recordar sesión del usuario
-ACCOUNT_LOGOUT_ON_GET = False                     # Requerir confirmación para logout
-ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True        # Auto-login después de confirmar email
+ACCOUNT_SESSION_REMEMBER = True                   # Recordar sesión
+ACCOUNT_LOGOUT_ON_GET = False                     # Confirmar logout
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = False       # No aplica sin verificación
+ACCOUNT_LOGIN_ON_PASSWORD_RESET = True            # Auto-login después de reset
 
-# URLs DE REDIRECCIÓN
-ACCOUNT_LOGIN_REDIRECT_URL = '/'                  # Después de login exitoso
-ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'  # Después de logout
-ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = '/'  # Después de confirmar email (logueado)
-ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = '/accounts/login/'  # Después de confirmar email (anónimo)
-ACCOUNT_PASSWORD_CHANGE_REDIRECT_URL = '/'        # Después de cambiar password
+# URLs DE REDIRECCIÓN (el adapter las sobrescribe cuando es necesario)
+ACCOUNT_LOGIN_REDIRECT_URL = '/'
+ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/login/'
+ACCOUNT_SIGNUP_REDIRECT_URL = None  # Manejado por el adapter
+
+# FORMULARIOS Y ADAPTERS PERSONALIZADOS
+ACCOUNT_FORMS = {
+    'signup': 'accounts.forms.CustomSignupForm',
+}
+
+ACCOUNT_ADAPTER = 'accounts.adapters.CustomAccountAdapter'
 
 # LIMITES DE SEGURIDAD
 ACCOUNT_RATE_LIMITS = {
@@ -214,18 +229,29 @@ ACCOUNT_RATE_LIMITS = {
     'password_reset': '3/1h',  # 3 reseteos de password por hora
 }
 
+
+
 # ==============================================================================
 # DJANGO CORE AUTH CONFIGURATION (Compatibilidad)
 # ==============================================================================
-LOGIN_URL = '/accounts/login/'                    # URL para login
-LOGIN_REDIRECT_URL = '/'                         # Después de login (redundante con ACCOUNT_LOGIN_REDIRECT_URL)
-LOGOUT_REDIRECT_URL = '/accounts/login/'         # Después de logout (redundante con ACCOUNT_LOGOUT_REDIRECT_URL)
-# Custom forms (opcional)
-# ACCOUNT_FORMS = {
-#     'signup': 'accounts.forms.CustomSignupForm',
-#     'login': 'accounts.forms.CustomLoginForm',
-#     'reset_password': 'accounts.forms.CustomResetPasswordForm',
-# }
+LOGIN_URL = '/accounts/login/'                 
+LOGIN_REDIRECT_URL = '/'                         
+LOGOUT_REDIRECT_URL = '/accounts/login/'  
+
+# ==============================================================================
+#email backend
+# ==============================================================================
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development
+# For production:
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'your-smtp-server.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'your-email'
+# EMAIL_HOST_PASSWORD = 'your-password'
+DEFAULT_FROM_EMAIL = 'noreply@yourcompany.com'
+
+
 
 
 
@@ -267,3 +293,45 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+
+
+
+# Configuración PWA
+PWA_APP_NAME = 'Employee Portal'
+PWA_APP_DESCRIPTION = "Employee Management System"
+PWA_APP_THEME_COLOR = '#2c3e50'
+PWA_APP_BACKGROUND_COLOR = '#34495e'
+PWA_APP_DISPLAY = 'standalone'
+PWA_APP_SCOPE = '/'
+PWA_APP_ORIENTATION = 'any'
+PWA_APP_START_URL = '/'
+PWA_APP_STATUS_BAR_COLOR = 'default'
+PWA_APP_ICONS = [
+    {
+        'src': '/static/icons/web-app-manifest-192x192.png',
+        'sizes': '192x192'
+    },
+    {
+        'src': '/static/icons/web-app-manifest-512x512.png',
+        'sizes': '512x512'
+    }
+]
+PWA_APP_ICONS_APPLE = [
+    {
+        'src': '/static/icons/icon-160x160.png',
+        'sizes': '160x160'
+    }
+]
+PWA_APP_SPLASH_SCREEN = [
+    {
+        'src': '/static/images/splash-640x1136.png',
+        'media': '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)'
+    }
+]
+PWA_APP_DIR = 'ltr'
+PWA_APP_LANG = 'en-US'
+PWA_APP_DEBUG_MODE = False
+
+# Service Worker
+PWA_SERVICE_WORKER_PATH = os.path.join(BASE_DIR, 'static/js', 'serviceworker.js')

@@ -17,4 +17,4 @@ class CoreConfig(AppConfig):
     def ready(self):
         # Conectar signal para ejecutar después de migraciones
         post_migrate.connect(setup_schedules, sender=self)
-        import core.signals  # si tienes otros signals
+        import core.signals 

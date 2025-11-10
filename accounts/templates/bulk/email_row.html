@@ -1,0 +1,17 @@
+<div class="row email-row mb-3" id="email-row-{{ index }}">
+    <div class="col-md-5">
+        <label class="form-label">Email Address {{ index|add:1 }}</label>
+        {{ form.email }}
+    </div>
+    <div class="col-md-5">
+        <label class="form-label">Custom Identification (Optional)</label>
+        {{ form.identification }}
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        {% if index > 0 %}
+        <button type="button" class="btn btn-outline-danger btn-sm remove-email" data-index="{{ index }}">
+            Remove
+        </button>
+        {% endif %}
+    </div>
+</div>

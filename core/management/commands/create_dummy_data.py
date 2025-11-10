@@ -7,6 +7,13 @@ from datetime import datetime, timedelta, time, date
 import random
 from decimal import Decimal
 
+
+# from django.contrib.auth import get_user_model
+# user = get_user_model()
+# user = User.objects.get(username='admin')
+# user.set_password('adminpass')
+# user.save()
+
 class Command(BaseCommand):
     help = 'Create dummy data for testing the supervisor dashboard with active sessions'
 

@@ -1,46 +1,269 @@
-        <nav id="sidebar" class="sidebar text-white p-3 d-flex flex-column">
-          <ul class="nav flex-column">
-            <li class="nav-item">
+<nav id="sidebar" class="sidebar bg-dark text-white p-0 d-flex flex-column">
+    <!-- Sidebar Header -->
+    <div class="sidebar-header p-4 border-bottom border-secondary">
+        <div class="d-flex align-items-center">
+            <div>
+                <h5 class="mb-0 fw-bold">Employee Portal</h5>
+                <small class="">Welcome, {{ employee.first_name|default:"User" }}</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Items -->
+    <div class="sidebar-content d-flex flex-column justify-content-around p-3">
+        <ul class="nav flex-column">
+            <!-- Main Navigation -->
             {% if employee.is_it %}
-              <a  class="nav-link text-white" href="/">
-                <i class="bi bi-house-door"></i> Inicio
-              </a>
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3" href="/">
+                    <i class="bi bi-house-door me-3 fs-6"></i>
+                    <span>Dashboard</span>
+                </a>
             </li>
             {% endif %}
 
-            <li class="nav-item">
-              <a class="nav-link text-white" href="{% url 'list_employees' %}">
-                <i class="bi bi-people"></i> Empleados
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link text-white" href="{% url 'agent_dashboard' %}">
-                <i class="bi bi-people"></i> Status Dashboard
-              </a>
-            </li>
-            
-            {% if employee.is_it %}
-            
-
-            <li class="nav-item">
-                <a class="nav-link text-white" href="{% url 'supervisor_dashboard' %}">
-                    <i class="bi bi-speedometer2 me-1"></i>Supervisor Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link text-white" href="{% url 'it_device_management' %}">
-                    <i class="bi bi-keyboard me-1"></i>Device Management
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3" href="{% url 'list_employees' %}">
+                    <i class="bi bi-people me-3 fs-6"></i>
+                    <span>Employees</span>
                 </a>
             </li>
 
+            <li class="nav-item mb-2">
+                <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3" href="{% url 'agent_dashboard' %}">
+                    <i class="bi bi-speedometer me-3 fs-6"></i>
+                    <span>Status Dashboard</span>
+                </a>
+            </li>
+
+            <!-- Supervisor  -->
+            {% if employee.is_supervisor %}
+            <div class="sidebar-section mt-4 ">
+                <h6 class="sidebar-section-title text-uppercase small fw-bold px-3 ">Management</h6>
+                <hr>
+                <!-- Dropdown for Management Tools -->
+                <div class="nav-item">
+                    <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3 " 
+                       href="#" 
+                       data-bs-toggle="collapse" 
+                       data-bs-target="#managementCollapse" 
+                       aria-expanded="false"
+                       id="managementDropdown">
+                        <i class="bi bi-gear me-3 fs-6"></i>
+                        <span>Management Tools</span>
+                    </a>
+                    <div class="collapse" id="managementCollapse">
+                        <div class="nav flex-column ms-4 mt-2">
+                            <a class="nav-link text-light d-flex align-items-center px-3 py-2 rounded-3 mb-1" 
+                               href="{% url 'supervisor_dashboard' %}">
+                                <i class="bi bi-person-badge me-2 fs-7"></i>
+                                <span class="small">Supervisor Dashboard</span>
+                            </a>
+                            <a class="nav-link text-light d-flex align-items-center px-3 py-2 rounded-3 mb-1" 
+                               href="{% url 'management_dashboard' %}">
+                                <i class="bi bi-graph-up me-2 fs-7"></i>
+                                <span class="small">Management Dashboard</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <li class="nav-item mb-2">
+                    <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3" href="{% url 'it_device_management' %}">
+                        <i class="bi bi-laptop me-3 fs-6"></i>
+                        <span>Device Management</span>
+                    </a>
+                </li>
             {% endif %}
-              
+            <!-- IT Tools -->
+            {% if employee.is_it %}
+                <li class="nav-item mb-2">
+                    <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3" href="{% url 'it_device_management' %}">
+                        <i class="bi bi-laptop me-3 fs-6"></i>
+                        <span>IT Management</span>
+                    </a>
+                </li>
+
+                <li class="nav-item mb-2">
+                    <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3" href="{% url 'bulk_invitation' %}">
+                        <i class="bi bi-send-plus me-3 fs-6"></i>
+                        <span>Bulk Invitation</span>
+                    </a>
+                </li>
+
+              <div class="sidebar-footer p-3 border-top border-secondary ">
+                  <!-- PWA Install Button -->
+                  <!-- <button id="manual-pwa-install-btn" 
+                          class="btn btn-success w-100 d-flex align-items-center justify-content-center py-2 mb-2">
+                      <i class="bi bi-phone me-2"></i>
+                      <span>Install App</span>
+                  </button> -->
+
+                  <!-- Logout -->
+                  <a class="btn btn-outline-light w-100 d-flex align-items-center justify-content-center py-2" 
+                    href="{% url 'account_logout' %}">
+                      <i class="bi bi-box-arrow-right me-2"></i>
+                      <span>Logout</span>
+                  </a>
+              </div>
+            </div>
+            {% endif %}
 
 
-          </ul>
-          <div class="pt-5 mt-5"> 
-              <a class="btn btn-outline-light w-100" href="{% url 'account_logout' %}">
-                <i class="bi bi-box-arrow-right"></i> Salir
-              </a>
-          </div>
-        </nav>
+            
+        </ul>
+
+    </div>
+
+</nav>
+
+<style>
+  .sidebar {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+
+  }
+
+  .sidebar-logo {
+      width: 40px;
+      height: 40px;
+      background: rgba(52, 152, 219, 0.2);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+
+  .sidebar-section-title {
+      letter-spacing: 0.5px;
+      font-size: 0.75rem;
+  }
+
+  .nav-link {
+      border: none;
+      background: transparent;
+  }
+
+  .nav-link:hover {
+      background: rgba(52, 152, 219, 0.2);
+
+  }
+
+  .nav-link.active {
+      background: rgba(52, 152, 219, 0.3);
+      border-left: 3px solid #3498db;
+  }
+
+  .nav-link.dropdown-toggle::after {
+      margin-left: auto;
+
+  }
+
+  .nav-link.dropdown-toggle[aria-expanded="true"]::after {
+      transform: rotate(180deg);
+  }
+
+  .collapse .nav-link {
+      padding-left: 2rem;
+      font-size: 0.9rem;
+  }
+
+  .collapse .nav-link:hover {
+      background: rgba(52, 152, 219, 0.15);
+
+  }
+
+  .sidebar-footer {
+      margin-top: auto;
+  }
+
+  .btn-outline-light {
+      border-color: #6c757d;
+
+  }
+
+  .btn-outline-light:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #fff;
+
+  }
+
+
+
+  /* Responsive design */
+  @media (max-width: 768px) {
+      .sidebar {
+          min-height: auto;
+      }
+      
+      .sidebar-header {
+          padding: 1rem !important;
+      }
+      
+      .sidebar-content {
+          padding: 1rem !important;
+      }
+  }
+
+
+</style>
+
+<script>
+  
+// Add active class to current page link
+document.addEventListener('DOMContentLoaded', function() {
+    const currentUrl = window.location.pathname;
+    const navLinks = document.querySelectorAll('.nav-link');
+    
+    // Restaurar estado del dropdown desde localStorage
+    const dropdownState = localStorage.getItem('managementDropdownState');
+    const managementCollapse = document.getElementById('managementCollapse');
+    const managementDropdown = document.getElementById('managementDropdown');
+    
+    if (dropdownState === 'open' && managementCollapse) {
+        managementCollapse.classList.add('show');
+        if (managementDropdown) {
+            managementDropdown.setAttribute('aria-expanded', 'true');
+        }
+    }
+    
+    navLinks.forEach(link => {
+        if (link.getAttribute('href') === currentUrl) {
+            link.classList.add('active');
+        }
+    });
+    
+    // Handle dropdown toggle animation and localStorage
+    const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
+    dropdownToggles.forEach(toggle => {
+        toggle.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-bs-target');
+            const target = document.querySelector(targetId);
+            
+            if (target) {
+                // Esperar a que Bootstrap complete la animación
+                setTimeout(() => {
+                    const isOpen = target.classList.contains('show');
+                    
+                    // Guardar estado en localStorage
+                    if (targetId === '#managementCollapse') {
+                        localStorage.setItem('managementDropdownState', isOpen ? 'open' : 'closed');
+                    }
+                }, 50);
+            }
+        });
+    });
+
+    // También capturar eventos cuando se cierra con otros métodos
+    const managementCollapseElement = document.getElementById('managementCollapse');
+    if (managementCollapseElement) {
+        managementCollapseElement.addEventListener('hidden.bs.collapse', function() {
+            localStorage.setItem('managementDropdownState', 'closed');
+        });
+        
+        managementCollapseElement.addEventListener('shown.bs.collapse', function() {
+            localStorage.setItem('managementDropdownState', 'open');
+        });
+    }
+});
+</script>

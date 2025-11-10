@@ -26,7 +26,7 @@
             
             <!-- Campo Usuario/Email con errores específicos -->
             <div class="mb-3">
-                <label for="id_login" class="form-label">Username or Email</label>
+                <label for="id_login" class="form-label">Email</label>
                 <input type="text" class="form-control {% if form.login.errors %}is-invalid{% endif %}" 
                        id="id_login" name="login" 
                        value="{{ form.login.value|default:'' }}"
@@ -42,16 +42,21 @@
                 {% endif %}
             </div>
             
-            <!-- Campo Password con errores específicos -->
+            <!-- Campo Password con toggle de visibilidad -->
             <div class="mb-3">
                 <label for="id_password" class="form-label">Password</label>
-                <input type="password" class="form-control {% if form.password.errors %}is-invalid{% endif %}" 
-                       id="id_password" name="password" 
-                       placeholder="Enter your password" required>
+                <div class="input-group">
+                    <input type="password" class="form-control {% if form.password.errors %}is-invalid{% endif %}" 
+                           id="id_password" name="password" 
+                           placeholder="Enter your password" required>
+                    <button type="button" class="btn btn-outline-secondary" id="togglePassword">
+                        <i class="bi bi-eye" id="passwordIcon"></i>
+                    </button>
+                </div>
                 
                 <!-- Mostrar errores específicos del campo password -->
                 {% if form.password.errors %}
-                <div class="invalid-feedback">
+                <div class="invalid-feedback d-block">
                     {% for error in form.password.errors %}
                         {{ error }}
                     {% endfor %}
@@ -59,14 +64,12 @@
                 {% endif %}
             </div>
             
-            <!-- Campo Remember (opcional) -->
-            {% comment %} 
+            <!-- Campo Remember Me -->
             <div class="mb-3 form-check">
                 <input type="checkbox" class="form-check-input" id="id_remember" name="remember"
                        {% if form.remember.value %}checked{% endif %}>
                 <label class="form-check-label" for="id_remember">Remember me</label>
             </div>
-            {% endcomment %}
             
             <!-- Redirección si existe -->
             {% if redirect_field_value %}
@@ -77,19 +80,7 @@
                 <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
             </div>
         </form>
-        
-        <!-- Enlaces adicionales -->
-        {% comment %} 
-        <div class="auth-footer mt-3 text-center">
-            <p class="mb-2">
-                <a href="{% url 'account_reset_password' %}" class="text-decoration-none">Forgot your password?</a>
-            </p>
-            <p class="mb-0">
-                Don't have an account? 
-                <a href="{% url 'account_signup' %}" class="text-decoration-none fw-bold">Sign up</a>
-            </p>
-        </div>
-        {% endcomment %}
+    
     </div>
 </div>
 
@@ -120,5 +111,67 @@
         border-radius: 0.5rem;
         border: 1px solid #f5c2c7;
     }
+    
+    /* Estilos para el botón de mostrar/ocultar contraseña */
+    #togglePassword {
+        border-left: 0;
+        border-color: #ced4da;
+    }
+    
+    #togglePassword:hover {
+        background-color: #e9ecef;
+        border-color: #ced4da;
+    }
+    
+    .input-group .form-control:focus + #togglePassword {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
 </style>
+
+<script>
+    // Funcionalidad para mostrar/ocultar contraseña
+    document.addEventListener('DOMContentLoaded', function() {
+        const togglePassword = document.getElementById('togglePassword');
+        const passwordInput = document.getElementById('id_password');
+        const passwordIcon = document.getElementById('passwordIcon');
+        
+        if (togglePassword && passwordInput && passwordIcon) {
+            togglePassword.addEventListener('click', function() {
+                // Cambiar el tipo de input
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                
+                // Cambiar el icono
+                if (type === 'text') {
+                    passwordIcon.classList.remove('bi-eye');
+                    passwordIcon.classList.add('bi-eye-slash');
+                    togglePassword.setAttribute('aria-label', 'Hide password');
+                } else {
+                    passwordIcon.classList.remove('bi-eye-slash');
+                    passwordIcon.classList.add('bi-eye');
+                    togglePassword.setAttribute('aria-label', 'Show password');
+                }
+            });
+            
+            // Accesibilidad: permitir activar con la tecla Enter/Space
+            togglePassword.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    togglePassword.click();
+                }
+            });
+        }
+        
+        // Funcionalidad para "Remember me" - puedes agregar lógica adicional aquí si necesitas
+        const rememberCheckbox = document.getElementById('id_remember');
+        if (rememberCheckbox) {
+            rememberCheckbox.addEventListener('change', function() {
+                console.log('Remember me:', this.checked);
+                // Aquí puedes agregar lógica adicional si necesitas
+                // como guardar en localStorage, etc.
+            });
+        }
+    });
+</script>
 {% endblock content %}

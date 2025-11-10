@@ -1,0 +1,103 @@
+<!-- templates/account/email_confirm.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid bg-light min-vh-100 py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow border-0">
+                <div class="card-header bg-primary text-white text-center py-4">
+                    <div class="mb-3">
+                        <i class="fas fa-envelope fa-3x"></i>
+                    </div>
+                    <h1 class="h3 mb-0">Verify Your Email Address</h1>
+                </div>
+                
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <p class="lead text-muted">
+                            We've sent a confirmation link to <br>
+                            <strong class="text-dark">{{ email }}</strong>
+                        </p>
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="row mb-5">
+                        <div class="col-md-4 mb-3">
+                            <div class="text-center">
+                                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                    <span class="h4 mb-0">1</span>
+                                </div>
+                                <h5 class="h6">Check Your Email</h5>
+                                <p class="small text-muted">
+                                    Look for an email from <strong>noreply@yourcompany.com</strong>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <div class="text-center">
+                                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                    <span class="h4 mb-0">2</span>
+                                </div>
+                                <h5 class="h6">Click the Link</h5>
+                                <p class="small text-muted">
+                                    Click the verification link in the email
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <div class="text-center">
+                                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                                    <span class="h4 mb-0">3</span>
+                                </div>
+                                <h5 class="h6">Complete Registration</h5>
+                                <p class="small text-muted">
+                                    Set your password and complete your profile
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tips -->
+                    <div class="alert alert-warning mb-4">
+                        <h6 class="alert-heading mb-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Didn't receive the email?
+                        </h6>
+                        <ul class="mb-0 small">
+                            <li>Check your spam or junk folder</li>
+                            <li>Make sure you entered the correct email address</li>
+                            <li>Wait a few minutes - delivery might take some time</li>
+                        </ul>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="text-center">
+                        <form method="post" action="{% url 'account_email' %}" class="mb-3">
+                            {% csrf_token %}
+                            <button type="submit" name="action_send" class="btn btn-primary btn-lg px-4">
+                                <i class="fas fa-redo me-2"></i>
+                                Resend Verification Email
+                            </button>
+                        </form>
+                        
+                        <div class="d-flex justify-content-center gap-3">
+                            <a href="{% url 'account_login' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>
+                                Back to Login
+                            </a>
+                            <a href="{% url 'account_signup' %}" class="btn btn-outline-primary">
+                                <i class="fas fa-edit me-2"></i>
+                                Edit Email
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

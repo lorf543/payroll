@@ -1,144 +1,302 @@
-  {% load static %}
-  <!doctype html>
-  <html lang="es">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <meta name="description" content="Sistema de gestión de nómina empresarial">
-      <meta name="author" content="Nombre del autor">
-      <title>{% block title %}Sistema de Nómina{% endblock title %}</title>
-
-      <link rel="icon" type="image/png" href="{% static 'favicon/favicon.ico' %}" sizes="96x96" />
-
-      
-      <!-- CSS Libraries -->
-      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-      <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-
-      <!-- Estilos personalizados -->
-      <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-    </head>
+{% load static %}
+{% load pwa %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <!-- Meta Tags Básicos -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Sistema de gestión de nómina empresarial">
+    <meta name="author" content="Nombre del autor">
     
-    <body>
+    <!-- PWA Configuration -->
+    {% progressive_web_app_meta %}
+    <meta name="theme-color" content="#2c3e50"/>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Employee Portal">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="{% static 'images/icon-160x160.png' %}">
 
+    <!-- Title -->
+    <title>{% block title %}Sistema de Nómina{% endblock title %}</title>
 
-      <!-- Navegación -->
-      {% include "components/navbar.html" %}
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{% static 'favicon/favicon.ico' %}" sizes="96x96">
 
-          <!-- Contenido Principal -->
-      <div class="d-flex">
+    <!-- CSS Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <link rel="stylesheet" href="{% static 'css/workday_timeline.css' %}">
+
+</head>
+
+<body>
+    <!-- Navigation -->
+    {% include "components/navbar.html" %}
+
+    <!-- Main Layout -->
+    <div class="d-flex">
         <!-- Sidebar -->
         {% include "components/sidebar.html" %}
 
-        <!-- Contenido principal -->
+
+        <!-- Main Content -->
         <main class="main-content flex-grow-1">
-          {% block content %}
-          {% endblock content %}
+            <div class="container-fluid py-3">
+                <!-- Messages Display -->
+                {% if messages %}
+                <div class="messages-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+                    {% for message in messages %}
+                    <div class="alert alert-dismissible 
+                                {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %}
+                                fade show message-alert shadow-sm py-2 px-3 mb-2 rounded-3 d-flex align-items-center small">
+                        {% if message.tags == 'success' %}
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        {% elif message.tags == 'error' %}
+                            <i class="bi bi-exclamation-circle-fill text-danger me-2"></i>
+                        {% elif message.tags == 'warning' %}
+                            <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                        {% else %}
+                            <i class="bi bi-info-circle-fill text-info me-2"></i>
+                        {% endif %}
+                        <span>{{ message }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Page Content -->
+                {% block content %}
+                {% endblock content %}
+            </div>
         </main>
-      </div>  
-      
-      <!-- Pie de página (opcional) -->
-      <footer class="bg-dark text-white py-4 mt-auto">
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-4 mt-auto">
         <div class="container">
-            <p class="mb-0 text-center">&copy; 2025 Nomina Helium sys - Version 0.0.01</p>
+            <p class="mb-0 text-center">&copy; 2025 Nomina Helium sys - Version 0.0.10</p>
         </div>
-      </footer>
+    </footer>
 
-      <!-- JavaScript Libraries -->
-      <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-      <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-      <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <!-- PWA Install Prompt -->
+    {% include "pwa/pwa_install.html" %}
+    <!-- JavaScript Libraries -->
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.8/jquery.inputmask.min.js"></script>
 
-      <!-- SweetAlert2 -->
-      <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-      
-      
-      <!-- mask -->
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/5.0.8/jquery.inputmask.min.js"></script>
-      
-      <!-- Scripts personalizados -->
-      <script>
-
-        //pwa
+    <!-- Custom Scripts -->
+    <script>
 
 
-        // Input mask for phone number 
-        document.addEventListener('DOMContentLoaded', function() {
-          // Phone mask for US/Canada format
-            $('#id_phone').inputmask('(999) 999-9999', {
-                placeholder: '_',
-                clearIncomplete: true,
-                showMaskOnHover: true,
-                showMaskOnFocus: true
-            });
-        });
+        // Variables globales para el evento de instalación
+let deferredPrompt;
+
+// Función para verificar si la app está instalada
+function isAppInstalled() {
+    // Para Chrome/Android
+    if (window.matchMedia('(display-mode: standalone)').matches) return true;
+    // Para iOS Safari
+    if (window.navigator.standalone) return true;
+    // Para otros navegadores
+    if (document.referrer.includes('android-app://')) return true;
+    return false;
+}
+
+// Función para mostrar/ocultar el botón de instalación
+function toggleInstallButton() {
+    const manualInstallBtn = document.getElementById('manual-pwa-install-btn');
+    const pwaPrompt = document.getElementById('pwa-install-prompt');
+    
+    // Mostrar botón solo si NO está instalada y hay un deferredPrompt disponible
+    if (!isAppInstalled() && deferredPrompt) {
+        manualInstallBtn.style.display = 'flex';
+    } else {
+        manualInstallBtn.style.display = 'none';
+    }
+    
+    // Ocultar el prompt flotante si está instalada
+    if (isAppInstalled() && pwaPrompt) {
+        pwaPrompt.style.display = 'none';
+    }
+}
+
+// Función para instalar la PWA
+async function installPWA() {
+    if (!deferredPrompt) {
+        console.log('No hay prompt de instalación disponible');
+        return;
+    }
+    
+    try {
+        // Mostrar el prompt de instalación
+        deferredPrompt.prompt();
         
+        // Esperar a que el usuario responda
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        console.log(`User response to the install prompt: ${outcome}`);
+        
+        // Limpiar el deferredPrompt después de usarlo
+        deferredPrompt = null;
+        
+        // Ocultar el botón de instalación
+        toggleInstallButton();
+        
+        // Mostrar mensaje de éxito
+        if (outcome === 'accepted') {
+            showInstallMessage('App installed successfully!', 'success');
+        } else {
+            showInstallMessage('App installation cancelled.', 'warning');
+        }
+        
+    } catch (error) {
+        console.error('Error during PWA installation:', error);
+        showInstallMessage('Error installing app. Please try again.', 'error');
+    }
+}
 
-        // Auto-dismiss alerts after 5 seconds
+        const manualInstallBtn = document.getElementById('manual-pwa-install-btn');
+
+            manualInstallBtn?.addEventListener('click', async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+
+                if (outcome === 'accepted') {
+                    pwaPrompt.style.display = 'none';
+                    deferredPrompt = null;
+                }
+            });
+        // ==================== PWA SERVICE WORKER ====================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                // Intenta con la URL nombrada primero, si falla usa la directa
+                const swUrl = "/manifest.json" || '/sw.js';
+                navigator.serviceWorker.register(swUrl)
+                    .then(function(registration) {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.log('Service Worker registration failed:', error);
+                        // Fallback a URL directa
+                        navigator.serviceWorker.register('/sw.js')
+                            .then(function(registration) {
+                                console.log('Service Worker (fallback) registered with scope:', registration.scope);
+                            })
+                            .catch(function(fallbackError) {
+                                console.log('Fallback Service Worker registration also failed:', fallbackError);
+                            });
+                    });
+            });
+        }
+
+        // ==================== DOCUMENT READY ====================
         document.addEventListener('DOMContentLoaded', function() {
-            const alerts = document.querySelectorAll('.alert-message');
-            alerts.forEach(function(alert) {
-                setTimeout(function() {
-                    const bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
+            initializeInputMasks();
+            initializeAutoDismissAlerts();
+            initializeBootstrapComponents();
+        });
+
+        // ==================== INPUT MASKS ====================
+        function initializeInputMasks() {
+            const phoneInput = document.getElementById('id_phone');
+            if (phoneInput) {
+                $('#id_phone').inputmask('(999) 999-9999', {
+                    placeholder: '_',
+                    clearIncomplete: true,
+                    showMaskOnHover: true,
+                    showMaskOnFocus: true
+                });
+            }
+        }
+
+        // ==================== AUTO DISMISS ALERTS ====================
+        function initializeAutoDismissAlerts() {
+            const alerts = document.querySelectorAll('.message-alert');
+            alerts.forEach(alert => {
+                setTimeout(() => {
+                    alert.classList.remove('show');
+                    alert.classList.add('fade');
+                    setTimeout(() => alert.remove(), 500);
                 }, 5000);
             });
+        }
+
+        // ==================== BOOTSTRAP COMPONENTS INITIALIZATION ====================
+        function initializeBootstrapComponents() {
+            // Tooltips
+            const tooltips = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltips.map(tooltip => new bootstrap.Tooltip(tooltip));
+
+            // Dropdowns
+            const dropdowns = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
+            dropdowns.map(dropdown => new bootstrap.Dropdown(dropdown));
+
+            // Modals
+            const modals = [].slice.call(document.querySelectorAll('.modal'));
+            modals.map(modal => new bootstrap.Modal(modal));
+        }
+
+        // ==================== HTMX CONFIGURATION ====================
+        // CSRF Token for HTMX
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (csrfToken) {
+                event.detail.headers['X-CSRFToken'] = csrfToken.value;
+            }
         });
 
-      // ---------------------- CSRF para HTMX ----------------------
-      document.body.addEventListener('htmx:configRequest', (event) => {
-          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-          event.detail.headers['X-CSRFToken'] = csrfToken;
-      });
+        // Reinitialize Bootstrap components after HTMX swaps
+        document.body.addEventListener('htmx:afterSwap', initializeBootstrapComponents);
+        document.body.addEventListener('htmx:load', initializeBootstrapComponents);
 
-          // Handle HTMX events to reinitialize Bootstrap components
-      document.addEventListener('DOMContentLoaded', function() {
-          initBootstrapComponents();
-      });
+        // Disable HTMX boost for specific elements
+        document.addEventListener('click', function(e) {
+            if (e.target.matches('[data-no-boost]') || 
+                e.target.closest('[data-no-boost]') ||
+                e.target.matches('[data-bs-toggle]') ||
+                e.target.closest('[data-bs-toggle]')) {
+                htmx.off(e.target);
+            }
+        });
 
-      document.body.addEventListener('htmx:afterSwap', function(evt) {
-          initBootstrapComponents();
-      });
+        // ==================== GLOBAL UTILITY FUNCTIONS ====================
+        window.utils = {
+            showLoading: function(element) {
+                if (element) {
+                    element.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Cargando...';
+                    element.disabled = true;
+                }
+            },
+            
+            hideLoading: function(element, originalText) {
+                if (element) {
+                    element.innerHTML = originalText;
+                    element.disabled = false;
+                }
+            },
+            
+            formatCurrency: function(amount) {
+                return new Intl.NumberFormat('es-MX', {
+                    style: 'currency',
+                    currency: 'MXN'
+                }).format(amount);
+            }
+        };
+    </script>
 
-      document.body.addEventListener('htmx:load', function(evt) {
-          initBootstrapComponents();
-      });
 
-      function initBootstrapComponents() {
-          // Tooltips
-          var tooltips = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-          tooltips.map(function(tooltip) {
-              return new bootstrap.Tooltip(tooltip);
-          });
-
-          // Dropdowns
-          var dropdowns = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
-          dropdowns.map(function(dropdown) {
-              return new bootstrap.Dropdown(dropdown);
-          });
-
-          // Modals
-          var modals = [].slice.call(document.querySelectorAll('.modal'));
-          modals.map(function(modal) {
-              return new bootstrap.Modal(modal);
-          });
-      }
-
-      // Disable boost for specific elements
-      document.addEventListener('click', function(e) {
-          if (e.target.matches('[data-no-boost]') || 
-              e.target.closest('[data-no-boost]') ||
-              e.target.matches('[data-bs-toggle]') ||
-              e.target.closest('[data-bs-toggle]')) {
-              htmx.off(e.target);
-          }
-      });
-      
-
-      </script>
-    </body>
-  </html>
+</body>
+</html>

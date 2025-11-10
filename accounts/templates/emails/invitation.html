@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; }
+        .container { max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; }
+        h2 { color: #007bff; }
+        ul { padding-left: 20px; }
+        a.button { display: inline-block; padding: 10px 15px; margin-top: 10px; background-color: #007bff; color: #fff; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Welcome, {{ email }}!</h2>
+        <p>You have been invited to join our Employee Portal.</p>
+
+        <p>Please register using the button below:</p>
+        <p><a class="button" href="{{ signup_url }}">Complete Registration</a></p>
+
+        <p>After signing up, you will be redirected to complete your profile.</p>
+
+        <p>Preliminary Information:</p>
+        <ul>
+            <li><strong>Position:</strong> {{ position }}</li>
+            <li><strong>Department:</strong> {{ department }}</li>
+            <li><strong>Hire Date:</strong> {{ hire_date }}</li>
+            {% if supervisor %}
+            <li><strong>Supervisor:</strong> {{ supervisor }}</li>
+            {% endif %}
+        </ul>
+
+        <p>Best regards,<br>HR Department</p>
+    </div>
+</body>
+</html>

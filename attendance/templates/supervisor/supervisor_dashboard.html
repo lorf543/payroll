@@ -73,7 +73,7 @@
                     <div class="row align-items-center">
                         <div class="col">
                             <div class="text-info text-uppercase small fw-bold">In Campaign</div>
-                            <div class="number display-6 fw-bold text-info">{{ active_in_campaign }}</div>
+                            <div class="number display-6 fw-bold text-info">{{ employee.campaigns.count }}</div>
                         </div>
                         <div class="col-auto">
                             <i class="bi bi-megaphone text-info fs-1"></i>
@@ -263,11 +263,7 @@
                         </div>
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <span>Active in Campaigns</span>
-                            <span class="badge bg-info rounded-pill">{{ active_in_campaign }}</span>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <span>Available for Assignment</span>
-                            <span class="badge bg-warning rounded-pill">{{ total_team_members|add:"-active_in_campaign" }}</span>
+                            <span class="badge bg-info rounded-pill">{{ employee.campaigns.count }}</span>
                         </div>
                     </div>
                 </div>

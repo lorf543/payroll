@@ -1,26 +1,25 @@
 <div class="activity-controls">
     <!-- Status Change Form -->
-<form id="statusForm" method="post" action="{% url 'start_activity' %}" class="mb-4">
+    <form id="statusForm" method="post" action="{% url 'start_activity' %}" class="mb-4">
         {% csrf_token %}
         <div class="mb-3">
             <label for="session_type" class="form-label fw-bold">Change Status</label>
-                <select name="session_type" id="session_type" class="form-select form-select-lg" required>
-                    <option value="work" {% if current_session and current_session.session_type == 'work' %}selected{% endif %}>Work</option>
-                    <option value="break" {% if current_session and current_session.session_type == 'break' %}selected{% endif %}>Break</option>
-                    <option value="lunch" {% if current_session and current_session.session_type == 'lunch' %}selected{% endif %}>Lunch</option>
-                    <option value="training" {% if current_session and current_session.session_type == 'training' %}selected{% endif %}>Training</option>
-                    <option value="meeting" {% if current_session and current_session.session_type == 'meeting' %}selected{% endif %}>Meeting</option>
-                    <option value="technical" {% if current_session and current_session.session_type == 'technical' %}selected{% endif %}>Technical Issue</option>
-                    <option value="end_of_day" {% if current_session and current_session.session_type == 'end_of_day' %}selected{% endif %}>End Work Day</option>
-                </select>
+            <select name="session_type" id="session_type" class="form-select form-select-lg" required>
+                <option value="work" {% if current_session and current_session.session_type == 'work' %}selected{% endif %}>Work</option>
+                <option value="break" {% if current_session and current_session.session_type == 'break' %}selected{% endif %}>Break</option>
+                <option value="lunch" {% if current_session and current_session.session_type == 'lunch' %}selected{% endif %}>Lunch</option>
+                <option value="training" {% if current_session and current_session.session_type == 'training' %}selected{% endif %}>Training</option>
+                <option value="meeting" {% if current_session and current_session.session_type == 'meeting' %}selected{% endif %}>Meeting</option>
+                <option value="technical" {% if current_session and current_session.session_type == 'technical' %}selected{% endif %}>Technical Issue</option>
+                <option value="end_of_day" {% if current_session and current_session.session_type == 'end_of_day' %}selected{% endif %}>End Work Day</option>
+            </select>
         </div>
-        
+
         <div class="mb-3">
             <label for="notes" class="form-label">Notes (Optional)</label>
-            <textarea name="notes" id="notes" class="form-control" rows="2" 
-                      placeholder="Add any notes about this status change..."></textarea>
+            <textarea name="notes" id="notes" class="form-control" rows="2" placeholder="Add any notes about this status change..."></textarea>
         </div>
-        
+
         <button type="submit" class="btn btn-primary w-100 btn-lg">
             Update Status
         </button>
@@ -39,6 +38,11 @@
                 <div id="live-duration" class="fw-bold text-primary">
                     <small>Duration: <span id="duration-counter">Calculating...</span></small>
                 </div>
+                {% if current_session.session_type in "break lunch" %}
+                <div id="time-remaining-container" class="fw-bold text-danger">
+                    <small>Time remaining: <span id="countdownTimer">Calculating...</span></small>
+                </div>
+                {% endif %}
             </div>
         </div>
         {% else %}
@@ -62,6 +66,7 @@
         </div>
     </div>
 </div>
+
 <!-- Modal Bootstrap -->
 <div class="modal fade" id="returnTimeModal" tabindex="-1" aria-labelledby="returnTimeModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -70,10 +75,10 @@
         <h5 class="modal-title" id="returnTimeModalLabel">Break/Lunch Info</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        You should return by <span id="returnTimeText"></span>.
+      <div class="modal-body text-center">
+        <p>You should return by <span id="returnTimeText" class="fw-bold"></span>.</p>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer justify-content-center">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">OK</button>
       </div>
     </div>
@@ -81,148 +86,160 @@
 </div>
 
 <script>
-// Función para actualizar el color del body según el estado
-function updateBodyColor(sessionType) {
-    const classes = [
-        'status-work','status-break','status-lunch',
-        'status-training','status-meeting','status-technical',
-        'status-end_of_day'
-    ];
-    document.body.classList.remove(...classes);
-    if(sessionType) document.body.classList.add(`status-${sessionType}`);
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const statusSelect = document.getElementById('session_type');
-    const form = document.getElementById('statusForm');
-
-    // Estado actual del usuario
-    const currentStatus = "{{ current_session.session_type|default:'' }}";
-
-    // Inicial: mostrar color del estado actual
-    updateBodyColor(currentStatus);
-
-    // Manejo del cambio de estado
-    statusSelect.addEventListener('change', function() {
-        if (this.value === currentStatus) {
-            Swal.fire({
-                icon: 'info',
-                title: 'No status change',
-                text: `You are already in "${currentStatus}" status.`,
-                timer: 1500,
-                showConfirmButton: false,
-                position: 'top-end'
-            });
-            this.value = currentStatus; // Mantener el estado original
-        }
-    });
-
-    // Manejo del submit
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const selected = statusSelect.value;
-
-        // 🚫 Evitar enviar request si es el mismo estado
-        if (selected === currentStatus) {
-            Swal.fire({
-                icon: 'info',
-                title: 'No status change',
-                text: `You are already in "${currentStatus}" status.`,
-                timer: 1500,
-                showConfirmButton: false,
-                position: 'top-end'
-            });
-            return;
-        }
-
-        const formData = new FormData(form);
-
-        try {
-            const response = await fetch(form.action, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: formData
-            });
-
-            if (response.ok) {
-                // Solo después de que backend confirme el cambio
-                updateBodyColor(selected);
-
-                // SweetAlert de éxito
-                Swal.fire({
-                    position: "top-end",
-                    icon: "success",
-                    title: `Status changed to "${selected}" successfully!`,
-                    showConfirmButton: false,
-                    timer: 1500,
-                    didOpen: () => {
-                        document.body.style.transition = "background-color 0.5s ease";
-                    }
-                });
-
-                // Recargar la página o actualizar dinámicamente
-                window.location.reload();
-            } else {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'Error updating status.'
-                });
-            }
-        } catch (err) {
-            console.error(err);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Error sending request.'
-            });
-        }
-    });
-});
-
-// 🕒 Modal de break/lunch
-function showReturnTime(minutes) {
-    const returnTime = new Date();
-    returnTime.setMinutes(returnTime.getMinutes() + minutes);
-
-    let hours = returnTime.getHours();
-    const mins = returnTime.getMinutes().toString().padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12 || 12;
-
-    document.getElementById('returnTimeText').textContent = `${hours}:${mins} ${ampm}`;
-    const modal = new bootstrap.Modal(document.getElementById('returnTimeModal'));
-    modal.show();
-}
-
-// ⏱️ Contador de duración
-function updateDurationCounter() {
-    const currentSession = {% if current_session %}{
-        startTime: new Date('{{ current_session.start_time|date:"c" }}')
-    }{% else %}null{% endif %};
-
-    if (!currentSession) return;
-
-    function update() {
-        const now = new Date();
-        const diffMs = now - currentSession.startTime;
-        const diffSeconds = Math.floor(diffMs / 1000);
-        const hours = Math.floor(diffSeconds / 3600);
-        const minutes = Math.floor((diffSeconds % 3600) / 60);
-        const seconds = diffSeconds % 60;
-
-        const durationText =
-            hours > 0
-                ? `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`
-                : `${minutes.toString().padStart(2,'0')}m ${seconds.toString().padStart(2,'0')}s`;
-
-        const counterEl = document.getElementById('duration-counter');
-        if (counterEl) counterEl.textContent = durationText;
+    // ✅ Cambiar color de fondo según estado
+    function updateBodyColor(sessionType) {
+        const classes = [
+            'status-work','status-break','status-lunch',
+            'status-training','status-meeting','status-technical',
+            'status-end_of_day'
+        ];
+        document.body.classList.remove(...classes);
+        if(sessionType) document.body.classList.add(`status-${sessionType}`);
     }
 
-    update();
-    setInterval(update, 1000);
-}
+    document.addEventListener('DOMContentLoaded', function() {
+        const statusSelect = document.getElementById('session_type');
+        const form = document.getElementById('statusForm');
+        const currentStatus = "{{ current_session.session_type|default:'' }}";
 
-document.addEventListener('DOMContentLoaded', updateDurationCounter);
+        updateBodyColor(currentStatus);
+
+        // 🚫 Evitar seleccionar el mismo estado
+        statusSelect.addEventListener('change', function() {
+            if (this.value === currentStatus) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'No status change',
+                    text: `You are already in "${currentStatus}" status.`,
+                    timer: 1500,
+                    showConfirmButton: false,
+                    position: 'top-end'
+                });
+                this.value = currentStatus;
+            }
+        });
+
+        // ✅ Manejar submit
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const selected = statusSelect.value;
+            if (selected === currentStatus) return;
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    updateBodyColor(selected);
+                    Swal.fire({
+                        position: "top-end",
+                        icon: "success",
+                        title: `Status changed to "${selected}" successfully!`,
+                        showConfirmButton: false,
+                        timer: 1200,
+                        didClose: () => {
+                            if (selected === 'break' || selected === 'lunch') {
+                                const minutes = selected === 'break' ? 15 : 60;
+                                showReturnTime(minutes);
+                            } else {
+                                window.location.reload();
+                            }
+                        }
+                    });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error updating status.' });
+                }
+            } catch (err) {
+                console.error(err);
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Error sending request.' });
+            }
+        });
+    });
+
+    // ✅ Modal con hora de retorno
+    function showReturnTime(minutes) {
+        const returnTime = new Date();
+        returnTime.setMinutes(returnTime.getMinutes() + minutes);
+
+        let hours = returnTime.getHours();
+        const mins = returnTime.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+
+        document.getElementById('returnTimeText').textContent = `${hours}:${mins} ${ampm}`;
+        const modalEl = document.getElementById('returnTimeModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            window.location.reload();
+        });
+    }
+
+    // ⏱️ Contador de duración + tiempo restante (solo break/lunch)
+    function updateDurationCounter() {
+        const currentType = "{{ current_session.session_type|default:'' }}";
+        const currentSession = {% if current_session %}{
+            startTime: new Date('{{ current_session.start_time|date:"c" }}')
+        }{% else %}null{% endif %};
+
+        if (!currentSession) return;
+
+        const counterEl = document.getElementById('duration-counter');
+        const countdownEl = document.getElementById('countdownTimer');
+        let endTime = null;
+
+        // Si es break/lunch, define el tiempo límite
+        if (currentType === 'break' || currentType === 'lunch') {
+            const minutes = currentType === 'break' ? 15 : 60;
+            endTime = new Date(currentSession.startTime.getTime() + minutes * 60000);
+        }
+
+        function update() {
+            const now = new Date();
+            const diffMs = now - currentSession.startTime;
+            const diffSeconds = Math.floor(diffMs / 1000);
+            const hours = Math.floor(diffSeconds / 3600);
+            const minutes = Math.floor((diffSeconds % 3600) / 60);
+            const seconds = diffSeconds % 60;
+
+            if (counterEl) {
+                const durationText =
+                    hours > 0
+                        ? `${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`
+                        : `${minutes.toString().padStart(2,'0')}m ${seconds.toString().padStart(2,'0')}s`;
+                counterEl.textContent = durationText;
+            }
+
+            if (endTime && countdownEl) {
+                const diff = endTime - now;
+                if (diff <= 0) {
+                    countdownEl.textContent = "Time’s up!";
+                    countdownEl.classList.add("text-danger");
+                    Swal.fire({
+                        icon: "warning",
+                        title: currentType === "break" ? "Break ended!" : "Lunch ended!",
+                        text: "Your time has ended. Please return to work.",
+                        timer: 5000,
+                        showConfirmButton: true
+                    });
+                    endTime = null; // Evita múltiples alertas
+                    return;
+                }
+                const minsLeft = Math.floor(diff / 60000);
+                const secsLeft = Math.floor((diff % 60000) / 1000);
+                countdownEl.textContent = `${minsLeft}m ${secsLeft.toString().padStart(2,'0')}s`;
+            }
+        }
+
+        update();
+        setInterval(update, 1000);
+    }
+
+    document.addEventListener('DOMContentLoaded', updateDurationCounter);
 </script>

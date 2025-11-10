@@ -41,6 +41,10 @@ class WorkDay(models.Model):
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    last_adjusted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    last_adjustment_date = models.DateTimeField(null=True, blank=True)
+    adjustment_count_field = models.IntegerField(default=0)  # Renombrado para evitar conflicto
     
     class Meta:
         unique_together = ['employee', 'date']
@@ -53,6 +57,55 @@ class WorkDay(models.Model):
     def __str__(self):
         return f"{self.employee} - {self.date} - {self.status}"
     
+    def update_adjustment_info(self, adjusted_by):
+        """Actualizar información de ajustes"""
+        self.last_adjusted_by = adjusted_by
+        self.last_adjustment_date = timezone.now()
+        self.adjustment_count_field += 1
+        self.save()
+
+    @property
+    def adjusted_sessions(self):
+        """Sesiones que han sido ajustadas - para usar en templates"""
+        return self.sessions.filter(is_adjusted=True).order_by('-adjustment_date')
+    
+    @property
+    def adjustment_count(self):
+        """Contar sesiones ajustadas - para usar en templates"""
+        return self.sessions.filter(is_adjusted=True).count()
+    
+    @property
+    def has_adjustments(self):
+        """Verificar si hay ajustes - para condicionales en templates"""
+        return self.sessions.filter(is_adjusted=True).exists()
+    
+    @property
+    def total_work_minutes(self):
+        """Total de minutos trabajados"""
+        return int(self.total_work_time.total_seconds() / 60) if self.total_work_time else 0
+    
+    @property
+    def total_break_minutes(self):
+        """Total de minutos de break"""
+        return int(self.total_break_time.total_seconds() / 60) if self.total_break_time else 0
+    
+    @property
+    def formatted_work_time(self):
+        """Tiempo de trabajo formateado (ej: 8h 30m)"""
+        minutes = self.total_work_minutes
+        hours = minutes // 60
+        mins = minutes % 60
+        return f"{hours}h {mins:02d}m"
+    
+    @property
+    def formatted_break_time(self):
+        """Tiempo de break formateado"""
+        minutes = self.total_break_minutes
+        hours = minutes // 60
+        mins = minutes % 60
+        if hours > 0:
+            return f"{hours}h {mins:02d}m"
+        return f"{mins}m"
 
     def start_work_session(self, session_type='work', notes=None):
         """Iniciar una nueva sesión de trabajo"""
@@ -91,8 +144,8 @@ class WorkDay(models.Model):
         """Obtener la sesión activa actual"""
         return self.sessions.filter(end_time__isnull=True).first()
     
-    def calculate_metrics(self):
-        """Calcular todas las métricas automáticamente"""
+    def calculate_daily_totals(self):
+        """Calcular totales del día - RENOMBRADO desde calculate_metrics para ser más claro"""
         sessions = self.sessions.filter(end_time__isnull=False)
         
         total_work = timedelta(0)
@@ -101,7 +154,6 @@ class WorkDay(models.Model):
         break_count = 0
         
         for session in sessions:
-            # Ensure that session.duration is a timedelta
             if isinstance(session.duration, timedelta):
                 if session.session_type == 'work':
                     total_work += session.duration
@@ -111,8 +163,7 @@ class WorkDay(models.Model):
                 elif session.session_type == 'lunch':
                     total_lunch += session.duration
             else:
-                # Handle cases where session.duration is not a timedelta
-                print(f"Unexpected duration type: {type(session.duration)} for session: {session}")
+                logger.warning(f"Unexpected duration type: {type(session.duration)} for session: {session}")
 
         self.total_work_time = total_work
         self.total_break_time = total_break
@@ -122,7 +173,9 @@ class WorkDay(models.Model):
         
         self.save()
         return self.productive_hours
-        # logger.info(self.productive_hours)
+    
+    # Mantener compatibilidad con código existente
+    calculate_metrics = calculate_daily_totals
     
     @property
     def current_status(self):
@@ -147,12 +200,10 @@ class WorkDay(models.Model):
         self.status = 'completed'
         
         # Calcular métricas finales
-        self.calculate_metrics()
+        self.calculate_daily_totals()
         
         self.save()
         logger.info(f"🏁 Día laboral finalizado para {self.employee}")
-
-
 
     def get_formatted_session(self):
         """Obtener sesión formateada para display"""
@@ -160,16 +211,15 @@ class WorkDay(models.Model):
         if not session:
             return None
             
-        # Si es un objeto ActivitySession
         if hasattr(session, 'start_time'):
             return session.start_time.strftime("%H:%M:%S")
         
-        # Si es un string
         session_str = str(session)
         if ' - ' in session_str:
             return session_str.split(' - ')[-1]
         
         return session_str
+
 
 class ActivitySession(models.Model):
     SESSION_TYPES = [
@@ -196,6 +246,14 @@ class ActivitySession(models.Model):
     notes = models.TextField(blank=True, null=True)
     auto_created = models.BooleanField(default=False)
 
+    # CAMPOS PARA AUDITORÍA Y AJUSTES
+    original_start_time = models.DateTimeField(null=True, blank=True)
+    original_end_time = models.DateTimeField(null=True, blank=True)
+    adjusted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    adjustment_notes = models.TextField(blank=True, null=True)
+    is_adjusted = models.BooleanField(default=False)
+    adjustment_date = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ['start_time']
 
@@ -203,6 +261,12 @@ class ActivitySession(models.Model):
         return f"{self.work_day.employee} - {self.session_type} - {self.start_time.time()}"
 
     def save(self, *args, **kwargs):
+        # Guardar tiempos originales en el primer save
+        if not self.pk:
+            self.original_start_time = self.start_time
+            if self.end_time:
+                self.original_end_time = self.end_time
+        
         # Calcular duración automáticamente
         if self.start_time and self.end_time:
             self.duration = self.end_time - self.start_time
@@ -211,8 +275,31 @@ class ActivitySession(models.Model):
         
         # Actualizar métricas del WorkDay
         if self.end_time:
-            self.work_day.calculate_metrics()
+            self.work_day.calculate_daily_totals()
 
+    def adjust_times(self, new_start_time, new_end_time, adjusted_by, notes=""):
+        """Método para ajustar tiempos de sesión"""
+        self.start_time = new_start_time
+        self.end_time = new_end_time
+        self.adjusted_by = adjusted_by
+        self.adjustment_notes = notes
+        self.is_adjusted = True
+        self.adjustment_date = timezone.now()
+        self.save()
+
+    @property
+    def duration_minutes(self):
+        """Duración en minutos - PROPIEDAD FALTANTE"""
+        if not self.duration:
+            return 0
+        return int(self.duration.total_seconds() / 60)
+    
+    @property
+    def duration_hours(self):
+        """Duración en horas (decimal)"""
+        if not self.duration:
+            return 0.0
+        return round(self.duration.total_seconds() / 3600, 2)
 
     @property
     def formatted_duration(self):
@@ -231,3 +318,30 @@ class ActivitySession(models.Model):
             return f"{minutes}m {seconds:02d}s"
         else:
             return f"{seconds}s"
+    
+    @property
+    def formatted_time_range(self):
+        """Rango de tiempo formateado (ej: 09:00 - 10:30)"""
+        start = self.start_time.strftime("%H:%M")
+        end = self.end_time.strftime("%H:%M") if self.end_time else "En curso"
+        return f"{start} - {end}"
+    
+    @property
+    def was_adjusted(self):
+        """Alias para is_adjusted (más legible)"""
+        return self.is_adjusted
+    
+    @property
+    def has_original_times(self):
+        """Verificar si existen tiempos originales guardados"""
+        return self.original_start_time is not None and self.original_end_time is not None
+    
+    @property
+    def time_adjustment_delta(self):
+        """Calcular cuánto tiempo se ajustó (en minutos)"""
+        if not self.has_original_times or not self.end_time:
+            return 0
+        
+        original_duration = (self.original_end_time - self.original_start_time).total_seconds() / 60
+        current_duration = self.duration_minutes
+        return int(current_duration - original_duration)

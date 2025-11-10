@@ -9,4 +9,7 @@ urlpatterns = [
     path('it-admin/reset-device/<int:user_id>/', views.reset_user_device, name='reset_user_device'),
 
     path('accounts/password/change/', views.CustomPasswordChangeView.as_view(), name='account_change_password'),
+
+    path('hr/bulk-invitation/', views.bulk_employee_invitation, name='bulk_invitation'),
+    path("add-email-field/", views.add_email_field, name="add_email_field"),
 ]

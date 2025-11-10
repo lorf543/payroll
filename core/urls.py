@@ -6,4 +6,8 @@ urlpatterns = [
     path('',views.home_view,name='home'),
     path('list-employees',views.list_employees,name='list_employees'),
     path('log-all',views.logout_all_users,name='logout_all_users'),
+
+
+    path('management/dashboard/', views.ManagementDashboardView.as_view(), name='management_dashboard'),
+
 ]

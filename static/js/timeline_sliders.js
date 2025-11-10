@@ -1,0 +1,343 @@
+document.addEventListener("DOMContentLoaded", () => {
+  const sessions = window.SESSIONS_DATA || [];
+  const csrfToken = window.CSRF_TOKEN;
+  const sliders = {};
+
+  // Function to create pips (time marks)
+  function createPipsFilter() {
+    return (value, type) => {
+      const hours = Math.floor(value / 60);
+      const minutes = value % 60;
+      
+      // Show every hour as major pip
+      if (type === 0) { // Major pips
+        return minutes === 0 ? 1 : -1;
+      }
+      // Show 30-minute intervals as minor pips
+      if (type === 1) { // Minor pips  
+        return minutes === 30 ? 2 : -1;
+      }
+      return -1;
+    };
+  }
+
+  // Function to format pip labels
+  function formatPipLabel(value) {
+    const hours = Math.floor(value / 60);
+    const minutes = value % 60;
+    if (minutes === 0) {
+      return `${hours}:00`;
+    }
+    return `${hours}:${minutes}`;
+  }
+
+  // Initialize all sliders
+  sessions.forEach((session, index) => {
+    const container = document.getElementById(`slider-outer-${session.id}`);
+    if (!container) return;
+
+    const startMinutes = toMinutes(session.start);
+    const endMinutes = toMinutes(session.end);
+
+    // Create manual input container
+    const inputContainer = document.createElement("div");
+    inputContainer.className = "manual-inputs mb-3";
+    inputContainer.innerHTML = `
+      <div class="row g-2 align-items-center">
+        <div class="col-auto">
+          <label class="form-label small mb-1">Start Time</label>
+          <input type="time" 
+                 id="start-input-${session.id}" 
+                 class="form-control form-control-sm time-input" 
+                 value="${session.start}"
+                 data-session-id="${session.id}">
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-1">End Time</label>
+          <input type="time" 
+                 id="end-input-${session.id}" 
+                 class="form-control form-control-sm time-input" 
+                 value="${session.end}"
+                 data-session-id="${session.id}">
+        </div>
+        <div class="col-auto">
+          <button type="button" 
+                  class="btn btn-primary btn-sm mt-3 update-time-btn" 
+                  data-session-id="${session.id}">
+            Update
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Create slider container
+    const slider = document.createElement("div");
+    slider.className = "session-slider";
+
+    // Insert elements in order
+    container.appendChild(inputContainer);
+    container.appendChild(slider);
+
+    noUiSlider.create(slider, {
+      start: [startMinutes, endMinutes],
+      connect: true,
+      step: 1, // 1 minute precision
+      range: { min: 0, max: 24 * 60 },
+      tooltips: [
+        { to: v => minutesToTime(v), from: v => toMinutes(v) },
+        { to: v => minutesToTime(v), from: v => toMinutes(v) }
+      ],
+      format: {
+        to: v => Math.round(v),
+        from: v => Number(v)
+      },
+      // Add pips (time marks)
+      pips: {
+        mode: 'values',
+        values: [0, 120, 240, 360, 480, 600, 720, 840, 960, 1080, 1200, 1320, 1440], // Every 2 hours
+        density: 12,
+        format: {
+          to: formatPipLabel
+        }
+      }
+    });
+
+    // Guardar referencia al slider
+    sliders[session.id] = slider;
+
+    // Event listeners for manual inputs
+    const startInput = document.getElementById(`start-input-${session.id}`);
+    const endInput = document.getElementById(`end-input-${session.id}`);
+    const updateBtn = document.querySelector(`.update-time-btn[data-session-id="${session.id}"]`);
+
+    // Update slider when manual inputs change (optional real-time update)
+    [startInput, endInput].forEach(input => {
+      input.addEventListener('change', () => {
+        const startVal = toMinutes(startInput.value);
+        const endVal = toMinutes(endInput.value);
+        
+        // Validate time range
+        if (endVal > startVal) {
+          slider.noUiSlider.set([startVal, endVal]);
+          updateSessionLabels(session.id, startInput.value, endInput.value);
+        }
+      });
+    });
+
+    // Update session when update button is clicked
+    updateBtn.addEventListener('click', () => {
+      updateSessionFromInputs(session.id);
+    });
+
+    // Also update on Enter key in inputs
+    [startInput, endInput].forEach(input => {
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          updateSessionFromInputs(session.id);
+        }
+      });
+    });
+
+    // Evento al cambiar el slider
+    slider.noUiSlider.on("change", async (values) => {
+      const [startMinutes, endMinutes] = values.map(Number);
+      const newStart = minutesToTime(startMinutes);
+      const newEnd = minutesToTime(endMinutes);
+
+      await updateSessionTime(session.id, newStart, newEnd);
+    });
+
+    // Evento mientras se arrastra el slider (feedback visual)
+    slider.noUiSlider.on("update", (values) => {
+      const [startMinutes, endMinutes] = values.map(Number);
+      const newStart = minutesToTime(startMinutes);
+      const newEnd = minutesToTime(endMinutes);
+      
+      // Update manual inputs in real-time while dragging
+      if (startInput) startInput.value = newStart;
+      if (endInput) endInput.value = newEnd;
+      
+      updateSessionLabels(session.id, newStart, newEnd);
+    });
+  });
+
+  // Function to update session from manual inputs
+  async function updateSessionFromInputs(sessionId) {
+    const startInput = document.getElementById(`start-input-${sessionId}`);
+    const endInput = document.getElementById(`end-input-${sessionId}`);
+    
+    if (!startInput || !endInput) return;
+
+    const newStart = startInput.value;
+    const newEnd = endInput.value;
+
+    // Validate time range
+    if (toMinutes(newEnd) <= toMinutes(newStart)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Invalid Time Range",
+        text: "End time must be after start time",
+        timer: 2000,
+        showConfirmButton: false
+      });
+      return;
+    }
+
+    await updateSessionTime(sessionId, newStart, newEnd);
+  }
+
+  // Function to update session time (shared by both slider and manual inputs)
+  async function updateSessionTime(sessionId, newStart, newEnd) {
+    // Mostrar loading
+    Swal.fire({
+      title: 'Updating sessions...',
+      text: 'Adjusting timeline',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const response = await fetch(`{% url 'update_session' 0 %}`.replace('0', sessionId), {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrfToken,
+          "X-Requested-With": "XMLHttpRequest",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          start: newStart,
+          end: newEnd
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Actualizar todas las sesiones afectadas
+        if (data.updated_sessions) {
+          data.updated_sessions.forEach(updatedSession => {
+            updateSessionDisplay(updatedSession);
+          });
+        }
+
+        // Actualizar totales
+        updateTotals(data.total_work, data.total_breaks, data.total_lunch);
+
+        Swal.fire({
+          icon: "success",
+          title: "Sessions Updated!",
+          text: "Timeline adjusted successfully",
+          timer: 1800,
+          showConfirmButton: false
+        });
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: data.message || "Failed to update session"
+        });
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      Swal.fire({
+        icon: "error",
+        title: "Network Error",
+        text: "Could not update session. Please try again."
+      });
+    }
+  }
+
+  // Función para actualizar la visualización de una sesión
+  function updateSessionDisplay(sessionData) {
+    const timeLabel = document.getElementById(`time-label-${sessionData.id}`);
+    const durationLabel = document.getElementById(`duration-label-${sessionData.id}`);
+    const slider = sliders[sessionData.id];
+    const startInput = document.getElementById(`start-input-${sessionData.id}`);
+    const endInput = document.getElementById(`end-input-${sessionData.id}`);
+
+    if (timeLabel) {
+      timeLabel.textContent = `${sessionData.start} - ${sessionData.end}`;
+    }
+    
+    if (durationLabel) {
+      durationLabel.textContent = `${sessionData.duration} min`;
+    }
+
+    // Update manual inputs
+    if (startInput) startInput.value = sessionData.start;
+    if (endInput) endInput.value = sessionData.end;
+
+    // Actualizar slider sin disparar eventos
+    if (slider) {
+      const startMinutes = toMinutes(sessionData.start);
+      const endMinutes = toMinutes(sessionData.end);
+      slider.noUiSlider.set([startMinutes, endMinutes], false);
+    }
+  }
+
+  // Update session labels temporarily (while dragging)
+  function updateSessionLabels(sessionId, startTime, endTime) {
+    const timeLabel = document.getElementById(`time-label-${sessionId}`);
+    const durationLabel = document.getElementById(`duration-label-${sessionId}`);
+    const duration = toMinutes(endTime) - toMinutes(startTime);
+    
+    if (timeLabel) {
+      timeLabel.textContent = `${startTime} - ${endTime}`;
+    }
+    if (durationLabel) {
+      durationLabel.textContent = `${duration} min`;
+    }
+  }
+
+  // Funciones de utilidad
+  function toMinutes(timeStr) {
+    const [h, m] = timeStr.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  function minutesToTime(mins) {
+    const totalMinutes = Math.round(mins);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+
+  function formatMinutesToHours(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return `${hours}h ${String(mins).padStart(2, "0")}m`;
+    }
+    return `${mins}m`;
+  }
+
+  function updateTotals(workMinutes, breakMinutes, lunchMinutes) {
+    // Work time
+    const workTimeEl = document.getElementById("totalWorkTime");
+    const workMinutesEl = document.getElementById("totalWorkMinutes");
+    if (workTimeEl) {
+      workTimeEl.textContent = formatMinutesToHours(workMinutes);
+    }
+    if (workMinutesEl) {
+      workMinutesEl.textContent = workMinutes;
+    }
+
+    // Break time
+    const breakTimeEl = document.getElementById("totalBreakTime");
+    const breakMinutesEl = document.getElementById("totalBreakMinutes");
+    if (breakTimeEl) {
+      breakTimeEl.textContent = formatMinutesToHours(breakMinutes);
+    }
+    if (breakMinutesEl) {
+      breakMinutesEl.textContent = breakMinutes;
+    }
+
+    // Lunch time
+    const lunchTimeEl = document.getElementById("totalLunchTime");
+    if (lunchTimeEl) {
+      lunchTimeEl.textContent = `${lunchMinutes} min`;
+    }
+  }
+});

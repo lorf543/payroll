@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Management Dashboard - Executive Overview{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    {% comment %} <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    <i class="bi bi-graph-up me-2"></i>
+                    Management Dashboard
+                </h1>
+                <p class="page-subtitle">Executive overview and business intelligence</p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group">
+                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+                        <i class="bi bi-download me-2"></i>
+                        Export Report
+                    </button>
+                    <a href="" class="btn btn-outline-secondary">
+                        <i class="bi bi-gear me-2"></i>
+                        Admin Panel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div> {% endcomment %}
+
+    <!-- Executive KPIs -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-primary border-4 h-100">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-primary text-uppercase small fw-bold">Total Workforce</div>
+                            <div class="number display-6 fw-bold text-primary">{{ total_employees|intcomma }}</div>
+                            <div class="mt-2">
+                                <span class="badge bg-success">{{ logged_in_today }} online</span>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-people-fill text-primary fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-success border-4 h-100">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-success text-uppercase small fw-bold">Active Campaigns</div>
+                            <div class="number display-6 fw-bold text-success">{{ active_campaigns }}</div>
+                            <div class="mt-2">
+                                <small class="text-muted">{{ campaigns_data|length }} running</small>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-megaphone-fill text-success fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-info border-4 h-100">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-info text-uppercase small fw-bold">Departments</div>
+                            <div class="number display-6 fw-bold text-info">{{ total_departments }}</div>
+                            <div class="mt-2">
+                                <small class="text-muted">Organizational units</small>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-building text-info fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-warning border-4 h-100">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-warning text-uppercase small fw-bold">Today's Attendance</div>
+                            <div class="number display-6 fw-bold text-warning">
+                                {% with last_trend=attendance_trends.0 %}
+                                    {{ last_trend.attendance_rate }}%
+                                {% endwith %}
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">Overall rate</small>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-calendar-check text-warning fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Campaign Performance -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-megaphone me-2"></i>
+                        Campaign Performance
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Campaign</th>
+                                    <th>Employees</th>
+                                    <th>Online</th>
+                                    <th>Attendance Rate</th>
+                                    <th>Total Hours</th>
+                                    <th>Avg Productivity</th>
+                                    <th>Completion</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for data in campaigns_data %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ data.campaign.name }}</strong>
+                                        {% if data.campaign.client_name %}
+                                        <br>
+                                        <small class="text-muted">Client: {{ data.campaign.client_name }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold">{{ data.employee_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{{ data.logged_in_count }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                                <div class="progress-bar 
+                                                    {% if data.attendance_rate >= 80 %}bg-success
+                                                    {% elif data.attendance_rate >= 60 %}bg-warning
+                                                    {% else %}bg-danger{% endif %}" 
+                                                    style="width: {{ data.attendance_rate }}%">
+                                                </div>
+                                            </div>
+                                            <small>{{ data.attendance_rate }}%</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-primary">{{ data.total_work_hours|floatformat:0 }}h</span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold {% if data.avg_productivity >= 6 %}text-success{% else %}text-warning{% endif %}">
+                                            {{ data.avg_productivity }}h/day
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                                <div class="progress-bar 
+                                                    {% if data.completion_percentage >= 80 %}bg-success
+                                                    {% elif data.completion_percentage >= 50 %}bg-warning
+                                                    {% else %}bg-info{% endif %}" 
+                                                    style="width: {{ data.completion_percentage }}%">
+                                                </div>
+                                            </div>
+                                            <small>{{ data.completion_percentage }}%</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if data.campaign.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                                        No active campaigns found
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Department Overview & Top Performers -->
+    <div class="row mb-4">
+        <!-- Department Statistics -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-building me-2"></i>
+                        Department Overview
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Department</th>
+                                    <th>Total Employees</th>
+                                    <th>Supervisors</th>
+                                    <th>Online Now</th>
+                                    <th>Attendance Rate</th>
+                                    <th>Annual Budget</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dept in department_stats %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ dept.department.name }}</strong>
+                                        {% if dept.department.description %}
+                                        <br>
+                                        <small class="text-muted">{{ dept.department.description|truncatewords:5 }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary rounded-pill">{{ dept.employee_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ dept.supervisor_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{{ dept.logged_in_count }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                                <div class="progress-bar 
+                                                    {% if dept.attendance_rate >= 80 %}bg-success
+                                                    {% elif dept.attendance_rate >= 60 %}bg-warning
+                                                    {% else %}bg-danger{% endif %}" 
+                                                    style="width: {{ dept.attendance_rate }}%">
+                                                </div>
+                                            </div>
+                                            <small>{{ dept.attendance_rate }}%</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-success">${{ dept.annual_budget|floatformat:0|intcomma }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Performers -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-trophy me-2"></i>
+                        Top Performers
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% for performer in top_performers %}
+                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                        <div class="flex-shrink-0">
+                            <div class="avatar avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center">
+                                {{ performer.employee.full_name|first|upper }}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">{{ performer.employee.full_name }}</h6>
+                            <small class="text-muted">{{ performer.department }}</small>
+                            <div class="mt-1">
+                                <small class="text-success">
+                                    <i class="bi bi-clock me-1"></i>
+                                    {{ performer.avg_hours }}h/day avg
+                                </small>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0 text-end">
+                            <span class="badge bg-warning">#{{ forloop.counter }}</span>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-trophy display-4 d-block mb-2"></i>
+                        No performance data available
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance Trends -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up me-2"></i>
+                        7-Day Attendance Trends
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Total Workdays</th>
+                                    <th>Present</th>
+                                    <th>Attendance Rate</th>
+                                    <th>Trend</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trend in attendance_trends %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ trend.date|date:"M d, Y" }}</strong>
+                                        {% if forloop.first %}
+                                        <span class="badge bg-primary ms-1">Today</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ trend.workdays_count }}</td>
+                                    <td>
+                                        <span class="fw-bold text-success">{{ trend.present_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold {% if trend.attendance_rate >= 80 %}text-success{% elif trend.attendance_rate >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ trend.attendance_rate }}%
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if forloop.counter0 > 0 %}
+                                            {% comment %} {% with prev_trend=attendance_trends|slice:forloop.counter0|last %}
+                                                {% if trend.attendance_rate > prev_trend.attendance_rate %}
+                                                    <i class="bi bi-arrow-up-circle text-success"></i>
+                                                {% elif trend.attendance_rate < prev_trend.attendance_rate %}
+                                                    <i class="bi bi-arrow-down-circle text-danger"></i>
+                                                {% else %}
+                                                    <i class="bi bi-dash-circle text-muted"></i>
+                                                {% endif %}
+                                            {% endwith %} {% endcomment %}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-download me-2"></i>
+                    Export Management Report
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="exportForm" action="" method="GET">
+                    <div class="mb-3">
+                        <label class="form-label">Report Type</label>
+                        <select class="form-select" name="report_type" required>
+                            <option value="executive_summary">Executive Summary</option>
+                            <option value="campaign_performance">Campaign Performance</option>
+                            <option value="department_analytics">Department Analytics</option>
+                            <option value="attendance_trends">Attendance Trends</option>
+                        </select>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" class="form-control" name="start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End Date</label>
+                            <input type="date" class="form-control" name="end_date" required>
+                        </div>
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" name="include_charts" id="includeCharts">
+                        <label class="form-check-label" for="includeCharts">
+                            Include charts and graphs
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="exportForm" class="btn btn-primary">
+                    <i class="bi bi-file-earmark-excel me-2"></i>
+                    Export Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.avatar {
+    width: 40px;
+    height: 40px;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.number {
+    font-size: 2.5rem;
+}
+
+.card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    color: #6c757d;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-set export modal dates
+    const today = new Date();
+    const oneWeekAgo = new Date(today);
+    oneWeekAgo.setDate(today.getDate() - 7);
+    
+    document.querySelector('input[name="start_date"]').valueAsDate = oneWeekAgo;
+    document.querySelector('input[name="end_date"]').valueAsDate = today;
+    
+    // Auto-refresh dashboard every 2 minutes
+    setInterval(() => {
+        window.location.reload();
+    }, 120000);
+});
+</script>
+{% endblock %}
