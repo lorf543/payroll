@@ -19,6 +19,7 @@ django-crispy-forms==2.4
 django-humanize==0.1.2
 django-import-export==4.3.10
 django-picklefield==3.3
+django-pwa==2.0.1
 django-q2==1.8.0
 et_xmlfile==2.0.0
 Faker==37.8.0
