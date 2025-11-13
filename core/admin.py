@@ -77,7 +77,7 @@ class EmployeeAdmin(admin.ModelAdmin):
 
     list_display = (
         'employee_code', 'identification', 'user', 'position',
-        'is_active', 'department', 'supervisor'
+        'is_active', 'department', 'supervisor', 'is_logged_in'
     )
     list_filter = ('is_active', 'position', 'gender', 'marital_status', 'supervisor')
     search_fields = (
@@ -95,14 +95,14 @@ class EmployeeAdmin(admin.ModelAdmin):
                 'user',
                 'employee_code',
                 'identification',
-                'is_active'
+                'is_active',
+                'is_logged_in'
             )
         }),
         ('Campaign Settings', {
             'fields': (
                 'campaigns',
                 'current_campaign',
-                'is_logged_in',
                 'last_login',
                 'last_logout',
             ),

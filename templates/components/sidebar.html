@@ -4,7 +4,7 @@
         <div class="d-flex align-items-center">
             <div>
                 <h5 class="mb-0 fw-bold">Employee Portal</h5>
-                <small class="">Welcome, {{ employee.first_name|default:"User" }}</small>
+                <small class="">Welcome, {{ request.user.first_name}}</small>
             </div>
         </div>
     </div>
@@ -35,6 +35,13 @@
                     <span>Status Dashboard</span>
                 </a>
             </li>
+
+            {% comment %} <li class="nav-item mb-2">
+                <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3" href="{% url 'force_logout_all_users' %}">
+                    <i class="bi bi-speedometer me-3 fs-6"></i>
+                    <span>All</span>
+                </a>
+            </li> {% endcomment %}
 
             <!-- Supervisor  -->
             {% if employee.is_supervisor %}

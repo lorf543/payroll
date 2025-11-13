@@ -129,7 +129,7 @@ class Employee(models.Model):
 
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
-    employee_code = models.CharField(max_length=20, unique=True)
+    employee_code = models.CharField(max_length=20, unique=True, null=True, blank=True)
     identification = models.CharField(max_length=50)
 
     #personal info
@@ -177,11 +177,9 @@ class Employee(models.Model):
         from datetime import date
         return date.today().year - self.birth_date.year
     
-
     class Meta:
         verbose_name = "Employee"
         verbose_name_plural = "Employees"
-
 
     @property
     def has_registered(self):

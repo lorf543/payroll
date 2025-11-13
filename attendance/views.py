@@ -1,4 +1,4 @@
-from django.shortcuts import render, get_object_or_404, redirect,HttpResponse
+from django.shortcuts import render, get_object_or_404, redirect, HttpResponse
 from django.http import JsonResponse, HttpResponseForbidden
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
@@ -32,6 +32,17 @@ from .status_helpers import close_active_status
 from .utility import *
 from core.utils.payroll import get_effective_pay_rate
 # Create your views here.
+
+
+def force_logout_all_users(request):
+    """
+    Deletes all active sessions, effectively logging out all users.
+    """
+    Session.objects.all().delete()
+    print(f"[{datetime.now()}] All users have been logged out by Django Q task.")
+    return HttpResponse("All users have been logged out.")  
+
+
 
 def is_supervisor(user):
     return user.is_staff or user.groups.filter(name='Supervisors').exists()
@@ -1113,7 +1124,7 @@ def edit_session(request, pk):
     return render(request, 'supervisor/edit_session.html', {'form': form, 'session': session})
 
 
-
+@login_required(login_url='/accounts/login/')
 def workday_editor_view(request, workday_id):
     workday = get_object_or_404(WorkDay, id=workday_id)
     sessions = workday.sessions.all()
@@ -1139,6 +1150,7 @@ def workday_editor_view(request, workday_id):
 
 
 @require_POST
+@login_required(login_url='/accounts/login/')
 def update_session(request, session_id):
     session = get_object_or_404(ActivitySession, id=session_id)
     workday = session.work_day

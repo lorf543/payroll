@@ -86,6 +86,10 @@
 </div>
 
 <script>
+    // Get break and lunch duration from database
+    const BREAK_DURATION = {{ employee.current_campaign.break_duration|default:15 }};
+    const LUNCH_DURATION = {{ employee.current_campaign.lunch|default:45 }};
+
     // ✅ Cambiar color de fondo según estado
     function updateBodyColor(sessionType) {
         const classes = [
@@ -144,7 +148,7 @@
                         timer: 1200,
                         didClose: () => {
                             if (selected === 'break' || selected === 'lunch') {
-                                const minutes = selected === 'break' ? 15 : 60;
+                                const minutes = selected === 'break' ? BREAK_DURATION : LUNCH_DURATION;
                                 showReturnTime(minutes);
                             } else {
                                 window.location.reload();
@@ -194,9 +198,9 @@
         const countdownEl = document.getElementById('countdownTimer');
         let endTime = null;
 
-        // Si es break/lunch, define el tiempo límite
+        // Si es break/lunch, define el tiempo límite usando valores de la base de datos
         if (currentType === 'break' || currentType === 'lunch') {
-            const minutes = currentType === 'break' ? 15 : 60;
+            const minutes = currentType === 'break' ? BREAK_DURATION : LUNCH_DURATION;
             endTime = new Date(currentSession.startTime.getTime() + minutes * 60000);
         }
 
@@ -219,7 +223,7 @@
             if (endTime && countdownEl) {
                 const diff = endTime - now;
                 if (diff <= 0) {
-                    countdownEl.textContent = "Time’s up!";
+                    countdownEl.textContent = "Time's up!";
                     countdownEl.classList.add("text-danger");
                     Swal.fire({
                         icon: "warning",

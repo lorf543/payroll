@@ -24,7 +24,7 @@ urlpatterns = [
     path('team/report/export/', views.export_team_report_excel, name='export_team_report_excel'),
 
     path('edit-session/<int:pk>/', views.edit_session, name='edit_session'), #ojo con esta remover si funiona el drag adjust
-    # path('force-logout/<int:employee_id>/', views.force_logout, name='force_logout'),
+    path('force-logout', views.force_logout_all_users, name='force_logout_all_users'),
 
     path('slider/<int:workday_id>/', views.workday_editor_view, name='workday_editor_view'),
     path('update_session/<int:session_id>/', views.update_session, name='update_session'),
