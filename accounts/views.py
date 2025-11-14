@@ -219,9 +219,10 @@ MAX_EMAILS = 20
 
 @login_required
 def bulk_employee_invitation(request):
-    if not request.user.is_staff:
-        messages.error(request, "You don't have permission to access this page.")
-        return redirect('home')
+
+    # if not request.user.is_staff:
+    #     messages.error(request, "You don't have permission to access this page.")
+    #     return redirect('home')
 
     # Start with 1 email input
     email_forms = [EmployeeEmailForm(prefix=str(i)) for i in range(1)]

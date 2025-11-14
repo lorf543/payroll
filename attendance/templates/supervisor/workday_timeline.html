@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load humanize %}
 
 
 {% block content %}
@@ -17,8 +18,7 @@
       <div class="card border-success shadow-sm">
         <div class="card-body text-center">
           <h5 class="card-title text-success mb-2">Total Work</h5>
-          <h3 id="totalWorkTime">{{ workday.formatted_work_time }}</h3>
-          <small class="text-muted"><span id="totalWorkMinutes">{{ workday.total_work_minutes }}</span> min</small>
+          <h3 id="totalWorkTime">{{ workday.formatted_work_time|naturaltime }}</h3>
         </div>
       </div>
     </div>
@@ -26,7 +26,7 @@
       <div class="card border-warning shadow-sm">
         <div class="card-body text-center">
           <h5 class="card-title text-warning mb-2">Total Lunch</h5>
-          <h3 id="totalLunchTime">{{ workday.total_lunch_time}} min</h3>
+          <h3 id="totalLunchTime">{{ workday.total_lunch_time|naturaltime}} min</h3>
         </div>
       </div>
     </div>
@@ -34,8 +34,7 @@
       <div class="card border-info shadow-sm">
         <div class="card-body text-center">
           <h5 class="card-title text-info mb-2">Total Breaks</h5>
-          <h3 id="totalBreakTime">{{ workday.formatted_break_time }}</h3>
-          <small class="text-muted"><span id="totalBreakMinutes">{{ workday.total_break_minutes }}</span> min</small>
+          <h3 id="totalBreakTime">{{ workday.formatted_break_time|naturaltime }}</h3>
         </div>
       </div>
     </div>
@@ -64,10 +63,13 @@
                   {{ session.duration_minutes }} min
                 </span>
               </span>
+              
             </div>
             <div id="slider-outer-{{ session.id }}"></div>
           </div>
+          <p class="p-5">hol que hace</p>
         </div>
+        
       </div>
     {% endfor %}
   </div>

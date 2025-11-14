@@ -75,12 +75,12 @@
                     </div>
                 </div>
 
-                <li class="nav-item mb-2">
+                {% comment %} <li class="nav-item mb-2">
                     <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded-3" href="{% url 'it_device_management' %}">
                         <i class="bi bi-laptop me-3 fs-6"></i>
                         <span>Device Management</span>
                     </a>
-                </li>
+                </li> {% endcomment %}
             {% endif %}
             <!-- IT Tools -->
             {% if employee.is_it %}

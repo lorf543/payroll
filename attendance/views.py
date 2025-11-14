@@ -836,7 +836,11 @@ def employee_attendance_detail(request, employee_id):
         return redirect('employee_profile')
     
     # Verificar que el empleado pertenezca al equipo del supervisor
-    employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
+    try:
+        employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
+    except Employee.DoesNotExist:
+        return HttpResponse("Employee not found or not under your supervision.", status=404)
+    
     
     # Parámetros de filtrado
     date_from = request.GET.get('date_from')
@@ -1112,8 +1116,9 @@ def edit_session(request, pk):
     session = get_object_or_404(ActivitySession, pk=pk)
 
 
-    # if not is_supervisor(request.user):
-    #     return HttpResponseForbidden(render(request, "403.html"))
+    if not is_supervisor(request.user):
+        return HttpResponseForbidden(render(request, "403.html"))
+    
     if request.method == 'POST':
         form = ActivitySessionForm(request.POST, instance=session)
         if form.is_valid():

@@ -31,9 +31,9 @@
             </div>
             <div class="col-auto">
                 <div class="btn-group">
-                    <a href="{% url 'team_attendance_history' %}" class="btn btn-outline-primary">
+                    <a href="{{request.META.HTTP_REFERER}}" class="btn btn-outline-primary">
                         <i class="bi bi-arrow-left me-2"></i>
-                        Back to Team
+                        Go Back 
                     </a>
                     <a href="{% url 'employee_profile' %}" class="btn btn-outline-info">
                         <i class="bi bi-person me-2"></i>

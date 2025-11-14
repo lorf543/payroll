@@ -9,5 +9,7 @@ urlpatterns = [
 
 
     path('management/dashboard/', views.ManagementDashboardView.as_view(), name='management_dashboard'),
+    path('management/campaign/<int:campaign_id>/', views.campaign_detail_dashboard, name='campaign_detail'),
+    #path('management/export-campaign/<int:campaign_id>/', views.export_campaign_report, name='export_campaign_report'),
 
 ]

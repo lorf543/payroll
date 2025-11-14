@@ -59,10 +59,10 @@
                 </div>
                     <div class="">
                         <h5>Attendance History</h5>
-<a href="{% url 'export_attendance_excel' %}?date_from={{ date_from }}&date_to={{ date_to }}" 
-   class="btn btn-outline-success btn-sm">
-    <i class="bi bi-file-earmark-excel"></i> Export Excel
-</a>
+                            <a href="{% url 'export_attendance_excel' %}?date_from={{ date_from }}&date_to={{ date_to }}" 
+                                class="btn btn-outline-success btn-sm">
+                                    <i class="bi bi-file-earmark-excel"></i> Export Excel
+                            </a>
                     </div>
             </form>
         </div>
@@ -103,13 +103,13 @@
                                 </span>
                             </td>
                             <td>
-                                <strong class="text-success">{{ day.work_time }}</strong>
+                                <strong class="text-success">{{ day.work_time|naturaltime }}</strong>
                             </td>
                             <td>
-                                <span class="text-warning">{{ day.break_time }}</span>
+                                <span class="text-warning">{{ day.break_time|naturaltime }}</span>
                             </td>
                             <td>
-                                <span class="text-info">{{ day.lunch_time }}</span>
+                                <span class="text-info">{{ day.lunch_time|naturaltime }}</span>
                             </td>
                             <td>
                                 <span class="badge bg-primary rounded-pill">

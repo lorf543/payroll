@@ -1,7 +1,7 @@
 {% extends "account/auth_base.html" %}
 
 {% block content %}
-<div class="auth-card d-flex gap-4" id="login-card">
+<div class="auth-card d-flex item-center     gap-4" id="login-card">
     <div class="card-body p-4">
         <div class="auth-header">
             <div class="auth-icon">
@@ -85,7 +85,16 @@
 </div>
 
 <style>
-    /* Estilos adicionales para los errores */
+    
+    .auth-card {
+        border: 0;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        border-radius: 1rem;
+        max-width: 450px;
+        width: 120%;  /* Allow the card to scale down on smaller screens */
+        padding: 20px; /* Add some padding */
+        margin-top: 134px;
+    }
     .is-invalid {
         border-color: #dc3545;
         background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='m5.8 3.6.4.4.4-.4'/%3e%3cpath d='M6 7v1'/%3e%3c/svg%3e");

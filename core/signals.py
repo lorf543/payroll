@@ -21,14 +21,17 @@ def set_user_logged_in(sender, request, user, **kwargs):
 
 @receiver(user_logged_out)
 def set_user_logged_out(sender, request, user, **kwargs):
-    print( "User logged out signal received." )
+    print("User logged out signal received.")
     try:
         employee = Employee.objects.get(user=user)
-        work_day = WorkDay.objects.filter(employee=employee, date=timezone.now().date(), end_time__isnull=True).first()
-        work_day.end_current_session()
+        work_day = WorkDay.objects.filter(employee=employee, date=timezone.now().date(), check_out__isnull=True).first()
+        
+        # Add null check before calling methods
+        if work_day:
+            work_day.end_current_session()
+        
         employee.is_logged_in = False
         employee.last_logout = timezone.now()
         employee.save()
     except Employee.DoesNotExist:
         pass
-

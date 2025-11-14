@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ campaign.name }} - Campaign Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    <i class="bi bi-megaphone me-2"></i>
+                    {{ campaign.name }}
+                </h1>
+                <p class="page-subtitle">
+                    Campaign Details & Team Monitoring
+                    {% if campaign.client_name %}
+                    • Client: {{ campaign.client_name }}
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group">
+                    <a href="{% url 'management_dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>
+                        Back to Dashboard
+                    </a>
+                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportCampaignModal">
+                        <i class="bi bi-download me-2"></i>
+                        Export Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Campaign Overview -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-primary border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-primary text-uppercase small fw-bold">Team Size</div>
+                            <div class="number display-6 fw-bold text-primary">{{ total_employees }}</div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    {{ campaign.head_count }} target • 
+                                    {{ campaign_metrics.headcount_utilization|floatformat:0 }}% utilized
+                                </small>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-people text-primary fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-success border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-success text-uppercase small fw-bold">Online Now</div>
+                            <div class="number display-6 fw-bold text-success">{{ logged_in_count }}</div>
+                            <div class="mt-2">
+                                <small class="text-muted">{{ campaign_metrics.attendance_rate }}% attendance</small>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-person-check text-success fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-info border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-info text-uppercase small fw-bold">Total Hours</div>
+                            <div class="number display-6 fw-bold text-info">{{ campaign_metrics.total_hours|floatformat:0 }}</div>
+                            <div class="mt-2">
+                                <small class="text-muted">{{ campaign_metrics.avg_productivity }}h/day avg</small>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-clock text-info fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+{% comment %} 
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-warning border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-warning text-uppercase small fw-bold">Budget</div>
+                            <div class="number display-6 fw-bold text-warning">${{ campaign_metrics.total_cost|floatformat:0|intcomma }}</div>
+                            <div class="mt-2">
+                                <small class="text-muted">{{ campaign_metrics.budget_utilization }}% utilized</small>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-cash-coin text-warning fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div> {% endcomment %}
+    </div>
+
+    <!-- Campaign Progress -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up me-2"></i>
+                        Campaign Progress
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold">Timeline Completion</span>
+                                    <span class="badge bg-primary">{{ campaign_metrics.completion_percentage }}%</span>
+                                </div>
+                                <div class="progress" style="height: 12px;">
+                                    <div class="progress-bar 
+                                        {% if campaign_metrics.completion_percentage >= 80 %}bg-success
+                                        {% elif campaign_metrics.completion_percentage >= 50 %}bg-warning
+                                        {% else %}bg-info{% endif %}" 
+                                        style="width: {{ campaign_metrics.completion_percentage }}%">
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between mt-1">
+                                    <small class="text-muted">Start: {{ campaign.start_date }}</small>
+                                    <small class="text-muted">End: {{ campaign.end_date }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="list-group list-group-flush">
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Status</span>
+                                    <span class="badge {% if campaign.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {{ campaign.is_active|yesno:"Active,Inactive" }}
+                                    </span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Work Days</span>
+                                    <span class="fw-bold">{{ campaign_metrics.total_work_days }}</span>
+                                </div>
+                                {% if campaign.hour_rate %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Hour Rate</span>
+                                    <span class="fw-bold text-success">${{ campaign.hour_rate }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team Status Grid -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-person-lines-fill me-2"></i>
+                Team Members ({{ total_employees }})
+            </h5>
+            <div class="d-flex align-items-center">
+                <span class="badge bg-success me-2">Online</span>
+                <span class="badge bg-secondary me-2">Offline</span>
+                <span class="badge bg-warning me-2">Break</span>
+                <button id="refresh-btn" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Employee</th>
+                            <th>Department</th>
+                            <th>Supervisor</th>
+                            <th>Status</th>
+                            <th>Work Time</th>
+                            <th>Today's Hours</th>
+                            <th>Last Login</th>
+                        </tr>
+                    </thead>
+                    <tbody id="team-status-body">
+                        {% for data in employee_data %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'employee_attendance_detail' data.employee.id %}">
+                                    <strong>{{ data.employee.full_name }}</strong>
+                                </a>
+                                <br>
+                                <small class="text-muted">{{ data.employee.position }}</small>
+                            </td>
+                            <td>{{ data.employee.department.name }}</td>
+                            <td>
+                                {% if data.employee.supervisor %}
+                                    {{ data.employee.supervisor.full_name }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if data.workday %}
+                                    {% if data.workday.current_status != 'inactive' %}
+                                        <span class="badge 
+                                            {% if data.workday.current_status == 'work' %}bg-success
+                                            {% elif data.workday.current_status == 'break' %}bg-warning
+                                            {% elif data.workday.current_status == 'lunch' %}bg-info
+                                            {% else %}bg-primary{% endif %}">
+                                            <i class="bi 
+                                                {% if data.workday.current_status == 'work' %}bi-play-circle
+                                                {% elif data.workday.current_status == 'break' %}bi-cup-hot
+                                                {% elif data.workday.current_status == 'lunch' %}bi-egg-fried
+                                                {% else %}bi-gear{% endif %} me-1"></i>
+                                            {{ data.workday.current_status|title }}
+                                        </span><br>
+                                        <small class="text-muted">
+                                            {% if data.current_session %}
+                                                Since {{ data.current_session.start_time|time:"g:i A" }}
+                                            {% endif %}
+                                        </small>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-pause-circle me-1"></i>
+                                            Offline
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-dash-circle me-1"></i>
+                                        No Workday
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if data.current_session and data.current_session.start_time %}
+                                    <span class="live-counter"
+                                          data-employee="{{ data.employee.id }}"
+                                          data-start="{{ data.current_session.start_time|date:'c' }}">
+                                          00:00:00
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">No active session</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if data.daily_stats and data.daily_stats.total_work_time %}
+                                    <span class="fw-bold text-primary">
+                                        {{ data.daily_stats.total_work_time }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if data.employee.user.last_login %}
+                                    {{ data.employee.user.last_login|date:"M j, g:i A" }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>   
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                No employees found in this campaign.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Campaign Attendance Trends -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-calendar-heart me-2"></i>
+                        7-Day Attendance Trends
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Total Workdays</th>
+                                    <th>Present</th>
+                                    <th>Attendance Rate</th>
+                                    <th>Trend</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trend in attendance_trends %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ trend.date|date:"M d, Y" }}</strong>
+                                        {% if forloop.first %}
+                                        <span class="badge bg-primary ms-1">Today</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ trend.workdays_count }}</td>
+                                    <td>
+                                        <span class="fw-bold text-success">{{ trend.present_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold {% if trend.attendance_rate >= 80 %}text-success{% elif trend.attendance_rate >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ trend.attendance_rate }}%
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if forloop.counter0 > 0 %}
+                                            {% with prev_index=forloop.counter0|add:"-1" %}
+                                                {% with prev_trend=attendance_trends|slice:prev_index|first %}
+                                                    {% if trend.attendance_rate > prev_trend.attendance_rate %}
+                                                        <i class="bi bi-arrow-up-circle text-success" title="Improving"></i>
+                                                    {% elif trend.attendance_rate < prev_trend.attendance_rate %}
+                                                        <i class="bi bi-arrow-down-circle text-danger" title="Declining"></i>
+                                                    {% else %}
+                                                        <i class="bi bi-dash-circle text-muted" title="Stable"></i>
+                                                    {% endif %}
+                                                {% endwith %}
+                                            {% endwith %}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Campaign Modal -->
+<div class="modal fade" id="exportCampaignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-download me-2"></i>
+                    Export Campaign Report
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="exportCampaignForm" action="#" method="GET">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Report Type</label>
+                        <select class="form-select" name="report_type" required>
+                            <option value="team_performance">Team Performance</option>
+                            <option value="attendance_detail">Attendance Details</option>
+                            <option value="financial_summary">Financial Summary</option>
+                            <option value="full_report">Full Campaign Report</option>
+                        </select>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" class="form-control" name="start_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End Date</label>
+                            <input type="date" class="form-control" name="end_date" required>
+                        </div>
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" name="include_charts" id="includeCharts">
+                        <label class="form-check-label" for="includeCharts">
+                            Include charts and graphs
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-excel me-2"></i>
+                        Export Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Live Timer Script -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-set export modal dates
+    const today = new Date();
+    const oneWeekAgo = new Date(today);
+    oneWeekAgo.setDate(today.getDate() - 7);
+    
+    document.querySelector('input[name="start_date"]').valueAsDate = oneWeekAgo;
+    document.querySelector('input[name="end_date"]').valueAsDate = today;
+    
+    // Live counters functionality
+    const counters = new Map();
+
+    function updateCounters() {
+        counters.forEach((data, id) => {
+            if (!data.active) return;
+            const now = new Date();
+            let diff = Math.floor((now - data.startTime) / 1000);
+            if (diff < 0) diff = 0;
+            const hours = Math.floor(diff / 3600);
+            diff %= 3600;
+            const minutes = Math.floor(diff / 60);
+            const seconds = diff % 60;
+            data.element.textContent =
+                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        });
+    }
+
+    function initializeCounters() {
+        document.querySelectorAll('.live-counter').forEach(span => {
+            const id = span.dataset.employee;
+            const startTime = new Date(span.dataset.start);
+            counters.set(id, { element: span, startTime, active: true });
+        });
+    }
+
+    function resetInactiveCounters() {
+        counters.forEach((data, id) => {
+            if (!document.querySelector(`.live-counter[data-employee="${id}"]`)) {
+                data.active = false;
+                data.element.classList.add('text-muted');
+            }
+        });
+    }
+
+    initializeCounters();
+    setInterval(updateCounters, 1000);
+
+    // Auto-refresh functionality
+    function refreshTeamStatus() {
+        fetch(window.location.href)
+            .then(res => res.text())
+            .then(html => {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const newBody = doc.getElementById('team-status-body');
+                if (newBody) {
+                    document.getElementById('team-status-body').innerHTML = newBody.innerHTML;
+                    initializeCounters();
+                    resetInactiveCounters();
+                }
+            })
+            .catch(err => console.error('Error refreshing team status:', err));
+    }
+
+    document.getElementById('refresh-btn').addEventListener('click', refreshTeamStatus);
+    // Auto-refresh every 30 seconds
+    setInterval(refreshTeamStatus, 30000);
+});
+</script>
+
+<style>
+
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    color: #6c757d;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+.live-counter {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+</style>
+{% endblock %}

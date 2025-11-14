@@ -8,7 +8,6 @@ def employee_context(request):
             employee = Employee.objects.get(user=request.user)
             context['employee'] = employee
         except Employee.DoesNotExist:
-            # Si el usuario no tiene empleado asociado
             context['employee'] = None
     else:
         context['employee'] = None
