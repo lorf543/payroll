@@ -16,7 +16,7 @@ urlpatterns = [
 
     path('dashboard-supervisor/', views.supervisor_dashboard, name='supervisor_dashboard'),
     path('team/history/', views.team_attendance_history, name='team_attendance_history'),
-    path('employee/<int:employee_id>/attendance/', views.employee_attendance_detail, name='employee_attendance_detail'),
+    path('employee/<int:employee_id>/', views.employee_attendance_detail, name='employee_attendance_detail'),
     path('employee/<int:employee_id>/day/<str:date_str>/', views.supervisor_day_detail, name='supervisor_day_detail'),
 
     path('attendance/export-csv/', views.export_attendance_excel, name='export_attendance_excel'),

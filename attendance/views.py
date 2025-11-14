@@ -830,16 +830,11 @@ def employee_attendance_detail(request, employee_id):
     Vista detallada de asistencia de un empleado específico
     """
     try:
+        employee = Employee.objects.get(id=employee_id, is_active=True)
         supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
     except Employee.DoesNotExist:
-        messages.error(request, "You don't have supervisor privileges.")
+        messages.error(request, "Employee not found.")
         return redirect('employee_profile')
-    
-    # Verificar que el empleado pertenezca al equipo del supervisor
-    try:
-        employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
-    except Employee.DoesNotExist:
-        return HttpResponse("Employee not found or not under your supervision.", status=404)
     
     
     # Parámetros de filtrado
