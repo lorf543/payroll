@@ -63,11 +63,13 @@ INSTALLED_APPS = [
     'import_export',
     'django_q',
     'pwa',
+    'django_user_agents',
     
     'core',
     'payroll',
     'accounts',
     'attendance',
+    'hhrr',
 ]
 
 
@@ -86,6 +88,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
     'accounts.middleware.DeviceAuthenticationMiddleware',
+    'django_user_agents.middleware.UserAgentMiddleware',
+    'core.middleware.block_mobile.BlockMobileMiddleware'
 ]
 
 ROOT_URLCONF = 'payroll.urls'

@@ -4,6 +4,7 @@ from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.contrib.sessions.models import Session
 
 from .models import Employee
 from attendance.models import WorkDay
@@ -21,17 +22,17 @@ def set_user_logged_in(sender, request, user, **kwargs):
 
 @receiver(user_logged_out)
 def set_user_logged_out(sender, request, user, **kwargs):
-    print("User logged out signal received.")
+
     try:
         employee = Employee.objects.get(user=user)
         work_day = WorkDay.objects.filter(employee=employee, date=timezone.now().date(), check_out__isnull=True).first()
-        
-        # Add null check before calling methods
+
         if work_day:
             work_day.end_current_session()
         
-        employee.is_logged_in = False
+
         employee.last_logout = timezone.now()
+        employee.is_logged_in = False
         employee.save()
     except Employee.DoesNotExist:
         pass

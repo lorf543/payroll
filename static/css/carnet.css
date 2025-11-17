@@ -1,0 +1,266 @@
+/* ===============================
+      ID CARD CR80 (REAL SIZE)
+================================= */
+
+.idcard-cr80 {
+    width: 410px;
+    height: 270px;
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+    padding: 16px;
+    box-sizing: border-box;
+    position: relative;
+}
+
+/* FRONT HEADER */
+.idcard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    align-content: center;
+}
+
+.idcard-logo {
+    height: 42px;
+}
+
+.idcard-year {
+    font-size: 26px;
+    font-weight: bold;
+    border: 2px solid #111;
+    padding: 6px 14px;
+    border-radius: 6px;
+}
+
+/* MAIN BODY */
+.idcard-body {
+    display: flex;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.idcard-left {
+    width: 60%;
+    background: #1E7F86;
+    padding: 18px 14px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.idcard-first {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 2px;
+}
+
+.idcard-last {
+    font-size: 26px;
+    font-weight: 900;
+    margin-bottom: 8px;
+    line-height: 1;
+}
+
+.idcard-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.idcard-dept {
+    font-size: 22px;
+    font-weight: 900;
+}
+
+/* PHOTO */
+.idcard-photo {
+    width: 40%;
+    background: white;
+    border-left: 2px solid #222;
+}
+
+.idcard-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* BACK SIDE */
+.idcard-back-top {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.idcard-back-logo {
+    height: 55px;
+}
+
+.idcard-back-text {
+    text-align: center;
+    font-size: 16px;
+    padding: 20px;
+    line-height: 1.3;
+}
+
+.idcard-back-ref {
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    margin-top: 18px;
+}
+
+/* PRINT BLEED SUPPORT */
+@media print {
+    .idcard-cr80 {
+        box-shadow: none !important;
+        margin: 0;
+        page-break-inside: avoid;
+    }
+}
+
+/* Estilos mejorados para el sistema de tabs */
+.nav-tabs {
+    border-bottom: 2px solid #dee2e6;
+    background: white;
+    border-radius: 8px 8px 0 0;
+    padding: 0.5rem 1rem;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    margin-right: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    background-color: #f8f9fa;
+    color: #495057;
+    border: none;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tab-content {
+    background: white;
+    border-radius: 0 8px 8px 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilos específicos para el perfil */
+.profile-card {
+    border-radius: 12px;
+    overflow: hidden;
+    border: none;
+}
+
+.profile-header {
+    background: linear-gradient(135deg, var(--secondary-color), var(--accent-color));
+    position: relative;
+}
+
+.profile-header::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    background: white;
+    border-radius: 20px 20px 0 0;
+}
+
+.profile-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-avatar .initials {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: white;
+}
+
+.employee-status {
+    margin-top: 10px;
+}
+
+.section-block {
+    margin-bottom: 2rem;
+}
+
+.section-title {
+    color: var(--primary-color);
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.info-list .info-item {
+    transition: background-color 0.2s;
+}
+
+.info-list .info-item:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 4px;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.profile-actions .btn {
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.profile-actions .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilos para las cards de los tabs */
+.card-header {
+    border-radius: 8px 8px 0 0 !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .nav-tabs .nav-link {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    .profile-actions .d-flex {
+        flex-direction: column;
+        gap: 10px !important;
+    }
+
+    .profile-actions .btn {
+        width: 100%;
+    }
+
+    .profile-header {
+        padding: 2rem 1rem !important;
+    }
+
+    .tab-content {
+        border-radius: 0 0 8px 8px;
+    }
+}

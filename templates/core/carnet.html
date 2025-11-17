@@ -1,0 +1,156 @@
+
+<style>
+
+
+    .card {
+        width: 420px;
+        height: 260px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.15);
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    /* Frente */
+    .logo-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .logo-img {
+        height: 48px;
+    }
+
+    .year {
+        border: 2px solid #333;
+        padding: 6px 14px;
+        font-size: 28px;
+        font-weight: bold;
+    }
+
+    .main-section {
+        margin-top: 20px;
+        display: flex;
+        border-radius: 4px;
+        overflow: hidden;
+        border: 1px solid #ccc;
+    }
+
+    .left-section {
+        background: #1E7F86;
+        color: white;
+        padding: 18px;
+        width: 60%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .left-section .small {
+        font-size: 15px;
+        font-weight: bold;
+    }
+
+    .left-section .name {
+        font-size: 26px;
+        font-weight: 900;
+        margin-top: 4px;
+        line-height: 1;
+    }
+
+    .title {
+        font-size: 15px;
+        margin-top: 10px;
+    }
+
+    .dept {
+        margin-top: 18px;
+        font-size: 24px;
+        font-weight: 900;
+    }
+
+    .photo {
+        width: 40%;
+        background: white;
+        border-left: 2px solid #333;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* Reverso */
+    .back-container {
+        text-align: center;
+        margin-top: 25px;
+    }
+
+    .back-logo {
+        height: 65px;
+        margin-bottom: 18px;
+    }
+
+    .verse {
+        font-size: 18px;
+        margin: 0 auto;
+        width: 80%;
+        line-height: 1.4;
+    }
+
+    .ref {
+        margin-top: 20px;
+        font-size: 20px;
+        font-weight: bold;
+    }
+</style>
+</head>
+<body>
+
+<!-- ===========================
+         FRENTE DEL CARNET
+=========================== -->
+<div class="card">
+    <div class="logo-row">
+        <img class="logo-img" src="logo.png" alt="Helium Health Logo">
+        <p class="verse">HELIUM HEALTH</p>
+        <div class="year">2025</div>asdasd
+    </div>
+
+    <div class="main-section">
+        <div class="left-section">
+            <div class="small">EDUARDO</div>
+            <div class="name">SANCHEZ</div>
+            <div class="title">SALES REPRESENTATIVE</div>
+            <div class="dept">OPERATIONS</div>
+        </div>
+
+        <div class="photo">
+            <img src="foto.jpg" alt="Foto del empleado">
+        </div>
+    </div>
+</div>
+
+<!-- ===========================
+         REVERSO DEL CARNET
+=========================== -->
+<div class="card">
+    <div class="back-container">
+        <img class="back-logo" src="logo.png" alt="Logo">
+
+        <p class="verse">
+            There is a time for everything, and a season for every activity under the heavens: 
+            a time to be born and a time to die, a time to plant and a time to uproot
+        </p>
+
+        <div class="ref">Ecclesiastes 3:1-2</div>
+    </div>
+</div>
+
+

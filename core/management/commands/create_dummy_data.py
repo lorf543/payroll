@@ -265,3 +265,6 @@ class Command(BaseCommand):
         self.stdout.write('   Supervisor 1: supervisor1 / password123')
         self.stdout.write('   Supervisor 2: supervisor2 / password123')
         self.stdout.write('   Employees: emp001, emp002, etc. / password123')
+
+
+#supervisor1@company.com

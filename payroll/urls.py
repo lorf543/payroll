@@ -28,6 +28,7 @@ urlpatterns = [
     path('employee/', include('attendance.urls')),
     path('account/',include('accounts.urls')),
     path('accounts/', include('allauth.urls')),
+    path('hhrr/', include('hhrr.urls')),
 ]
 
 

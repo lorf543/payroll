@@ -1,7 +1,7 @@
 <!-- templates/attendance/edit_session.html -->
 {% extends "base.html" %}
 
-{% block title %}Editar Sesión{% endblock %}
+{% block title %}Edit Session{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
@@ -9,7 +9,7 @@
         <div class="card-header bg-primary text-white">
             <h4 class="mb-0">
                 <i class="bi bi-pencil-square me-2"></i>
-                Editar Sesión ({{ session.session_type|title }})
+                Edit Session ({{ session.session_type|title }})
             </h4>
         </div>
         <div class="card-body">
@@ -21,10 +21,10 @@
                 
                 <div class="d-flex justify-content-between mt-4">
                     <button type="submit" class="btn btn-success">
-                        <i class="bi bi-save me-1"></i> Guardar Cambios
+                        <i class="bi bi-save me-1"></i> Save Changes
                     </button>
                     <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-secondary">
-                        <i class="bi bi-x-circle me-1"></i> Cancelar
+                        <i class="bi bi-x-circle me-1"></i> Cancel
                     </a>
                 </div>
             </form>

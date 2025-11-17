@@ -1,0 +1,522 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Employee ID Cards</h1>
+            <p class="text-muted">Select employees to generate ID cards</p>
+        </div>
+        <div class="d-flex gap-2">
+            <!-- Selected Counter -->
+            <div class="selected-counter me-3">
+                <span class="badge bg-primary fs-6" id="selectedCount">
+                    {{ selected_count }} selected
+                </span>
+            </div>
+            
+            <!-- Action Buttons -->
+            <button class="btn btn-success" id="generatePdfBtn" {% if selected_count == 0 %}disabled{% endif %}>
+                <i class="bi bi-file-pdf me-2"></i>Generate PDF{% if selected_count > 0 %} ({{ selected_count }}){% endif %}
+            </button>
+            <button class="btn btn-outline-danger" id="clearSelectionBtn" 
+                    data-clear-url="{% url 'clear_id_cards_selection' %}"
+                    {% if selected_count == 0 %}disabled{% endif %}>
+                <i class="bi bi-x-circle me-2"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3" id="filterForm">
+                <!-- Search -->
+                <div class="col-md-3">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" name="search" 
+                           value="{{ search_query }}" placeholder="Name, code, email...">
+                </div>
+                
+                <!-- Department Filter -->
+                <div class="col-md-2">
+                    <label class="form-label">Department</label>
+                    <select class="form-select" name="department">
+                        <option value="">All Departments</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.id }}" 
+                                {% if filters.department == dept.id|stringformat:"s" %}selected{% endif %}>
+                            {{ dept.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Position Filter -->
+                <div class="col-md-2">
+                    <label class="form-label">Position</label>
+                    <select class="form-select" name="position">
+                        <option value="">All Positions</option>
+                        {% for pos in positions %}
+                        <option value="{{ pos.id }}"
+                                {% if filters.position == pos.id|stringformat:"s" %}selected{% endif %}>
+                            {{ pos.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Campaign Filter -->
+                <div class="col-md-2">
+                    <label class="form-label">Campaign</label>
+                    <select class="form-select" name="campaign">
+                        <option value="">All Campaigns</option>
+                        {% for camp in campaigns %}
+                        <option value="{{ camp.id }}"
+                                {% if filters.campaign == camp.id|stringformat:"s" %}selected{% endif %}>
+                            {{ camp.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Status Filter -->
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="">All Status</option>
+                        <option value="logged_in" {% if filters.status == 'logged_in' %}selected{% endif %}>
+                            Logged In
+                        </option>
+                        <option value="logged_out" {% if filters.status == 'logged_out' %}selected{% endif %}>
+                            Logged Out
+                        </option>
+                    </select>
+                </div>
+                
+                <!-- Filter Buttons -->
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Employees Table -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="50" class="text-center">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAll">
+                                </div>
+                            </th>
+                            <th>Employee</th>
+                            <th>Position</th>
+                            <th>Department</th>
+                            <th>Campaign</th>
+                            <th>Status</th>
+                            <th>Last Login</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for employee in page_obj %}
+                        <tr class="employee-row" 
+                            data-employee-id="{{ employee.id }}"
+                            data-toggle-url="{% url 'toggle_employee_selection' employee.id %}">
+                            <td class="text-center">
+                                <div class="form-check">
+                                    <input class="form-check-input employee-checkbox" 
+                                           type="checkbox" 
+                                           value="{{ employee.id }}"
+                                           {% if employee.id in selected_employees %}checked{% endif %}>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-sm me-3">
+                                        <div class="avatar-initial bg-primary rounded-circle d-flex align-items-center justify-content-center text-white">
+                                            {% if employee.user.first_name and employee.user.last_name %}
+                                                {{ employee.user.first_name.0 }}{{ employee.user.last_name.0 }}
+                                            {% else %}
+                                                {{ employee.user.username.0|upper }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">
+                                            {{ employee.user.get_full_name|default:employee.user.username }}
+                                        </h6>
+                                        <small class="text-muted">{{ employee.employee_code }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if employee.position %}
+                                    {{ employee.position.name }}
+                                {% else %}
+                                    <span class="text-muted">Not assigned</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if employee.department %}
+                                    <span class="badge bg-light text-dark">{{ employee.department.name }}</span>
+                                {% else %}
+                                    <span class="text-muted">Not assigned</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if employee.current_campaign %}
+                                    <span class="badge bg-info">{{ employee.current_campaign.name }}</span>
+                                {% else %}
+                                    <span class="text-muted">No campaign</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if employee.is_logged_in %}
+                                    <span class="badge bg-success">Online</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Offline</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small class="text-muted">
+                                    {% if employee.user.last_login %}
+                                        {{ employee.user.last_login|date:"M d, Y" }}
+                                    {% else %}
+                                        Never
+                                    {% endif %}
+                                </small>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="bi bi-people display-4 d-block mb-2"></i>
+                                    No employees found matching your criteria.
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                    <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                        <a class="page-link" href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+                    </li>
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mb-0">Generating ID Cards...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contenedor para carnets (oculto pero renderizado) -->
+<div id="idCardsContainer" class="offscreen">
+    {% for employee in page_obj %}
+    <div class="card-pair printable-card" data-employee-id="{{ employee.id }}">
+        <!-- FRONT SIDE -->
+        <div class="idcard-cr80 idcard-front">
+            <div class="idcard-header">
+                <img src="{% static 'img/company_logo.png' %}" class="idcard-logo" alt="Logo">
+                <p class="fw-bolder fs-3 pt-1">HELIUM HEALTH</p>
+                <div class="idcard-year">2025</div>
+            </div>
+
+            <div class="idcard-body">
+                <div class="idcard-left">
+                    <div class="idcard-first">
+                        {{ employee.user.first_name|upper }}
+                    </div>
+                    <div class="idcard-last">
+                        {{ employee.user.last_name|upper }}
+                    </div>
+                    <div class="idcard-title">
+                        {% if employee.position %} 
+                            {{ employee.position.name|upper }}
+                        {% else %}
+                            EMPLOYEE
+                        {% endif %}
+                    </div>
+                    <div class="idcard-dept">
+                        {% if employee.department %}
+                            {{ employee.department.name|upper }}
+                        {% else %}
+                            DEPARTMENT
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="idcard-photo">
+                    {% if employee.profile_picture %}
+                        <img src="{{ employee.profile_picture.url }}" alt="{{ employee.user.get_full_name }}" crossorigin="anonymous">
+                    {% else %}
+                        <div class="photo-placeholder">
+                            {% if employee.user.first_name and employee.user.last_name %}
+                                {{ employee.user.first_name.0 }}{{ employee.user.last_name.0 }}
+                            {% else %}
+                                {{ employee.user.username.0|upper }}
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- BACK SIDE -->
+        <div class="idcard-cr80 idcard-back">
+            <div class="idcard-back-top">
+                <img src="{% static 'img/company_logo.png' %}" class="idcard-back-logo" alt="Logo">
+            </div>
+
+            <div class="idcard-back-text">
+                There is a time for everything, and a season for every activity under the heavens:
+                a time to be born and a time to die, a time to plant and a time to uproot what is planted.
+            </div>
+
+            <div class="idcard-back-ref">
+                Ecclesiastes 3:1-2
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% csrf_token %}
+
+<!-- html2pdf.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const $ = s => document.querySelector(s);
+    const $$ = s => document.querySelectorAll(s);
+    const selectAll = $('#selectAll');
+    const countEl = $('#selectedCount');
+    const genBtn = $('#generatePdfBtn');
+    const clearBtn = $('#clearSelectionBtn');
+    let count = {{ selected_count }};
+
+    // === Generar PDF ===
+    window.generateIdCardsPDF = () => {
+        const checked = $$('.employee-checkbox:checked');
+        if (!checked.length) return alert('Select at least one employee');
+
+        const modal = new bootstrap.Modal($('#loadingModal'));
+        modal.show();
+
+        setTimeout(() => {
+            const container = document.createElement('div');
+            container.style.cssText = 'padding:15mm;background:white;width:210mm;font-family:Arial,sans-serif;position:absolute;left:-9999px;top:0';
+
+            // Header
+            container.innerHTML = `
+                <div style="text-align:center;margin-bottom:20px;border-bottom:2px solid #333;padding-bottom:10px">
+                    <h2 style="margin:0;font-size:20px;color:#333">HELIUM HEALTH - Employee ID Cards</h2>
+                    <p style="margin:5px 0;font-size:12px">Generated: ${new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'})}</p>
+                    <p style="margin:5px 0;font-size:12px">Total: ${checked.length}</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:15mm"></div>
+            `;
+
+            const grid = container.querySelector('div:last-child');
+
+            checked.forEach((cb, i) => {
+                const card = $(`.printable-card[data-employee-id="${cb.value}"]`)?.cloneNode(true);
+                if (!card) return;
+                card.style.cssText = 'display:flex;justify-content:center;gap:10mm;page-break-inside:avoid';
+                if (i > 0 && i % 2 === 0) card.style.pageBreakBefore = 'always';
+                grid.appendChild(card);
+            });
+
+            document.body.appendChild(container);
+
+            html2pdf().from(container).set({
+                margin: 10,
+                filename: `id_cards_${new Date().toISOString().slice(0,10)}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff', imageTimeout: 15000 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css'] }
+            }).save().then(() => {
+                document.body.removeChild(container);
+                modal.hide();
+            }).catch(() => {
+                document.body.removeChild(container);
+                modal.hide();
+                alert('Error generating PDF');
+            });
+        }, 600);
+    };
+
+    // === AJAX Toggle ===
+    $$('.employee-checkbox').forEach(cb => cb.addEventListener('change', function() {
+        fetch(this.closest('tr').dataset.toggleUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => d.success && updateUI(d.selected_count))
+        .catch(() => { this.checked = !this.checked; alert('Error'); });
+    }));
+
+    // === Select All ===
+    selectAll?.addEventListener('change', () => {
+        const checked = selectAll.checked;
+        $$('.employee-checkbox').forEach(cb => {
+            if (cb.checked !== checked) { cb.checked = checked; cb.dispatchEvent(new Event('change')); }
+        });
+    });
+
+    // === Clear ===
+    clearBtn?.addEventListener('click', e => {
+        e.preventDefault();
+        if (!confirm('Clear all?')) return;
+        fetch(clearBtn.dataset.clearUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => d.success && ($$('.employee-checkbox').forEach(cb => cb.checked = false), updateUI(0)))
+        .catch(() => alert('Error'));
+    });
+
+    // === Generate Button ===
+    genBtn?.addEventListener('click', e => { e.preventDefault(); generateIdCardsPDF(); });
+
+    // === UI Update ===
+    const updateUI = c => {
+        count = c;
+        countEl.textContent = `${count} selected`;
+        genBtn.disabled = count === 0;
+        genBtn.innerHTML = `<i class="bi bi-file-pdf me-2"></i>Generate PDF${count ? ` (${count})` : ''}`;
+        clearBtn.disabled = count === 0;
+        updateSelectAll();
+    };
+
+    const updateSelectAll = () => {
+        if (!selectAll) return;
+        const total = $$('.employee-checkbox').length;
+        const checked = $$('.employee-checkbox:checked').length;
+        selectAll.checked = checked === total;
+        selectAll.indeterminate = checked > 0 && checked < total;
+    };
+
+    // Init
+    updateUI(count);
+    updateSelectAll();
+});
+</script>
+<style>
+/* Ocultar pero renderizar */
+/*
+.offscreen {
+    position: absolute !important;
+    left: -9999px !important;
+    top: 0 !important;
+    visibility: hidden !important;
+    width: 210mm !important;
+    pointer-events: none !important;
+    overflow: visible !important;
+}
+
+/* Tamaño fijo CR80 
+.idcard-cr80 {
+    width: 85.6mm !important;
+    height: 53.98mm !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    border: 1px solid #000;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+*/
+.card-pair {
+    display: flex;
+    justify-content: center;
+    gap: 10mm;
+    page-break-inside: avoid;
+    margin-bottom: 15mm;
+}
+
+
+/*
+.idcard-photo img {
+    width: 100,max-width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.photo-placeholder {
+    width: 100%;
+    height: 100%;
+    background: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #6c757d;
+}
+
+@media print {
+    .card-pair, .idcard-cr80 {
+        page-break-inside: avoid !important;
+    }
+    body > *:not(#pdfContainer) {
+        display: none !important;
+    }
+}
+    */
+</style>
+
+{% endblock %}

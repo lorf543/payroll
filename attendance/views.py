@@ -14,6 +14,9 @@ from django.db.models import Q
 from .forms import EmployeeProfileForm,ActivitySessionForm
 from django.contrib.auth.models import User
 from django.contrib.auth import logout
+from django.db import transaction
+from django.db.models import F
+from django.http import HttpResponseBadRequest
 
 
 from django.views.generic import DetailView
@@ -36,11 +39,59 @@ from core.utils.payroll import get_effective_pay_rate
 
 def force_logout_all_users(request):
     """
-    Deletes all active sessions, effectively logging out all users.
+    Deletes all active sessions and properly closes all work sessions.
     """
-    Session.objects.all().delete()
-    print(f"[{datetime.now()}] All users have been logged out by Django Q task.")
-    return HttpResponse("All users have been logged out.")  
+    now = timezone.now()
+    
+    try:
+        with transaction.atomic():
+            # 1. ✅ Cerrar todas las ActivitySession activas
+            active_sessions = ActivitySession.objects.filter(end_time__isnull=True)
+            session_count = active_sessions.count()
+            
+            for session in active_sessions:
+                session.end_time = now
+                session.notes = f"{session.notes or ''}\nForcefully closed by system at {now}".strip()
+                session.save(update_fields=['end_time', 'notes'])
+            
+            # 2. ✅ Actualizar WorkDays activos
+            active_workdays = WorkDay.objects.filter(status='active')
+            workday_count = active_workdays.count()
+            
+            for workday in active_workdays:
+                workday.check_out = now
+                workday.status = 'completed'
+                workday.notes = f"{workday.notes or ''}\nForcefully closed by system at {now}".strip()
+                workday.calculate_daily_totals()  # Recalcular métricas
+                workday.save()
+            
+            # 3. ✅ Marcar todos los empleados como logout
+            employee_count = Employee.objects.filter(is_logged_in=True).update(
+                is_logged_in=False,
+                last_logout=now
+            )
+            
+            # 4. ✅ Eliminar sesiones de autenticación
+            session_auth_count = Session.objects.all().count()
+            Session.objects.all().delete()
+            
+            # Mensaje de confirmación
+            message = (
+                f"✅ Force logout completed at {now}:\n"
+                f"• {session_count} active work sessions closed\n"
+                f"• {workday_count} active workdays completed\n" 
+                f"• {employee_count} employees logged out\n"
+                f"• {session_auth_count} authentication sessions deleted"
+            )
+            
+            print(f"[{datetime.now()}] {message}")
+            
+            return HttpResponse(message)
+            
+    except Exception as e:
+        error_message = f"❌ Error during force logout: {str(e)}"
+        print(f"[{datetime.now()}] {error_message}")
+        return HttpResponse(error_message, status=500)
 
 
 
@@ -162,44 +213,58 @@ def agent_dashboard(request):
 def start_activity(request):
     """
     Iniciar una nueva actividad (HTMX endpoint)
+    Con protección contra race conditions
     """
     employee = get_object_or_404(Employee, user=request.user)
     today = timezone.now().date()
 
-    # ✅ Crear o recuperar el WorkDay automáticamente
-    work_day, _ = WorkDay.objects.get_or_create(employee=employee, date=today)
+    try:
+        with transaction.atomic():
+            # ✅ Lock para prevenir race conditions
+            work_day = WorkDay.objects.select_for_update().get_or_create(
+                employee=employee, 
+                date=today
+            )[0]
 
-    session_type = request.POST.get('session_type', 'work')
+            session_type = request.POST.get('session_type', 'work')
 
-    # ✅ Si es "end_of_day", usar la función específica
+            # ✅ Si es "end_of_day", usar la función específica
+            if session_type == 'end_of_day':
+                return end_work_day(request)
 
-    
-    if session_type == 'end_of_day':
-        return end_work_day(request)
+            # ✅ Verificar SI HAY sesión activa DENTRO de la transacción
+            active_session = work_day.get_active_session()
+            if active_session:
+                messages.error(request, "There is already an active session. Please end it before starting a new one.")
+                return _render_attendance_dashboard(request, employee, work_day)
 
-    # ✅ Iniciar nueva sesión y registrar el check_in si aplica
-    session = work_day.start_work_session(
-        session_type=session_type,
-        notes=request.POST.get('notes', '')
-    )
+            # ✅ Iniciar nueva sesión (solo si no hay sesión activa)
+            session = work_day.start_work_session(
+                session_type=session_type,
+                notes=request.POST.get('notes', '')
+            )
 
-    # ✅ Recalcular estadísticas actualizadas
+            messages.success(request, f"Status changed to {session.get_session_type_display()}")
+
+            return _render_attendance_dashboard(request, employee, work_day)
+
+    except Exception as e:
+        messages.error(request, "System error. Please try again.")
+        return _render_attendance_dashboard(request, employee, work_day)
+
+def _render_attendance_dashboard(request, employee, work_day):
+    """Función helper para renderizar el dashboard"""
     daily_stats = calculate_daily_stats(work_day)
     history = work_day.sessions.all().order_by('start_time')
-
+    
     context = {
         'employee': employee,
         'work_day': work_day,
-        'current_session': session,
+        'current_session': work_day.get_active_session(),
         'daily_stats': daily_stats,
         'history': history,
-        'today': today,
+        'today': timezone.now().date(),
     }
-
-
-    messages.success(request, f"Status changed to {session.get_session_type_display()}")
-
-
     return render(request, 'attendance/agent_dashboard.html', context)
 
 @require_http_methods(["POST"])
@@ -1111,8 +1176,8 @@ def edit_session(request, pk):
     session = get_object_or_404(ActivitySession, pk=pk)
 
 
-    if not is_supervisor(request.user):
-        return HttpResponseForbidden(render(request, "403.html"))
+    # if not is_supervisor(request.user):
+    #     return HttpResponseForbidden(render(request, "403.html"))
     
     if request.method == 'POST':
         form = ActivitySessionForm(request.POST, instance=session)
@@ -1123,6 +1188,34 @@ def edit_session(request, pk):
         form = ActivitySessionForm(instance=session)
     return render(request, 'supervisor/edit_session.html', {'form': form, 'session': session})
 
+
+
+@login_required(login_url='/accounts/login/')
+def delete_session(request, pk):
+    session = get_object_or_404(ActivitySession, pk=pk)
+
+    # if not is_supervisor(request.user):
+    #     return HttpResponseForbidden(render(request, "403.html"))
+    
+    if request.method == 'POST':
+        # Guardamos la información de la sesión antes de eliminarla para la redirección
+        work_day = session.work_day
+        employee_id = work_day.employee.id
+        date_str = work_day.date.strftime('%Y-%m-%d')
+        
+        # Eliminar la sesión
+        session.delete()
+        
+        # Recalcular los totales del día
+        work_day.calculate_daily_totals()
+        
+        # Actualizar información de ajustes
+        work_day.update_adjustment_info(request.user)
+        
+        return redirect('supervisor_day_detail', employee_id=employee_id, date_str=date_str)
+    
+    # Para solicitudes GET, mostramos la página de confirmación
+    return render(request, 'supervisor/delete_session.html', {'session': session})
 
 @login_required(login_url='/accounts/login/')
 def workday_editor_view(request, workday_id):
@@ -1149,101 +1242,62 @@ def workday_editor_view(request, workday_id):
     })
 
 
-@require_POST
 @login_required(login_url='/accounts/login/')
+@require_http_methods(["POST"])
 def update_session(request, session_id):
     session = get_object_or_404(ActivitySession, id=session_id)
-    workday = session.work_day
+    
+    # if not is_supervisor(request.user):
+    #     return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=403)
     
     try:
-        new_start_str = request.POST.get("start")
-        new_end_str = request.POST.get("end")
+        new_start = request.POST.get('start')
+        new_end = request.POST.get('end')
+        adjustment_reason = request.POST.get('adjustment_reason', '')
         
-        # Parse times
-        new_start_time = datetime.strptime(new_start_str, "%H:%M").time()
-        new_end_time = datetime.strptime(new_end_str, "%H:%M").time()
+        # Convertir tiempos
+        workday_date = session.work_day.date
+        new_start_time = datetime.combine(workday_date, datetime.strptime(new_start, '%H:%M').time())
+        new_end_time = datetime.combine(workday_date, datetime.strptime(new_end, '%H:%M').time())
         
-        # Combine with workday date - handle timezone based on database
-        workday_date = workday.date
-        
-        # For SQLite without timezone support
-        new_start = datetime.combine(workday_date, new_start_time)
-        new_end = datetime.combine(workday_date, new_end_time)
-        
-        # Validate that end > start
-        if new_end <= new_start:
-            return JsonResponse({
-                "success": False,
-                "message": "End time must be after start time"
-            })
-        
-        # Save change using the model's adjust_times method
+        # Ajustar la sesión
         session.adjust_times(
-            new_start_time=new_start,
-            new_end_time=new_end,
+            new_start_time=new_start_time,
+            new_end_time=new_end_time,
             adjusted_by=request.user,
-            notes=f"Adjusted via timeline editor"
+            notes=adjustment_reason
         )
         
-        # Adjust following sessions automatically
-        next_sessions = workday.sessions.filter(
-            start_time__gt=session.start_time
-        ).order_by('start_time')
+        # Registrar en el WorkDay
+        session.work_day.add_adjustment_record(
+            adjusted_by=request.user,
+            reason=adjustment_reason,
+            sessions_affected=[session.id]
+        )
         
-        current_end = new_end
-        for next_session in next_sessions:
-            # Calculate original duration of next session
-            if next_session.original_start_time:
-                original_duration = next_session.end_time - next_session.original_start_time
-            elif next_session.original_start_time:
-                # For naive datetimes
-                original_duration = next_session.end_time - next_session.original_start_time
-            else:
-                original_duration = next_session.end_time - next_session.start_time
-            
-            # Adjust next session start and end
-            next_start = current_end
-            next_end = next_start + original_duration
-            
-            next_session.adjust_times(
-                new_start_time=next_start,
-                new_end_time=next_end,
-                adjusted_by=request.user,
-                notes="Auto-adjusted due to previous session change"
-            )
-            
-            current_end = next_end
-        
-        # Update workday check_out if necessary
-        if current_end:
-            workday.check_out = current_end
-            workday.save()
-        
-        # Recalculate totals
+        # Recalcular y preparar respuesta
+        workday = session.work_day
         workday.calculate_daily_totals()
         
-        # Prepare updated data for all sessions
+        # Preparar datos de respuesta
         updated_sessions = []
         for s in workday.sessions.all().order_by('start_time'):
             updated_sessions.append({
                 'id': s.id,
                 'start': s.start_time.strftime('%H:%M'),
-                'end': s.end_time.strftime('%H:%M') if s.end_time else '',
+                'end': s.end_time.strftime('%H:%M'),
                 'duration': s.duration_minutes,
-                'type_code': s.session_type
+                'is_adjusted': s.is_adjusted
             })
         
         return JsonResponse({
-            "success": True,
-            "message": f"Session updated successfully",
-            "total_work": workday.total_work_minutes,
-            "total_breaks": workday.total_break_minutes,
-            "total_lunch": int(workday.total_lunch_time.total_seconds() / 60) if workday.total_lunch_time else 0,
-            "updated_sessions": updated_sessions
+            'success': True,
+            'updated_sessions': updated_sessions,
+            'total_work': workday.total_work_minutes,
+            'total_breaks': workday.total_break_minutes,
+            'total_lunch': workday.total_lunch_minutes,
+            'adjustment_reason': adjustment_reason
         })
         
     except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "message": f"Error updating session: {str(e)}"
-        })
+        return JsonResponse({'success': False, 'message': str(e)})

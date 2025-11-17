@@ -42,6 +42,10 @@ class WorkDay(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    #adjustment fields
+    last_adjustment_reason = models.TextField(blank=True, null=True)
+    adjustment_history = models.JSONField(default=list, blank=True) 
+
     last_adjusted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     last_adjustment_date = models.DateTimeField(null=True, blank=True)
     adjustment_count_field = models.IntegerField(default=0)  # Renombrado para evitar conflicto
@@ -56,6 +60,30 @@ class WorkDay(models.Model):
 
     def __str__(self):
         return f"{self.employee} - {self.date} - {self.status}"
+    
+
+    def add_adjustment_record(self, adjusted_by, reason="", sessions_affected=None):
+        """Agregar registro al historial de ajustes"""
+        adjustment_record = {
+            'timestamp': timezone.now().isoformat(),
+            'adjusted_by': adjusted_by.username if adjusted_by else 'System',
+            'adjusted_by_id': adjusted_by.id if adjusted_by else None,
+            'reason': reason,
+            'sessions_affected': sessions_affected or [],
+            'before_state': {
+                'total_work_time': str(self.total_work_time),
+                'total_break_time': str(self.total_break_time),
+                'total_lunch_time': str(self.total_lunch_time),
+                'productive_hours': float(self.productive_hours)
+            }
+        }
+        
+        self.adjustment_history.append(adjustment_record)
+        self.last_adjustment_reason = reason
+        self.last_adjusted_by = adjusted_by
+        self.last_adjustment_date = timezone.now()
+        self.adjustment_count_field += 1
+        self.save()
     
     def update_adjustment_info(self, adjusted_by):
         """Actualizar información de ajustes"""
@@ -88,6 +116,11 @@ class WorkDay(models.Model):
     def total_break_minutes(self):
         """Total de minutos de break"""
         return int(self.total_break_time.total_seconds() / 60) if self.total_break_time else 0
+    
+    @property
+    def total_lunch_minutes(self):
+        """Total lunch minutes for easy display"""
+        return int(self.total_lunch_time.total_seconds() / 60) if self.total_lunch_time else 0
     
     @property
     def formatted_work_time(self):

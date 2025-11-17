@@ -1,0 +1,62 @@
+<!-- templates/hhrr/id_cards_batch_pdf.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* Tus estilos CSS del carnet aquí */
+        .idcard-cr80 { /* ... tus estilos ... */ }
+        .idcard-header { /* ... tus estilos ... */ }
+        /* etc... */
+        
+        @page {
+            size: A4;
+            margin: 0.5cm;
+        }
+        
+        .page-break {
+            page-break-after: always;
+        }
+        
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="cards-container">
+        {% for employee in employees %}
+        <div class="idcard-cr80">
+            <!-- FRONT SIDE -->
+            <div class="idcard-header">
+                <div class="company-logo">HELIUM HEALTH</div>
+                <div class="idcard-year">{{ current_year }}</div>
+            </div>
+            
+            <div class="idcard-body">
+                <div class="idcard-left">
+                    <div class="idcard-first">{{ employee.user.first_name|upper }}</div>
+                    <div class="idcard-last">{{ employee.user.last_name|upper }}</div>
+                    <div class="idcard-title">
+                        {% if employee.position %}{{ employee.position.name|upper }}{% else %}EMPLOYEE{% endif %}
+                    </div>
+                    <div class="idcard-dept">
+                        {% if employee.department %}{{ employee.department.name|upper }}{% else %}DEPARTMENT{% endif %}
+                    </div>
+                </div>
+                <div class="idcard-photo">
+                    <!-- Foto del empleado -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Salto de página cada 4 carnets (2x2) -->
+        {% if forloop.counter|divisibleby:4 and not forloop.last %}
+        <div class="page-break"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</body>
+</html>
