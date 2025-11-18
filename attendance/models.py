@@ -16,7 +16,9 @@ class WorkDay(models.Model):
         ('active', 'Active'),
         ('completed', 'Completed'),
         ('absent', 'Absent'), 
-        ('leave', 'On Leave'),        
+        ('leave', 'On Leave'),  
+        ('regular_hours','Regular hours'),
+        ('holyday','Holy Day')      
     ]
     
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='work_days')
@@ -27,7 +29,7 @@ class WorkDay(models.Model):
     check_out = models.DateTimeField(null=True, blank=True)
     
     # Estado del día
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='regular_hours')
     
     # Cálculos automáticos
     total_work_time = models.DurationField(default=timedelta(0))
@@ -91,6 +93,10 @@ class WorkDay(models.Model):
         self.last_adjustment_date = timezone.now()
         self.adjustment_count_field += 1
         self.save()
+
+    def get_day_status(self):
+        status_dict = dict(self.STATUS_CHOICES)
+        return status_dict.get(self.status, self.status)
 
     @property
     def adjusted_sessions(self):

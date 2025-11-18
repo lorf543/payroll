@@ -2,6 +2,20 @@
       ID CARD CR80 (REAL SIZE)
 ================================= */
 
+.printable-card {
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif
+}
+
+
+.idcard-header div {
+    display: flex;
+}
+
+.idcard-header p {
+    font-size: 22px;
+}
+
+
 .idcard-cr80 {
     width: 410px;
     height: 270px;
@@ -18,7 +32,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    align-content: center;
+    padding-top: 20px;
 }
 
 .idcard-logo {
@@ -30,21 +44,21 @@
     font-weight: bold;
     border: 2px solid #111;
     padding: 6px 14px;
-    border-radius: 6px;
+
 }
 
 /* MAIN BODY */
 .idcard-body {
     display: flex;
     border: 1px solid #ccc;
-    border-radius: 6px;
+
     overflow: hidden;
 }
 
 .idcard-left {
-    width: 60%;
+    width: 80%;
     background: #1E7F86;
-    padding: 18px 14px;
+    padding: 0 14px;
     color: white;
     display: flex;
     flex-direction: column;
@@ -61,7 +75,7 @@
     font-size: 26px;
     font-weight: 900;
     margin-bottom: 8px;
-    line-height: 1;
+    line-height: .3;
 }
 
 .idcard-title {
@@ -71,14 +85,14 @@
 
 .idcard-dept {
     font-size: 22px;
-    font-weight: 900;
+    font-weight: 600;
 }
 
 /* PHOTO */
 .idcard-photo {
-    width: 40%;
+    width: 30%;
     background: white;
-    border-left: 2px solid #222;
+    border: 2px solid #222;
 }
 
 .idcard-photo img {
@@ -90,17 +104,17 @@
 /* BACK SIDE */
 .idcard-back-top {
     text-align: center;
-    margin-bottom: 12px;
+    margin-top: 25px;
 }
 
 .idcard-back-logo {
-    height: 55px;
+    height: 70px;
 }
 
 .idcard-back-text {
     text-align: center;
-    font-size: 16px;
-    padding: 20px;
+    font-size: 14px;
+    padding: 4px;
     line-height: 1.3;
 }
 
@@ -108,7 +122,6 @@
     text-align: center;
     font-size: 18px;
     font-weight: bold;
-    margin-top: 18px;
 }
 
 /* PRINT BLEED SUPPORT */

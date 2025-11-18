@@ -37,7 +37,7 @@
                 <div class="col-md-3">
                     <label class="form-label">Search</label>
                     <input type="text" class="form-control" name="search" 
-                           value="{{ search_query }}" placeholder="Name, code, email...">
+                           value="{{ search_query }}" placeholder="Name">
                 </div>
                 
                 <!-- Department Filter -->
@@ -122,8 +122,6 @@
                             <th>Position</th>
                             <th>Department</th>
                             <th>Campaign</th>
-                            <th>Status</th>
-                            <th>Last Login</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -141,15 +139,6 @@
                             </td>
                             <td>
                                 <div class="d-flex align-items-center">
-                                    <div class="avatar-sm me-3">
-                                        <div class="avatar-initial bg-primary rounded-circle d-flex align-items-center justify-content-center text-white">
-                                            {% if employee.user.first_name and employee.user.last_name %}
-                                                {{ employee.user.first_name.0 }}{{ employee.user.last_name.0 }}
-                                            {% else %}
-                                                {{ employee.user.username.0|upper }}
-                                            {% endif %}
-                                        </div>
-                                    </div>
                                     <div>
                                         <h6 class="mb-0">
                                             {{ employee.user.get_full_name|default:employee.user.username }}
@@ -178,22 +167,6 @@
                                 {% else %}
                                     <span class="text-muted">No campaign</span>
                                 {% endif %}
-                            </td>
-                            <td>
-                                {% if employee.is_logged_in %}
-                                    <span class="badge bg-success">Online</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Offline</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <small class="text-muted">
-                                    {% if employee.user.last_login %}
-                                        {{ employee.user.last_login|date:"M d, Y" }}
-                                    {% else %}
-                                        Never
-                                    {% endif %}
-                                </small>
                             </td>
                         </tr>
                         {% empty %}
@@ -261,8 +234,10 @@
         <!-- FRONT SIDE -->
         <div class="idcard-cr80 idcard-front">
             <div class="idcard-header">
-                <img src="{% static 'img/company_logo.png' %}" class="idcard-logo" alt="Logo">
-                <p class="fw-bolder fs-3 pt-1">HELIUM HEALTH</p>
+                    <div>
+                        <img src="{% static 'img/company_logo.png' %}" class="idcard-logo" alt="Logo">
+                        <p class="">HELIUM HEALTH</p>
+                    </div>
                 <div class="idcard-year">2025</div>
             </div>
 
@@ -325,161 +300,178 @@
     {% endfor %}
 </div>
 
-{% csrf_token %}
-
-<!-- html2pdf.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    const $ = s => document.querySelector(s);
-    const $$ = s => document.querySelectorAll(s);
-    const selectAll = $('#selectAll');
-    const countEl = $('#selectedCount');
-    const genBtn = $('#generatePdfBtn');
-    const clearBtn = $('#clearSelectionBtn');
-    let count = {{ selected_count }};
+document.addEventListener("DOMContentLoaded", function () {
 
-    // === Generar PDF ===
-    window.generateIdCardsPDF = () => {
-        const checked = $$('.employee-checkbox:checked');
-        if (!checked.length) return alert('Select at least one employee');
+    const selectedCountBadge = document.getElementById("selectedCount");
+    const generatePdfBtn = document.getElementById("generatePdfBtn");
+    const clearBtn = document.getElementById("clearSelectionBtn");
+    const selectAllCheckbox = document.getElementById("selectAll");
+    
+    // Todas las filas visibles en esta página
+    const employeeRows = document.querySelectorAll(".employee-row");
 
-        const modal = new bootstrap.Modal($('#loadingModal'));
-        modal.show();
+    // -------------------------------
+    // 1. Toggle individual (AJAX)
+    // -------------------------------
+    employeeRows.forEach(row => {
+        const checkbox = row.querySelector(".employee-checkbox");
+        const toggleUrl = row.dataset.toggleUrl;
 
-        setTimeout(() => {
-            const container = document.createElement('div');
-            container.style.cssText = 'padding:15mm;background:white;width:210mm;font-family:Arial,sans-serif;position:absolute;left:-9999px;top:0';
-
-            // Header
-            container.innerHTML = `
-                <div style="text-align:center;margin-bottom:20px;border-bottom:2px solid #333;padding-bottom:10px">
-                    <h2 style="margin:0;font-size:20px;color:#333">HELIUM HEALTH - Employee ID Cards</h2>
-                    <p style="margin:5px 0;font-size:12px">Generated: ${new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'})}</p>
-                    <p style="margin:5px 0;font-size:12px">Total: ${checked.length}</p>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:15mm"></div>
-            `;
-
-            const grid = container.querySelector('div:last-child');
-
-            checked.forEach((cb, i) => {
-                const card = $(`.printable-card[data-employee-id="${cb.value}"]`)?.cloneNode(true);
-                if (!card) return;
-                card.style.cssText = 'display:flex;justify-content:center;gap:10mm;page-break-inside:avoid';
-                if (i > 0 && i % 2 === 0) card.style.pageBreakBefore = 'always';
-                grid.appendChild(card);
+        checkbox.addEventListener("change", function () {
+            fetch(toggleUrl, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": getCSRFToken(),
+                    "X-Requested-With": "XMLHttpRequest",
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    updateCounter(data.selected_count);
+                }
             });
-
-            document.body.appendChild(container);
-
-            html2pdf().from(container).set({
-                margin: 10,
-                filename: `id_cards_${new Date().toISOString().slice(0,10)}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff', imageTimeout: 15000 },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: ['avoid-all', 'css'] }
-            }).save().then(() => {
-                document.body.removeChild(container);
-                modal.hide();
-            }).catch(() => {
-                document.body.removeChild(container);
-                modal.hide();
-                alert('Error generating PDF');
-            });
-        }, 600);
-    };
-
-    // === AJAX Toggle ===
-    $$('.employee-checkbox').forEach(cb => cb.addEventListener('change', function() {
-        fetch(this.closest('tr').dataset.toggleUrl, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(d => d.success && updateUI(d.selected_count))
-        .catch(() => { this.checked = !this.checked; alert('Error'); });
-    }));
-
-    // === Select All ===
-    selectAll?.addEventListener('change', () => {
-        const checked = selectAll.checked;
-        $$('.employee-checkbox').forEach(cb => {
-            if (cb.checked !== checked) { cb.checked = checked; cb.dispatchEvent(new Event('change')); }
         });
     });
 
-    // === Clear ===
-    clearBtn?.addEventListener('click', e => {
-        e.preventDefault();
-        if (!confirm('Clear all?')) return;
-        fetch(clearBtn.dataset.clearUrl, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(d => d.success && ($$('.employee-checkbox').forEach(cb => cb.checked = false), updateUI(0)))
-        .catch(() => alert('Error'));
+
+    // -------------------------------
+    // 2. Select All
+    // -------------------------------
+    selectAllCheckbox.addEventListener("change", function () {
+        const isChecked = this.checked;
+
+        employeeRows.forEach(row => {
+            const checkbox = row.querySelector(".employee-checkbox");
+
+            // Evitar dobles requests innecesarios
+            if (checkbox.checked !== isChecked) {
+                checkbox.checked = isChecked;
+                row.querySelector(".employee-checkbox").dispatchEvent(new Event("change"));
+            }
+        });
     });
 
-    // === Generate Button ===
-    genBtn?.addEventListener('click', e => { e.preventDefault(); generateIdCardsPDF(); });
 
-    // === UI Update ===
-    const updateUI = c => {
-        count = c;
-        countEl.textContent = `${count} selected`;
-        genBtn.disabled = count === 0;
-        genBtn.innerHTML = `<i class="bi bi-file-pdf me-2"></i>Generate PDF${count ? ` (${count})` : ''}`;
-        clearBtn.disabled = count === 0;
-        updateSelectAll();
-    };
+    // -------------------------------
+    // 3. Clear selection
+    // -------------------------------
+    clearBtn.addEventListener("click", function () {
+        const url = this.dataset.clearUrl;
 
-    const updateSelectAll = () => {
-        if (!selectAll) return;
-        const total = $$('.employee-checkbox').length;
-        const checked = $$('.employee-checkbox:checked').length;
-        selectAll.checked = checked === total;
-        selectAll.indeterminate = checked > 0 && checked < total;
-    };
+        fetch(url, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": getCSRFToken(),
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
 
-    // Init
-    updateUI(count);
-    updateSelectAll();
+                // reset UI
+                employeeRows.forEach(row => {
+                    row.querySelector(".employee-checkbox").checked = false;
+                });
+
+                selectAllCheckbox.checked = false;
+
+                updateCounter(0);
+            }
+        });
+    });
+
+
+    // -------------------------------
+    // 4. Generate PDF
+    // Solo imprime los empleados seleccionados
+    // -------------------------------
+    generatePdfBtn.addEventListener("click", function () {
+
+        const selectedIds = [];
+
+        document.querySelectorAll(".employee-checkbox:checked").forEach(chk => {
+            selectedIds.push(parseInt(chk.value));
+        });
+
+        if (selectedIds.length === 0) {
+            alert("Select at least one employee");
+            return;
+        }
+
+        // Mostrar modal de carga
+        const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
+        loadingModal.show();
+
+        // container donde están todos los carnets ocultos
+        const allCards = document.querySelectorAll(".printable-card");
+        
+        // Clonar solo los carnets seleccionados
+        const printableWrapper = document.createElement("div");
+        printableWrapper.classList.add("pdf-wrapper");
+
+        allCards.forEach(card => {
+            const empId = parseInt(card.dataset.employeeId);
+
+            if (selectedIds.includes(empId)) {
+                printableWrapper.appendChild(card.cloneNode(true));
+            }
+        });
+
+        // Opciones para html2pdf
+        const opt = {
+            margin:       [5, 5, 5, 5],
+            filename:     'employee_id_cards.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  {
+                scale: 2,
+                dpi: 600,
+                letterRendering: true,
+                useCORS: true
+            },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // Generar PDF
+        html2pdf()
+            .set(opt)
+            .from(printableWrapper)
+            .save()
+            .then(() => {
+                loadingModal.hide();
+            });
+    });
+
+
+    // -------------------------------
+    // Helpers
+    // -------------------------------
+    function updateCounter(count) {
+        selectedCountBadge.innerText = `${count} selected`;
+
+        if (count > 0) {
+            generatePdfBtn.disabled = false;
+            clearBtn.disabled = false;
+        } else {
+            generatePdfBtn.disabled = true;
+            clearBtn.disabled = true;
+        }
+    }
+
+    function getCSRFToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+
 });
 </script>
-<style>
-/* Ocultar pero renderizar */
-/*
-.offscreen {
-    position: absolute !important;
-    left: -9999px !important;
-    top: 0 !important;
-    visibility: hidden !important;
-    width: 210mm !important;
-    pointer-events: none !important;
-    overflow: visible !important;
-}
 
-/* Tamaño fijo CR80 
-.idcard-cr80 {
-    width: 85.6mm !important;
-    height: 53.98mm !important;
-    box-sizing: border-box !important;
-    position: relative !important;
-    page-break-inside: avoid !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    border: 1px solid #000;
-    font-family: Arial, sans-serif;
-    overflow: hidden;
-}
-*/
+
+<style>
+
 .card-pair {
     display: flex;
     justify-content: center;
@@ -489,7 +481,6 @@ document.addEventListener('DOMContentLoaded', () => {
 }
 
 
-/*
 .idcard-photo img {
     width: 100,max-width: 100%;
     height: 100%;
@@ -508,15 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
     color: #6c757d;
 }
 
-@media print {
-    .card-pair, .idcard-cr80 {
-        page-break-inside: avoid !important;
-    }
-    body > *:not(#pdfContainer) {
-        display: none !important;
-    }
-}
-    */
+
 </style>
 
 {% endblock %}

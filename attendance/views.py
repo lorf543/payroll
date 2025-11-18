@@ -213,7 +213,7 @@ def agent_dashboard(request):
 def start_activity(request):
     """
     Iniciar una nueva actividad (HTMX endpoint)
-    Con protección contra race conditions
+    Con protección contra race conditions y validación de estado duplicado
     """
     employee = get_object_or_404(Employee, user=request.user)
     today = timezone.now().date()
@@ -234,11 +234,13 @@ def start_activity(request):
 
             # ✅ Verificar SI HAY sesión activa DENTRO de la transacción
             active_session = work_day.get_active_session()
-            if active_session:
-                messages.error(request, "There is already an active session. Please end it before starting a new one.")
+            
+            # ✅ NUEVA VALIDACIÓN: Prevenir cambiar al mismo estado
+            if active_session and active_session.session_type == session_type:
+                messages.error(request, f"You are already in {active_session.get_session_type_display()} status. Please select a different status.")
                 return _render_attendance_dashboard(request, employee, work_day)
-
-            # ✅ Iniciar nueva sesión (solo si no hay sesión activa)
+            
+            # ✅ Iniciar nueva sesión (solo si no hay sesión activa y no es el mismo estado)
             session = work_day.start_work_session(
                 session_type=session_type,
                 notes=request.POST.get('notes', '')
@@ -700,132 +702,148 @@ def export_team_report_excel(request):
         messages.error(request, "You don't have supervisor privileges.")
         return redirect('employee_profile')
 
-    # Filtros
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
+    # Obtener fechas
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
 
-    # Validación de fechas
     if not date_from or not date_to:
-        messages.error(request, "Please select valid start and end dates before generating the report.")
-        return redirect('supervisor_dashboard')
+        messages.error(request, "Please select valid dates.")
+        return redirect("supervisor_dashboard")
 
-    try:
-        date_from_dt = datetime.strptime(date_from, "%Y-%m-%d").date()
-        date_to_dt = datetime.strptime(date_to, "%Y-%m-%d").date()
-    except ValueError:
-        messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
-        return redirect('supervisor_dashboard')
+    date_from_dt = datetime.strptime(date_from, "%Y-%m-%d").date()
+    date_to_dt = datetime.strptime(date_to, "%Y-%m-%d").date()
 
-    # Miembros del equipo
-    team_members = Employee.objects.filter(supervisor=supervisor).select_related('user', 'current_campaign')
+    # Miembros del supervisor
+    team_members = Employee.objects.filter(supervisor=supervisor)
 
-    # WorkDays filtrados
-    work_days = WorkDay.objects.filter(
-        employee__in=team_members,
-        date__gte=date_from_dt,
-        date__lte=date_to_dt
-    ).select_related('employee', 'employee__current_campaign').prefetch_related('sessions').order_by('date', 'employee__user__last_name')
+    work_days = (
+        WorkDay.objects.filter(
+            employee__in=team_members,
+            date__range=(date_from_dt, date_to_dt)
+        )
+        .select_related("employee", "employee__user")
+        .prefetch_related("sessions")
+        .order_by("date", "employee__user__last_name")
+    )
 
-    # Crear workbook y hoja
+    # Crear Excel
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Team Report"
 
-    bold_font = Font(bold=True)
-    center_align = Alignment(horizontal="center")
+    bold = Font(bold=True)
+    center = Alignment(horizontal="center")
 
-    # Función auxiliar para formatear timedelta como HH:MM:SS
-    def format_timedelta(td):
-        total_seconds = int(td.total_seconds())
-        hours, remainder = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        return f"{hours:02}:{minutes:02}:{seconds:02}"
+    # Header
+    ws.merge_cells("A1:Q1")
+    ws["A1"] = f"Team Report - Supervisor: {supervisor.user.get_full_name()}"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A1"].alignment = center
 
-    # Función auxiliar para formatear sesiones
-    def format_duration(s):
-        if s.start_time and s.end_time:
-            delta = s.end_time - s.start_time
-            return format_timedelta(delta)
-        return "—"
-
-    # Título del reporte
-    ws.merge_cells('A1:L1')
-    ws['A1'] = f"Team Report - Supervisor: {supervisor.user.get_full_name()}"
-    ws['A1'].font = Font(bold=True, size=14)
-    ws['A1'].alignment = center_align
-
-    ws.merge_cells('A2:L2')
-    ws['A2'] = f"Generated at: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    ws['A2'].alignment = center_align
+    ws.merge_cells("A2:Q2")
+    ws["A2"] = f"Generated: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    ws["A2"].alignment = center
 
     ws.append([])
 
-    # Encabezados
+    # Encabezados EXACTOS + columnas extra
     headers = [
-        "Date", "Employee", "Total Work Time",
-        "Break1 Start", "Break1 End", "Break1 Duration",
-        "Break2 Start", "Break2 End", "Break2 Duration",
-        "Lunch Start", "Lunch End", "Lunch Duration",
-        "Work Sessions Count"
+        "Agent Name", "Date", "Attendance Status", "Week",
+        "Time In",
+        "Break 1-out", "Break 1-in", "Break1 Duration",
+        "Break 2-out", "Break 2-in", "Break2 Duration",
+        "Lunch Out", "Lunch In", "Lunch Duration",
+        "Time Out",
+        "Total Hours",
+        "Notes",
     ]
+
     ws.append(headers)
     for col in range(1, len(headers) + 1):
-        ws.cell(row=4, column=col).font = bold_font
-        ws.cell(row=4, column=col).alignment = center_align
+        ws.cell(row=4, column=col).font = bold
+        ws.cell(row=4, column=col).alignment = center
 
-    # Agrupar WorkDays
-    from collections import defaultdict
-    grouped = defaultdict(list)
+    # Helpers
+    def fmt_time(t):
+        return t.strftime("%H:%M") if t else "-"
+
+    def fmt_duration(s):
+        if not s or not s.start_time or not s.end_time:
+            return "-"
+        delta = s.end_time - s.start_time
+        return f"{delta.total_seconds() / 3600:.2f}"
+
+    def fmt_total(td):
+        if td is None:
+            return "0.00"
+        return f"{td.total_seconds() / 3600:.2f}"
+
+    # Escribir filas
     for wd in work_days:
-        grouped[(wd.date, wd.employee)].append(wd)
+        sessions = wd.sessions.all()
 
-    # Filas de datos
-    for (date, employee), wds in sorted(grouped.items(), key=lambda x: (x[0][0], x[0][1].user.last_name)):
-        wd = wds[0]
+        work_sessions = sessions.filter(session_type="work").order_by("start_time")
+        break_sessions = sessions.filter(session_type="break").order_by("start_time")
+        lunch_sessions = sessions.filter(session_type="lunch").order_by("start_time")
 
-        employee_name = employee.user.get_full_name()
-        total_work = format_timedelta(wd.total_work_time) if wd.total_work_time else "00:00:00"
+        # Time in / out
+        time_in = work_sessions.first().start_time if work_sessions else None
+        time_out = work_sessions.last().end_time if work_sessions else None
 
-        # Filtrar sesiones
-        breaks = [s for s in wd.sessions.all() if s.session_type == 'break'][:2]
-        lunch = [s for s in wd.sessions.all() if s.session_type == 'lunch'][:1]
+        # Break 1
+        break1_out = break_sessions[0].start_time if len(break_sessions) >= 1 else None
+        break1_in = break_sessions[0].end_time if len(break_sessions) >= 1 else None
+        break1_duration = fmt_duration(break_sessions[0]) if len(break_sessions) >= 1 else "-"
 
-        break1_start = breaks[0].start_time.strftime("%H:%M:%S") if len(breaks) > 0 else "—"
-        break1_end = breaks[0].end_time.strftime("%H:%M:%S") if len(breaks) > 0 and breaks[0].end_time else "—"
-        break1_duration = format_duration(breaks[0]) if len(breaks) > 0 else "—"
+        # Break 2
+        break2_out = break_sessions[1].start_time if len(break_sessions) >= 2 else None
+        break2_in = break_sessions[1].end_time if len(break_sessions) >= 2 else None
+        break2_duration = fmt_duration(break_sessions[1]) if len(break_sessions) >= 2 else "-"
 
-        break2_start = breaks[1].start_time.strftime("%H:%M:%S") if len(breaks) > 1 else "—"
-        break2_end = breaks[1].end_time.strftime("%H:%M:%S") if len(breaks) > 1 and breaks[1].end_time else "—"
-        break2_duration = format_duration(breaks[1]) if len(breaks) > 1 else "—"
-
-        lunch_start = lunch[0].start_time.strftime("%H:%M:%S") if lunch else "—"
-        lunch_end = lunch[0].end_time.strftime("%H:%M:%S") if lunch and lunch[0].end_time else "—"
-        lunch_duration = format_duration(lunch[0]) if lunch else "—"
-
-        work_sessions_count = wd.sessions.filter(session_type='work').count()
+        # Lunch
+        lunch_out = lunch_sessions[0].start_time if lunch_sessions else None
+        lunch_in = lunch_sessions[0].end_time if lunch_sessions else None
+        lunch_duration = fmt_duration(lunch_sessions[0]) if lunch_sessions else "-"
 
         ws.append([
-            date.strftime("%Y-%m-%d"),
-            employee_name,
-            total_work,
-            break1_start, break1_end, break1_duration,
-            break2_start, break2_end, break2_duration,
-            lunch_start, lunch_end, lunch_duration,
-            work_sessions_count
+            wd.employee.user.get_full_name(),
+            wd.date.strftime("%m/%d/%Y"),
+            wd.get_day_status(),                 # Fijo como en tu ejemplo
+            wd.date.isocalendar()[1],        # week number
+            fmt_time(time_in),
+
+            fmt_time(break1_out),
+            fmt_time(break1_in),
+            break1_duration,
+
+            fmt_time(break2_out),
+            fmt_time(break2_in),
+            break2_duration,
+
+            fmt_time(lunch_out),
+            fmt_time(lunch_in),
+            lunch_duration,
+
+            fmt_time(time_out),
+            fmt_total(wd.total_work_time),
+
+            wd.notes or "",
         ])
 
-    # Ajustar ancho de columnas
-    for i, column_cells in enumerate(ws.columns, 1):
-        length = max(len(str(cell.value)) if cell.value else 0 for cell in column_cells)
-        ws.column_dimensions[get_column_letter(i)].width = length + 2
+    # Ajustar ancho columnas
+    for col_cells in ws.columns:
+        max_len = max(len(str(c.value)) if c.value else 0 for c in col_cells)
+        ws.column_dimensions[get_column_letter(col_cells[0].column)].width = max_len + 2
 
-    # Crear respuesta
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    filename = f"team_report_{supervisor.user.last_name}_{timezone.now().strftime('%Y%m%d')}.xlsx"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    # Respuesta
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    filename = f"team_report_{supervisor.user.username}_{timezone.now().strftime('%Y%m%d')}.xlsx"
+    response["Content-Disposition"] = f'attachment; filename=\"{filename}\"'
+
     wb.save(response)
     return response
-
 
 
 
