@@ -124,6 +124,7 @@ WSGI_APPLICATION = 'payroll.wsgi.application'
 #     }
 # }
 
+##no entiendo nada
 
 DATABASES = {
     'default': dj_database_url.config(
