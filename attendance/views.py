@@ -366,31 +366,28 @@ def attendance_history(request):
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     
-    # Obtener todos los WorkDays del empleado
     work_days = WorkDay.objects.filter(employee=employee).order_by('-date')
     
-    # Aplicar filtros
+    # Filtrar por fechas
     if date_from:
-        work_days = work_days.filter(date__gte=date_from)
+        work_days = work_days.filter(date__gte=datetime.strptime(date_from, '%Y-%m-%d'))
     if date_to:
-        work_days = work_days.filter(date__lte=date_to)
-    
+        work_days = work_days.filter(date__lte=datetime.strptime(date_to, '%Y-%m-%d'))
+
     # Paginación
     paginator = Paginator(work_days, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    # Función auxiliar para formatear duración
     def format_duration_simple(duration):
         if not duration:
-            return "0h 00m"
+            return "0h 00m 00s"
         total_seconds = int(duration.total_seconds())
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
-        if hours > 0:
-            return f"{hours}h {minutes:02d}m"
-        return f"{minutes}m"
-    
+        seconds = total_seconds % 60
+        return f"{hours}h {minutes:02d}m {seconds:02d}s" if hours > 0 else f"{minutes}m {seconds:02d}s"
+
     # Preparar datos para cada día
     days_data = []
     for work_day in page_obj:
@@ -486,6 +483,7 @@ def export_attendance_excel(request):
     return response
 
 
+
 @login_required
 def day_detail(request, date_str):
     """
@@ -499,25 +497,31 @@ def day_detail(request, date_str):
         
         sessions = work_day.sessions.all().order_by('start_time')
 
-
-                
-        # Función para formatear duración
+        # Función para formatear duración - MEJORADA
         def format_duration_simple(duration):
             if not duration:
                 return "0h 00m"
-            total_seconds = int(duration.total_seconds())
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            if hours > 0:
-                return f"{hours}h {minutes:02d}m"
-            return f"{minutes}m"
+            try:
+                total_seconds = int(duration.total_seconds())
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                if hours > 0:
+                    return f"{hours}h {minutes:02d}m"
+                return f"{minutes}m"
+            except (AttributeError, TypeError):
+                return "0h 00m"
         
-        # Calcular estadísticas del día con formato correcto
+        # Calcular estadísticas del día con manejo de errores
+        try:
+            money_calculated = calculate_daily_stats(work_day)['money']
+        except (AttributeError, TypeError, KeyError):
+            money_calculated = "$0.00"
+        
         daily_stats = {
             'work_time': format_duration_simple(work_day.total_work_time),
             'break_time': format_duration_simple(work_day.total_break_time),
             'lunch_time': format_duration_simple(work_day.total_lunch_time),
-            'money': calculate_daily_stats(work_day)['money'],
+            'money': money_calculated,
             'break_count': work_day.break_count or 0,
         }
         
@@ -750,9 +754,9 @@ def export_team_report_excel(request):
     headers = [
         "Agent Name", "Date", "Attendance Status", "Week",
         "Time In",
-        "Break 1-out", "Break 1-in", "Break1 Duration",
-        "Break 2-out", "Break 2-in", "Break2 Duration",
-        "Lunch Out", "Lunch In", "Lunch Duration",
+        "Break 1-start", "Break 1-end", "Break1 Duration",
+        "Break 2-start", "Break 2-end", "Break2 Duration",
+        "Lunch start", "Lunch end", "Lunch Duration",
         "Time Out",
         "Total Hours",
         "Notes",
@@ -770,8 +774,14 @@ def export_team_report_excel(request):
     def fmt_duration(s):
         if not s or not s.start_time or not s.end_time:
             return "-"
+
         delta = s.end_time - s.start_time
-        return f"{delta.total_seconds() / 3600:.2f}"
+        total_seconds = int(delta.total_seconds())
+
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+
+        return f"{minutes:02d}:{seconds:02d}"
 
     def fmt_total(td):
         if td is None:
@@ -791,8 +801,8 @@ def export_team_report_excel(request):
         time_out = work_sessions.last().end_time if work_sessions else None
 
         # Break 1
-        break1_out = break_sessions[0].start_time if len(break_sessions) >= 1 else None
-        break1_in = break_sessions[0].end_time if len(break_sessions) >= 1 else None
+        break1_start = break_sessions[0].start_time if len(break_sessions) >= 1 else None
+        break1_end = break_sessions[0].end_time if len(break_sessions) >= 1 else None
         break1_duration = fmt_duration(break_sessions[0]) if len(break_sessions) >= 1 else "-"
 
         # Break 2
@@ -812,8 +822,8 @@ def export_team_report_excel(request):
             wd.date.isocalendar()[1],        # week number
             fmt_time(time_in),
 
-            fmt_time(break1_out),
-            fmt_time(break1_in),
+            fmt_time(break1_start),
+            fmt_time(break1_end),
             break1_duration,
 
             fmt_time(break2_out),
@@ -949,7 +959,7 @@ def employee_attendance_detail(request, employee_id):
         'date_from': date_from,
         'date_to': date_to,
         'total_work_days': total_work_days,
-        'total_work_time': format_duration_simple(timedelta(seconds=total_work_time)),
+        'total_work_time': format_duration_simple(timedelta(minutes=total_work_time)),
         'avg_work_time': format_duration_simple(timedelta(seconds=avg_work_time)),
     }
     
@@ -1242,12 +1252,15 @@ def workday_editor_view(request, workday_id):
 
     sessions_data = []
     for s in sessions:
+        # Manejar end_time que puede ser None (sesión en curso)
+        end_time_formatted = s.end_time.strftime('%H:%M') if s.end_time else "En curso"
+        
         sessions_data.append({
             'id': s.id,
             'type': s.get_session_type_display(),
             'type_code': s.session_type,
             'start': s.start_time.strftime('%H:%M'),
-            'end': s.end_time.strftime('%H:%M'),
+            'end': end_time_formatted,
         })
 
     referer = request.META.get('HTTP_REFERER', '/')

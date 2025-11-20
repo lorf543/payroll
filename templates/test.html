@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Libro con PiP Automático (FUNCIONA 100%)</title>
+  <style>
+    body {margin:0;font-family:system-ui;background:#161b22;color:#c9d1d9;height:100vh;overflow:auto;}
+    #libro {padding:40px;font-size:18px;line-height:1.7;}
+    button {position:fixed;bottom:20px;right:20px;padding:16px 32px;background:#f4b400;border:none;border-radius:50px;font-weight:bold;z-index:9999;cursor:pointer;box-shadow:0 4px 15px rgba(0,0,0,0.4);}
+    .pip-bar {background:#1f6feb;color:white;padding:12px;text-align:center;font-weight:bold;position:sticky;top:0;z-index:10;}
+  </style>
+</head>
+<body>
+
+<div id="libro">
+  <h1>El Principito</h1>
+  <p>Cuando yo tenía seis años vi en un libro sobre la selva virgen una magnífica lámina...</p>
+  <p>Los mayores me aconsejaron que dejara de dibujar serpientes boas abiertas o cerradas...</p>
+  <p>Así que abandoné una magnífica carrera de pintor. Había sido desanimado por el fracaso de mi dibujo número 1 y de mi dibujo número 2...</p>
+  <p>Mis dibujos no representaban un sombrero. Representaban una serpiente boa digiriendo un elefante...</p>
+  <hr><em>Capítulo 1 – Antoine de Saint-Exupéry</em>
+</div>
+
+<button id="activar">Activar ventana flotante automática</button>
+
+<script>
+  let pipWindow = null;
+  const btn = document.getElementById('activar');
+
+  // Abrir (o reutilizar) la ventana PiP
+  async function mostrarPiP() {
+    if (pipWindow && !pipWindow.closed) {
+      pipWindow.focus();
+      return;
+    }
+
+    pipWindow = await documentPictureInPicture.requestWindow({
+      width: 430,
+      height: 640
+    });
+
+    // Copiar estilos
+    const style = pipWindow.document.createElement('style');
+    style.textContent = document.head.querySelector('style').textContent +
+      `body{margin:0;background:#161b22;color:#c9d1d9;font-family:system-ui;overflow:auto;}`;
+    pipWindow.document.head.appendChild(style);
+
+    // Contenido clonado + barra superior como Meet
+    const contenido = document.getElementById('libro').cloneNode(true);
+    contenido.innerHTML = '<div class="pip-bar">Libro activo en otra pestaña</div>' + contenido.innerHTML;
+    pipWindow.document.body.appendChild(contenido);
+
+    // Si el usuario la cierra manualmente, limpiamos la referencia
+    pipWindow.addEventListener('pagehide', () => pipWindow = null);
+    pipWindow.addEventListener('unload', () => pipWindow = null);
+  }
+
+  // Detectar cambio de pestaña → abrir o mostrar PiP
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && sessionStorage.getItem('pipPermitido')) {
+      mostrarPiP().catch(() => {}); // nunca más mostrará error
+    }
+  });
+
+  // Botón: solo se necesita UNA VEZ por pestaña
+  btn.onclick = async () => {
+    sessionStorage.setItem('pipPermitido', '1');
+    btn.remove();
+    await mostrarPiP();
+  };
+
+  // Si ya hizo clic antes en esta pestaña → activar automáticamente
+  if (sessionStorage.getItem('pipPermitido')) {
+    btn.remove();
+  }
+</script>
+</body>
+</html>

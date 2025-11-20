@@ -18,12 +18,12 @@
             </div>
             
             <!-- Action Buttons -->
-            <button class="btn btn-success" id="generatePdfBtn" {% if selected_count == 0 %}disabled{% endif %}>
+            <button class="btn btn-success" id="generatePdfBtn">
                 <i class="bi bi-file-pdf me-2"></i>Generate PDF{% if selected_count > 0 %} ({{ selected_count }}){% endif %}
             </button>
             <button class="btn btn-outline-danger" id="clearSelectionBtn" 
                     data-clear-url="{% url 'clear_id_cards_selection' %}"
-                    {% if selected_count == 0 %}disabled{% endif %}>
+                    >
                 <i class="bi bi-x-circle me-2"></i>Clear
             </button>
         </div>
@@ -222,6 +222,7 @@
                     <span class="visually-hidden">Loading...</span>
                 </div>
                 <p class="mb-0">Generating ID Cards...</p>
+                <small class="text-muted" id="progressText">Preparing documents...</small>
             </div>
         </div>
     </div>
@@ -234,10 +235,10 @@
         <!-- FRONT SIDE -->
         <div class="idcard-cr80 idcard-front">
             <div class="idcard-header">
-                    <div>
-                        <img src="{% static 'img/company_logo.png' %}" class="idcard-logo" alt="Logo">
-                        <p class="">HELIUM HEALTH</p>
-                    </div>
+                <div>
+                    <img src="{% static 'img/company_logo.png' %}" class="idcard-logo" alt="Logo">
+                    <p class="">HELIUM HEALTH</p>
+                </div>
                 <div class="idcard-year">2025</div>
             </div>
 
@@ -300,206 +301,254 @@
     {% endfor %}
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-
-    const selectedCountBadge = document.getElementById("selectedCount");
-    const generatePdfBtn = document.getElementById("generatePdfBtn");
-    const clearBtn = document.getElementById("clearSelectionBtn");
-    const selectAllCheckbox = document.getElementById("selectAll");
-    
-    // Todas las filas visibles en esta página
-    const employeeRows = document.querySelectorAll(".employee-row");
-
-    // -------------------------------
-    // 1. Toggle individual (AJAX)
-    // -------------------------------
-    employeeRows.forEach(row => {
-        const checkbox = row.querySelector(".employee-checkbox");
-        const toggleUrl = row.dataset.toggleUrl;
-
-        checkbox.addEventListener("change", function () {
-            fetch(toggleUrl, {
-                method: "POST",
-                headers: {
-                    "X-CSRFToken": getCSRFToken(),
-                    "X-Requested-With": "XMLHttpRequest",
-                }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    updateCounter(data.selected_count);
-                }
-            });
-        });
-    });
-
-
-    // -------------------------------
-    // 2. Select All
-    // -------------------------------
-    selectAllCheckbox.addEventListener("change", function () {
-        const isChecked = this.checked;
-
-        employeeRows.forEach(row => {
-            const checkbox = row.querySelector(".employee-checkbox");
-
-            // Evitar dobles requests innecesarios
-            if (checkbox.checked !== isChecked) {
-                checkbox.checked = isChecked;
-                row.querySelector(".employee-checkbox").dispatchEvent(new Event("change"));
-            }
-        });
-    });
-
-
-    // -------------------------------
-    // 3. Clear selection
-    // -------------------------------
-    clearBtn.addEventListener("click", function () {
-        const url = this.dataset.clearUrl;
-
-        fetch(url, {
-            method: "POST",
-            headers: {
-                "X-CSRFToken": getCSRFToken(),
-                "X-Requested-With": "XMLHttpRequest",
-            },
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-
-                // reset UI
-                employeeRows.forEach(row => {
-                    row.querySelector(".employee-checkbox").checked = false;
-                });
-
-                selectAllCheckbox.checked = false;
-
-                updateCounter(0);
-            }
-        });
-    });
-
-
-    // -------------------------------
-    // 4. Generate PDF
-    // Solo imprime los empleados seleccionados
-    // -------------------------------
-    generatePdfBtn.addEventListener("click", function () {
-
-        const selectedIds = [];
-
-        document.querySelectorAll(".employee-checkbox:checked").forEach(chk => {
-            selectedIds.push(parseInt(chk.value));
-        });
-
-        if (selectedIds.length === 0) {
-            alert("Select at least one employee");
-            return;
-        }
-
-        // Mostrar modal de carga
-        const loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
-        loadingModal.show();
-
-        // container donde están todos los carnets ocultos
-        const allCards = document.querySelectorAll(".printable-card");
-        
-        // Clonar solo los carnets seleccionados
-        const printableWrapper = document.createElement("div");
-        printableWrapper.classList.add("pdf-wrapper");
-
-        allCards.forEach(card => {
-            const empId = parseInt(card.dataset.employeeId);
-
-            if (selectedIds.includes(empId)) {
-                printableWrapper.appendChild(card.cloneNode(true));
-            }
-        });
-
-        // Opciones para html2pdf
-        const opt = {
-            margin:       [5, 5, 5, 5],
-            filename:     'employee_id_cards.pdf',
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  {
-                scale: 2,
-                dpi: 600,
-                letterRendering: true,
-                useCORS: true
-            },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        // Generar PDF
-        html2pdf()
-            .set(opt)
-            .from(printableWrapper)
-            .save()
-            .then(() => {
-                loadingModal.hide();
-            });
-    });
-
-
-    // -------------------------------
-    // Helpers
-    // -------------------------------
-    function updateCounter(count) {
-        selectedCountBadge.innerText = `${count} selected`;
-
-        if (count > 0) {
-            generatePdfBtn.disabled = false;
-            clearBtn.disabled = false;
-        } else {
-            generatePdfBtn.disabled = true;
-            clearBtn.disabled = true;
-        }
-    }
-
-    function getCSRFToken() {
-        return document.querySelector('[name=csrfmiddlewaretoken]').value;
-    }
-
-});
-</script>
-
+<!-- Incluir las librerías necesarias -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
+/* Estilos para los carnets */
+
+
+
 
 .card-pair {
     display: flex;
+    flex-direction: column;
     justify-content: center;
-    gap: 10mm;
-    page-break-inside: avoid;
+    gap: 5mm;
     margin-bottom: 15mm;
+    page-break-after: always;
+
 }
 
 
-.idcard-photo img {
-    width: 100,max-width: 100%;
-    height: 100%;
-    object-fit: cover;
+
+/* Estilos para impresión */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #idCardsContainer, #idCardsContainer * {
+        visibility: visible;
+    }
+    #idCardsContainer {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .card-pair {
+        page-break-after: always;
+        page-break-inside: avoid;
+    }
+    .card-pair:last-child {
+        page-break-after: avoid;
+    }
 }
-
-.photo-placeholder {
-    width: 100%;
-    height: 100%;
-    background: #e9ecef;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    font-weight: bold;
-    color: #6c757d;
-}
-
-
 </style>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const generatePdfBtn = document.getElementById('generatePdfBtn');
+    const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const employeeCheckboxes = document.querySelectorAll('.employee-checkbox');
+    const selectedCount = document.getElementById('selectedCount');
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    const progressText = document.getElementById('progressText');
+
+    // Seleccionar/Deseleccionar todos
+    selectAllCheckbox.addEventListener('change', function() {
+        employeeCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateSelectedCount();
+    });
+
+    // Actualizar contador de seleccionados
+    function updateSelectedCount() {
+        const selected = document.querySelectorAll('.employee-checkbox:checked').length;
+        selectedCount.textContent = `${selected} selected`;
+        generatePdfBtn.innerHTML = `<i class="bi bi-file-pdf me-2"></i>Generate PDF${selected > 0 ? ` (${selected})` : ''}`;
+    }
+
+    employeeCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedCount);
+    });
+
+    // Limpiar selección
+    clearSelectionBtn.addEventListener('click', function() {
+        const clearUrl = this.getAttribute('data-clear-url');
+        
+        fetch(clearUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                employeeCheckboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                selectAllCheckbox.checked = false;
+                updateSelectedCount();
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Selection cleared',
+                    text: 'All employees have been deselected.',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to clear selection.'
+            });
+        });
+    });
+
+    // Generar PDF
+    generatePdfBtn.addEventListener('click', async function() {
+        const selectedEmployees = Array.from(document.querySelectorAll('.employee-checkbox:checked'))
+            .map(checkbox => checkbox.value);
+
+        if (selectedEmployees.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No employees selected',
+                text: 'Please select at least one employee to generate ID cards.'
+            });
+            return;
+        }
+
+        loadingModal.show();
+        await generatePDF(selectedEmployees);
+    });
+
+    // Función para generar PDF
+    async function generatePDF(selectedEmployeeIds) {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const cardPairs = document.querySelectorAll('.card-pair');
+        const selectedCards = Array.from(cardPairs).filter(card => {
+            const employeeId = card.getAttribute('data-employee-id');
+            return selectedEmployeeIds.includes(employeeId);
+        });
+
+        if (selectedCards.length === 0) {
+            loadingModal.hide();
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No ID cards found for selected employees.'
+            });
+            return;
+        }
+
+        try {
+            for (let i = 0; i < selectedCards.length; i++) {
+                progressText.textContent = `Processing card ${i + 1} of ${selectedCards.length}`;
+                
+                const cardPair = selectedCards[i];
+                
+                // Crear un contenedor temporal para capturar
+                const tempContainer = document.createElement('div');
+                tempContainer.style.position = 'fixed';
+                tempContainer.style.left = '0';
+                tempContainer.style.top = '0';
+                tempContainer.style.width = '210mm';
+                tempContainer.style.height = '297mm';
+                tempContainer.style.backgroundColor = 'white';
+                tempContainer.style.zIndex = '9999';
+                tempContainer.style.padding = '20mm';
+                tempContainer.style.boxSizing = 'border-box';
+                
+                // Clonar el card pair
+                const clonedCard = cardPair.cloneNode(true);
+                clonedCard.style.margin = '0';
+                clonedCard.style.transform = 'scale(1)';
+                
+                tempContainer.appendChild(clonedCard);
+                document.body.appendChild(tempContainer);
+
+                // Capturar con html2canvas
+                const canvas = await html2canvas(tempContainer, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff'
+                });
+
+                // Limpiar contenedor temporal
+                document.body.removeChild(tempContainer);
+
+                const imgData = canvas.toDataURL('image/png');
+                
+                // Agregar nueva página si no es la primera
+                if (i > 0) {
+                    pdf.addPage();
+                }
+
+                // Agregar imagen al PDF
+                pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+            }
+
+            // Guardar PDF
+            pdf.save(`employee_id_cards_${new Date().toISOString().split('T')[0]}.pdf`);
+            
+            loadingModal.hide();
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'PDF Generated',
+                text: `Successfully generated ${selectedCards.length} ID card(s)`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            loadingModal.hide();
+            
+            Swal.fire({
+                icon: 'error',
+                title: 'Generation Failed',
+                text: 'An error occurred while generating the PDF. Please try again.'
+            });
+        }
+    }
+
+    // Función auxiliar para obtener CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Inicializar contador
+    updateSelectedCount();
+});
+</script>
 {% endblock %}

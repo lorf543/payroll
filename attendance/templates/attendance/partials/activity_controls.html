@@ -67,19 +67,22 @@
     </div>
 </div>
 
-<!-- Modal Bootstrap -->
-<div class="modal fade" id="returnTimeModal" tabindex="-1" aria-labelledby="returnTimeModalLabel" aria-hidden="true">
+<!-- Modal de confirmación para Break/Lunch -->
+<div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title" id="returnTimeModalLabel">Break/Lunch Info</h5>
+        <h5 class="modal-title" id="confirmationModalLabel">Confirm Status Change</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body text-center">
+        <p>You are about to change your status to <strong id="selectedStatusText"></strong>.</p>
         <p>You should return by <span id="returnTimeText" class="fw-bold"></span>.</p>
+        <p class="text-muted small">Do you want to proceed?</p>
       </div>
       <div class="modal-footer justify-content-center">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">OK</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmStatusChange">Confirm</button>
       </div>
     </div>
   </div>
@@ -89,6 +92,10 @@
     // Get break and lunch duration from database
     const BREAK_DURATION = {{ employee.current_campaign.break_duration|default:15 }};
     const LUNCH_DURATION = {{ employee.current_campaign.lunch|default:45 }};
+
+    // Variables globales para almacenar datos temporales
+    let pendingSessionType = null;
+    let pendingFormData = null;
 
     // ✅ Cambiar color de fondo según estado
     function updateBodyColor(sessionType) {
@@ -105,6 +112,8 @@
         const statusSelect = document.getElementById('session_type');
         const form = document.getElementById('statusForm');
         const currentStatus = "{{ current_session.session_type|default:'' }}";
+        const confirmationModal = new bootstrap.Modal(document.getElementById('confirmationModal'));
+        const confirmButton = document.getElementById('confirmStatusChange');
 
         updateBodyColor(currentStatus);
 
@@ -123,50 +132,53 @@
             }
         });
 
-        // ✅ Manejar submit
+        // ✅ Manejar submit - Nuevo flujo
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             const selected = statusSelect.value;
-            if (selected === currentStatus) return;
-
-            const formData = new FormData(form);
-
-            try {
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    body: formData
-                });
-
-                if (response.ok) {
-                    updateBodyColor(selected);
-                    Swal.fire({
-                        position: "top-end",
-                        icon: "success",
-                        title: `Status changed to "${selected}" successfully!`,
-                        showConfirmButton: false,
-                        timer: 1200,
-                        didClose: () => {
-                            if (selected === 'break' || selected === 'lunch') {
-                                const minutes = selected === 'break' ? BREAK_DURATION : LUNCH_DURATION;
-                                showReturnTime(minutes);
-                            } else {
-                                window.location.reload();
-                            }
-                        }
-                    });
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Error', text: 'Error updating status.' });
-                }
-            } catch (err) {
-                console.error(err);
-                Swal.fire({ icon: 'error', title: 'Error', text: 'Error sending request.' });
+            
+            // Validación: no permitir cambiar al mismo estado
+            if (selected === currentStatus) {
+                return;
             }
+
+            // Preparar datos del formulario
+            pendingFormData = new FormData(form);
+            pendingSessionType = selected;
+
+            // Flujo diferente para break/lunch vs otros estados
+            if (selected === 'break' || selected === 'lunch') {
+                // Mostrar modal de confirmación con hora de retorno
+                showConfirmationModal(selected);
+            } else {
+                // Para otros estados, proceder directamente
+                await submitStatusChange();
+            }
+        });
+
+        // ✅ Confirmar cambio de estado (cuando el usuario presiona el botón Confirm)
+        confirmButton.addEventListener('click', async function() {
+            confirmationModal.hide();
+            await submitStatusChange();
         });
     });
 
-    // ✅ Modal con hora de retorno
-    function showReturnTime(minutes) {
+    // ✅ Mostrar modal de confirmación para break/lunch
+    function showConfirmationModal(sessionType) {
+        const minutes = sessionType === 'break' ? BREAK_DURATION : LUNCH_DURATION;
+        const returnTime = calculateReturnTime(minutes);
+        
+        // Actualizar texto del modal
+        document.getElementById('selectedStatusText').textContent = sessionType;
+        document.getElementById('returnTimeText').textContent = returnTime;
+        
+        // Mostrar modal
+        const confirmationModal = new bootstrap.Modal(document.getElementById('confirmationModal'));
+        confirmationModal.show();
+    }
+
+    // ✅ Calcular hora de retorno
+    function calculateReturnTime(minutes) {
         const returnTime = new Date();
         returnTime.setMinutes(returnTime.getMinutes() + minutes);
 
@@ -175,14 +187,51 @@
         const ampm = hours >= 12 ? 'PM' : 'AM';
         hours = hours % 12 || 12;
 
-        document.getElementById('returnTimeText').textContent = `${hours}:${mins} ${ampm}`;
-        const modalEl = document.getElementById('returnTimeModal');
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
+        return `${hours}:${mins} ${ampm}`;
+    }
 
-        modalEl.addEventListener('hidden.bs.modal', () => {
-            window.location.reload();
-        });
+    // ✅ Enviar cambio de estado al servidor
+    async function submitStatusChange() {
+        if (!pendingFormData) return;
+
+        try {
+            const response = await fetch("{% url 'start_activity' %}", {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: pendingFormData
+            });
+
+            if (response.ok) {
+                updateBodyColor(pendingSessionType);
+                Swal.fire({
+                    position: "top-end",
+                    icon: "success",
+                    title: `Status changed to "${pendingSessionType}" successfully!`,
+                    showConfirmButton: false,
+                    timer: 1200,
+                    didClose: () => {
+                        window.location.reload();
+                    }
+                });
+            } else {
+                Swal.fire({ 
+                    icon: 'error', 
+                    title: 'Error', 
+                    text: 'Error updating status.' 
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire({ 
+                icon: 'error', 
+                title: 'Error', 
+                text: 'Error sending request.' 
+            });
+        } finally {
+            // Limpiar datos temporales
+            pendingFormData = null;
+            pendingSessionType = null;
+        }
     }
 
     // ⏱️ Contador de duración + tiempo restante (solo break/lunch)
