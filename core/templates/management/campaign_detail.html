@@ -27,10 +27,20 @@
                         <i class="bi bi-arrow-left me-2"></i>
                         Back to Dashboard
                     </a>
-                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportCampaignModal">
-                        <i class="bi bi-download me-2"></i>
-                        Export Report
-                    </button>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-filter me-2"></i>
+                            Filter: {{ selected_period|title }}
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item {% if selected_period == '7days' %}active{% endif %}" href="?period=7days">Last 7 Days</a></li>
+                            <li><a class="dropdown-item {% if selected_period == '30days' %}active{% endif %}" href="?period=30days">Last 30 Days</a></li>
+                            <li><a class="dropdown-item {% if selected_period == '90days' %}active{% endif %}" href="?period=90days">Last 90 Days</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item {% if selected_period == 'current_month' %}active{% endif %}" href="?period=current_month">Current Month</a></li>
+                            <li><a class="dropdown-item {% if selected_period == 'previous_month' %}active{% endif %}" href="?period=previous_month">Previous Month</a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -97,25 +107,25 @@
                 </div>
             </div>
         </div>
-{% comment %} 
+
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-start border-warning border-4">
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col">
-                            <div class="text-warning text-uppercase small fw-bold">Budget</div>
-                            <div class="number display-6 fw-bold text-warning">${{ campaign_metrics.total_cost|floatformat:0|intcomma }}</div>
+                            <div class="text-warning text-uppercase small fw-bold">Work Days</div>
+                            <div class="number display-6 fw-bold text-warning">{{ campaign_metrics.total_work_days }}</div>
                             <div class="mt-2">
-                                <small class="text-muted">{{ campaign_metrics.budget_utilization }}% utilized</small>
+                                <small class="text-muted">{{ campaign_metrics.completion_percentage }}% completed</small>
                             </div>
                         </div>
                         <div class="col-auto">
-                            <i class="bi bi-cash-coin text-warning fs-1"></i>
+                            <i class="bi bi-calendar-check text-warning fs-1"></i>
                         </div>
                     </div>
                 </div>
             </div>
-        </div> {% endcomment %}
+        </div>
     </div>
 
     <!-- Campaign Progress -->
@@ -159,15 +169,17 @@
                                     </span>
                                 </div>
                                 <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span>Work Days</span>
-                                    <span class="fw-bold">{{ campaign_metrics.total_work_days }}</span>
+                                    <span>Productivity Avg</span>
+                                    <span class="fw-bold {% if campaign_metrics.avg_productivity >= 6 %}text-success{% else %}text-warning{% endif %}">
+                                        {{ campaign_metrics.avg_productivity }}h
+                                    </span>
                                 </div>
-                                {% if campaign.hour_rate %}
                                 <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span>Hour Rate</span>
-                                    <span class="fw-bold text-success">${{ campaign.hour_rate }}</span>
+                                    <span>Headcount Usage</span>
+                                    <span class="fw-bold {% if campaign_metrics.headcount_utilization >= 85 %}text-success{% elif campaign_metrics.headcount_utilization >= 70 %}text-warning{% else %}text-danger{% endif %}">
+                                        {{ campaign_metrics.headcount_utilization }}%
+                                    </span>
                                 </div>
-                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -302,11 +314,12 @@
     <div class="row">
         <div class="col-12">
             <div class="card shadow-sm">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-calendar-heart me-2"></i>
-                        7-Day Attendance Trends
+                        Attendance Trends - {{ selected_period|title }}
                     </h5>
+                    <span class="badge bg-secondary">{{ attendance_trends|length }} days</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -325,7 +338,7 @@
                                 <tr>
                                     <td>
                                         <strong>{{ trend.date|date:"M d, Y" }}</strong>
-                                        {% if forloop.first %}
+                                        {% if trend.is_today %}
                                         <span class="badge bg-primary ms-1">Today</span>
                                         {% endif %}
                                     </td>
@@ -339,20 +352,12 @@
                                         </span>
                                     </td>
                                     <td>
-                                        {% if forloop.counter0 > 0 %}
-                                            {% with prev_index=forloop.counter0|add:"-1" %}
-                                                {% with prev_trend=attendance_trends|slice:prev_index|first %}
-                                                    {% if trend.attendance_rate > prev_trend.attendance_rate %}
-                                                        <i class="bi bi-arrow-up-circle text-success" title="Improving"></i>
-                                                    {% elif trend.attendance_rate < prev_trend.attendance_rate %}
-                                                        <i class="bi bi-arrow-down-circle text-danger" title="Declining"></i>
-                                                    {% else %}
-                                                        <i class="bi bi-dash-circle text-muted" title="Stable"></i>
-                                                    {% endif %}
-                                                {% endwith %}
-                                            {% endwith %}
+                                        {% if trend.trend_direction == 'up' %}
+                                            <i class="bi bi-arrow-up-circle text-success" title="Improving"></i>
+                                        {% elif trend.trend_direction == 'down' %}
+                                            <i class="bi bi-arrow-down-circle text-danger" title="Declining"></i>
                                         {% else %}
-                                            <span class="text-muted">—</span>
+                                            <i class="bi bi-dash-circle text-muted" title="Stable"></i>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -366,68 +371,9 @@
     </div>
 </div>
 
-<!-- Export Campaign Modal -->
-<div class="modal fade" id="exportCampaignModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-download me-2"></i>
-                    Export Campaign Report
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="exportCampaignForm" action="#" method="GET">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Report Type</label>
-                        <select class="form-select" name="report_type" required>
-                            <option value="team_performance">Team Performance</option>
-                            <option value="attendance_detail">Attendance Details</option>
-                            <option value="financial_summary">Financial Summary</option>
-                            <option value="full_report">Full Campaign Report</option>
-                        </select>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Start Date</label>
-                            <input type="date" class="form-control" name="start_date" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">End Date</label>
-                            <input type="date" class="form-control" name="end_date" required>
-                        </div>
-                    </div>
-                    <div class="form-check mt-3">
-                        <input class="form-check-input" type="checkbox" name="include_charts" id="includeCharts">
-                        <label class="form-check-label" for="includeCharts">
-                            Include charts and graphs
-                        </label>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-file-earmark-excel me-2"></i>
-                        Export Report
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <!-- Live Timer Script -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-set export modal dates
-    const today = new Date();
-    const oneWeekAgo = new Date(today);
-    oneWeekAgo.setDate(today.getDate() - 7);
-    
-    document.querySelector('input[name="start_date"]').valueAsDate = oneWeekAgo;
-    document.querySelector('input[name="end_date"]').valueAsDate = today;
-    
     // Live counters functionality
     const counters = new Map();
 
@@ -492,15 +438,6 @@ document.addEventListener('DOMContentLoaded', function() {
 .number {
     font-size: 2.5rem;
 }
-
-.card {
-    transition: transform 0.2s ease-in-out;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-}
-
 .progress {
     background-color: #e9ecef;
 }

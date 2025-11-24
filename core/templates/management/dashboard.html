@@ -16,18 +16,22 @@
                 </h1>
                 <p class="page-subtitle">Executive overview and business intelligence</p>
             </div>
-            {% comment %} <div class="col-auto">
+            <div class="col-auto">
                 <div class="btn-group">
-                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
-                        <i class="bi bi-download me-2"></i>
-                        Export Report
+                    <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-filter me-2"></i>
+                        Filter: {{ selected_period|title }}
                     </button>
-                    <a href="{% url 'admin:index' %}" class="btn btn-outline-secondary">
-                        <i class="bi bi-gear me-2"></i>
-                        Admin Panel
-                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item {% if selected_period == '7days' %}active{% endif %}" href="?period=7days">Last 7 Days</a></li>
+                        <li><a class="dropdown-item {% if selected_period == '30days' %}active{% endif %}" href="?period=30days">Last 30 Days</a></li>
+                        <li><a class="dropdown-item {% if selected_period == '90days' %}active{% endif %}" href="?period=90days">Last 90 Days</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item {% if selected_period == 'current_month' %}active{% endif %}" href="?period=current_month">Current Month</a></li>
+                        <li><a class="dropdown-item {% if selected_period == 'previous_month' %}active{% endif %}" href="?period=previous_month">Previous Month</a></li>
+                    </ul>
                 </div>
-            </div> {% endcomment %}
+            </div>
         </div>
     </div>
 
@@ -63,9 +67,9 @@
                             <div class="text-success text-uppercase small fw-bold">Active Campaigns</div>
                             <div class="number display-6 fw-bold text-success">{{ active_campaigns }}</div>
                             <div class="mt-2">
-                                {% comment %} <span class="badge {% if campaigns_over_budget > 0 %}bg-danger{% else %}bg-success{% endif %}">
-                                    {{ campaigns_over_budget }} over budget
-                                </span> {% endcomment %}
+                                <span class="badge {% if campaigns_over_budget > 0 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ campaigns_over_budget }} need attention
+                                </span>
                             </div>
                         </div>
                         <div class="col-auto">
@@ -81,14 +85,14 @@
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col">
-                            <div class="text-info text-uppercase small fw-bold">Monthly Cost</div>
-                            <div class="number display-6 fw-bold text-info">${{ total_monthly_cost|floatformat:0|intcomma }}</div>
+                            <div class="text-info text-uppercase small fw-bold">Avg. Productivity</div>
+                            <div class="number display-6 fw-bold text-info">{{ avg_productivity|floatformat:1 }}h</div>
                             <div class="mt-2">
-                                <small class="text-muted">{{ budget_utilization_rate }}% budget used</small>
+                                <small class="text-muted">per employee/day</small>
                             </div>
                         </div>
                         <div class="col-auto">
-                            <i class="bi bi-cash-coin text-info fs-1"></i>
+                            <i class="bi bi-speedometer2 text-info fs-1"></i>
                         </div>
                     </div>
                 </div>
@@ -173,8 +177,7 @@
                                     <th>Online</th>
                                     <th>Attendance Rate</th>
                                     <th>Total Hours</th>
-                                    <th>Avg</th>
-                                    <th>Cost</th>
+                                    <th>Avg Productivity</th>
                                     <th>Completion</th>
                                 </tr>
                             </thead>
@@ -182,11 +185,11 @@
                                 {% for data in campaigns_data %}
                                 <tr>
                                     <td>
-                                            <strong>
-                                                <a href="{% url 'campaign_detail' data.campaign.id %}" class="text-decoration-none">
-                                                    {{ data.campaign.name }}
-                                                </a>
-                                            </strong>
+                                        <strong>
+                                            <a href="{% url 'campaign_detail' data.campaign.id %}" class="text-decoration-none">
+                                                {{ data.campaign.name }}
+                                            </a>
+                                        </strong>
                                         {% if data.campaign.client_name %}
                                         <br>
                                         <small class="text-muted">Client: {{ data.campaign.client_name }}</small>
@@ -239,22 +242,6 @@
                                         <div class="d-flex align-items-center">
                                             <div class="progress flex-grow-1 me-2" style="height: 6px;">
                                                 <div class="progress-bar 
-                                                    {% if data.budget_utilization <= 80 %}bg-success
-                                                    {% elif data.budget_utilization <= 95 %}bg-warning
-                                                    {% else %}bg-danger{% endif %}" 
-                                                    style="width: {{ data.budget_utilization }}%">
-                                                </div>
-                                            </div>
-                                            <small>${{ data.total_cost|floatformat:0|intcomma }}</small>
-                                        </div>
-                                        {% if data.campaign.base_salary %}
-                                        <small class="text-muted d-block">of ${{ data.campaign.base_salary|floatformat:0|intcomma }}</small>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="progress flex-grow-1 me-2" style="height: 6px;">
-                                                <div class="progress-bar 
                                                     {% if data.completion_percentage >= 80 %}bg-success
                                                     {% elif data.completion_percentage >= 50 %}bg-warning
                                                     {% else %}bg-info{% endif %}" 
@@ -267,7 +254,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="10" class="text-center text-muted py-4">
+                                    <td colspan="8" class="text-center text-muted py-4">
                                         <i class="bi bi-inbox display-4 d-block mb-2"></i>
                                         No active campaigns found
                                     </td>
@@ -281,7 +268,7 @@
         </div>
     </div>
 
-    <!-- Department Overview & Financial Summary -->
+    <!-- Department Overview & Productivity Summary -->
     <div class="row mb-4">
         <!-- Department Statistics -->
         <div class="col-lg-8 mb-4">
@@ -302,6 +289,7 @@
                                     <th>Supervisors</th>
                                     <th>Online Now</th>
                                     <th>Attendance Rate</th>
+                                    <th>Avg Productivity</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -336,6 +324,11 @@
                                             <small>{{ dept.attendance_rate }}%</small>
                                         </div>
                                     </td>
+                                    <td>
+                                        <span class="fw-bold {% if dept.avg_productivity >= 6 %}text-success{% else %}text-warning{% endif %}">
+                                            {{ dept.avg_productivity|floatformat:1 }}h
+                                        </span>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -345,54 +338,37 @@
             </div>
         </div>
 
-        {% comment %} <!-- Financial Quick Stats -->
+        <!-- Productivity Summary -->
         <div class="col-lg-4 mb-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-cash-stack me-2"></i>
-                        Financial Summary
+                        <i class="bi bi-speedometer me-2"></i>
+                        Productivity Summary
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="text-muted">Total Monthly Cost</span>
-                            <strong class="text-primary">${{ total_monthly_cost|floatformat:0|intcomma }}</strong>
+                            <span class="text-muted">Overall Productivity</span>
+                            <strong class="text-primary">{{ avg_productivity|floatformat:1 }}h/day</strong>
                         </div>
                         <div class="progress" style="height: 8px;">
-                            <div class="progress-bar bg-primary" style="width: {{ budget_utilization_rate }}%"></div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="text-muted">Budget Utilization</span>
-                            <strong class="{% if budget_utilization_rate > 90 %}text-danger{% elif budget_utilization_rate > 75 %}text-warning{% else %}text-success{% endif %}">
-                                {{ budget_utilization_rate }}%
-                            </strong>
-                        </div>
-                        <div class="progress" style="height: 8px;">
-                            <div class="progress-bar 
-                                {% if budget_utilization_rate > 90 %}bg-danger
-                                {% elif budget_utilization_rate > 75 %}bg-warning
-                                {% else %}bg-success{% endif %}" 
-                                style="width: {{ budget_utilization_rate }}%">
-                            </div>
+                            <div class="progress-bar bg-primary" style="width: {{ productivity_percentage }}%"></div>
                         </div>
                     </div>
 
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span class="text-muted">Headcount Utilization</span>
-                            <strong class="{% if headcount_utilization_rate > 95 %}text-danger{% elif headcount_utilization_rate > 85 %}text-warning{% else %}text-success{% endif %}">
+                            <strong class="{% if headcount_utilization_rate > 95 %}text-warning{% elif headcount_utilization_rate > 85 %}text-info{% else %}text-success{% endif %}">
                                 {{ headcount_utilization_rate }}%
                             </strong>
                         </div>
                         <div class="progress" style="height: 8px;">
                             <div class="progress-bar 
-                                {% if headcount_utilization_rate > 95 %}bg-danger
-                                {% elif headcount_utilization_rate > 85 %}bg-warning
+                                {% if headcount_utilization_rate > 95 %}bg-warning
+                                {% elif headcount_utilization_rate > 85 %}bg-info
                                 {% else %}bg-success{% endif %}" 
                                 style="width: {{ headcount_utilization_rate }}%">
                             </div>
@@ -402,29 +378,30 @@
                     <div class="mt-4 pt-3 border-top">
                         <div class="row text-center">
                             <div class="col-6">
-                                <div class="text-muted small">On Budget</div>
-                                <strong class="text-success">{{ active_campaigns|add:"-campaigns_over_budget" }}</strong>
+                                <div class="text-muted small">Optimal</div>
+                                <strong class="text-success">{{ optimal_campaigns }}</strong>
                             </div>
                             <div class="col-6">
-                                <div class="text-muted small">Over Budget</div>
-                                <strong class="text-danger">{{ campaigns_over_budget }}</strong>
+                                <div class="text-muted small">Needs Attention</div>
+                                <strong class="text-warning">{{ campaigns_over_budget }}</strong>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div> {% endcomment %}
+    </div>
 
     <!-- Attendance Trends -->
     <div class="row">
         <div class="col-12">
             <div class="card shadow-sm">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-graph-up me-2"></i>
-                        7-Day Attendance Trends
+                        Attendance Trends - {{ selected_period|title }}
                     </h5>
+                    <span class="badge bg-secondary">{{ attendance_trends|length }} days</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -443,7 +420,7 @@
                                 <tr>
                                     <td>
                                         <strong>{{ trend.date|date:"M d, Y" }}</strong>
-                                        {% if forloop.first %}
+                                        {% if trend.is_today %}
                                         <span class="badge bg-primary ms-1">Today</span>
                                         {% endif %}
                                     </td>
@@ -457,20 +434,12 @@
                                         </span>
                                     </td>
                                     <td>
-                                        {% if forloop.counter0 > 0 %}
-                                            {% with prev_index=forloop.counter0|add:"-1" %}
-                                                {% with prev_trend=attendance_trends|slice:prev_index|first %}
-                                                    {% if trend.attendance_rate > prev_trend.attendance_rate %}
-                                                        <i class="bi bi-arrow-up-circle text-success" title="Improving"></i>
-                                                    {% elif trend.attendance_rate < prev_trend.attendance_rate %}
-                                                        <i class="bi bi-arrow-down-circle text-danger" title="Declining"></i>
-                                                    {% else %}
-                                                        <i class="bi bi-dash-circle text-muted" title="Stable"></i>
-                                                    {% endif %}
-                                                {% endwith %}
-                                            {% endwith %}
+                                        {% if trend.trend_direction == 'up' %}
+                                            <i class="bi bi-arrow-up-circle text-success" title="Improving"></i>
+                                        {% elif trend.trend_direction == 'down' %}
+                                            <i class="bi bi-arrow-down-circle text-danger" title="Declining"></i>
                                         {% else %}
-                                            <span class="text-muted">—</span>
+                                            <i class="bi bi-dash-circle text-muted" title="Stable"></i>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -479,57 +448,6 @@
                         </table>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Export Modal -->
-<div class="modal fade" id="exportModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-download me-2"></i>
-                    Export Management Report
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="exportForm" action="#" method="GET">
-                    <div class="mb-3">
-                        <label class="form-label">Report Type</label>
-                        <select class="form-select" name="report_type" required>
-                            <option value="executive_summary">Executive Summary</option>
-                            <option value="campaign_performance">Campaign Performance</option>
-                            <option value="department_analytics">Department Analytics</option>
-                            <option value="attendance_trends">Attendance Trends</option>
-                        </select>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Start Date</label>
-                            <input type="date" class="form-control" name="start_date" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">End Date</label>
-                            <input type="date" class="form-control" name="end_date" required>
-                        </div>
-                    </div>
-                    <div class="form-check mt-3">
-                        <input class="form-check-input" type="checkbox" name="include_charts" id="includeCharts">
-                        <label class="form-check-label" for="includeCharts">
-                            Include charts and graphs
-                        </label>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" form="exportForm" class="btn btn-primary">
-                    <i class="bi bi-file-earmark-excel me-2"></i>
-                    Export Report
-                </button>
             </div>
         </div>
     </div>
@@ -547,13 +465,7 @@
     font-size: 2.5rem;
 }
 
-.card {
-    transition: transform 0.2s ease-in-out;
-}
 
-.card:hover {
-    transform: translateY(-2px);
-}
 
 .progress {
     background-color: #e9ecef;
@@ -582,25 +494,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-set export modal dates
-    const today = new Date();
-    const oneWeekAgo = new Date(today);
-    oneWeekAgo.setDate(today.getDate() - 7);
-    
-    document.querySelector('input[name="start_date"]').valueAsDate = oneWeekAgo;
-    document.querySelector('input[name="end_date"]').valueAsDate = today;
-    
     // Auto-refresh dashboard every 2 minutes
     setInterval(() => {
         window.location.reload();
     }, 120000);
 
-    // Add tooltips to trend arrows
-    const trendIcons = document.querySelectorAll('.bi-arrow-up-circle, .bi-arrow-down-circle, .bi-dash-circle');
-    trendIcons.forEach(icon => {
-        icon.setAttribute('data-bs-toggle', 'tooltip');
-    });
-    
     // Initialize tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {

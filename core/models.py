@@ -82,7 +82,6 @@ class Position(models.Model):
         verbose_name_plural = "Positions"
 
 
-
 class Employee(models.Model):
     GENDER_CHOICES = [
         ('M', 'Male'),
@@ -220,7 +219,6 @@ class BulkInvitation(models.Model):
         return f"Bulk invitation {self.id} - {self.campaign.name}"
 
 
-
 class PaymentConcept(models.Model):
     TYPE_CHOICES = [
         ('earning', 'Earning'),
@@ -319,6 +317,22 @@ class Payment(models.Model):
         verbose_name_plural = "Payments"
         unique_together = ['employee', 'period']
     
+
+class PaymentDetail(models.Model):
+    """Detalles de ganancias y deducciones para cada pago"""
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name='details')
+    concept = models.ForeignKey(PaymentConcept, on_delete=models.CASCADE)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    comments = models.TextField(blank=True, null=True)
+    
+    def __str__(self):
+        return f"{self.concept.name} - {self.amount}"
+
+    class Meta:
+        verbose_name = "Payment Detail"
+        verbose_name_plural = "Payment Details"
 
 
 @receiver(pre_save, sender=Payment)

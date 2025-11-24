@@ -90,8 +90,8 @@
 
 <script>
     // Get break and lunch duration from database
-    const BREAK_DURATION = {{ employee.current_campaign.break_duration|default:15 }};
-    const LUNCH_DURATION = {{ employee.current_campaign.lunch|default:45 }};
+    const BREAK_DURATION = {{ campaign.break_duraction }};
+    const LUNCH_DURATION = {{ campaign.lunch }};
 
     // Variables globales para almacenar datos temporales
     let pendingSessionType = null;

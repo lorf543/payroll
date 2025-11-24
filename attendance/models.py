@@ -2,8 +2,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-from datetime import datetime, timedelta
-import humanize
+from datetime import timedelta
+from decimal import Decimal
 import logging
 
 
@@ -40,17 +40,35 @@ class WorkDay(models.Model):
     productive_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     break_count = models.IntegerField(default=0)
     
+    # NUEVOS CAMPOS PARA NÓMINA
+    is_approved = models.BooleanField(default=False)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_workdays')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Cálculos de pago
+    regular_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    overtime_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    night_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    holiday_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    
+    regular_pay = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    overtime_pay = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_pay = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Tarifas aplicadas (para auditoría)
+    regular_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    overtime_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    #adjustment fields
+    # Adjustment fields
     last_adjustment_reason = models.TextField(blank=True, null=True)
     adjustment_history = models.JSONField(default=list, blank=True) 
-
     last_adjusted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     last_adjustment_date = models.DateTimeField(null=True, blank=True)
-    adjustment_count_field = models.IntegerField(default=0)  # Renombrado para evitar conflicto
+    adjustment_count_field = models.IntegerField(default=0)
     
     class Meta:
         unique_together = ['employee', 'date']
@@ -58,12 +76,66 @@ class WorkDay(models.Model):
         indexes = [
             models.Index(fields=['date', 'status']),
             models.Index(fields=['employee', 'date']),
+            models.Index(fields=['is_approved', 'date']),  # Nuevo índice
         ]
 
     def __str__(self):
         return f"{self.employee} - {self.date} - {self.status}"
     
+    def save(self, *args, **kwargs):
+        # Calcular horas automáticamente antes de guardar
+        if self.productive_hours > 0:
+            self.calculate_pay()
+        super().save(*args, **kwargs)
+    
+    def calculate_pay(self):
+        """Calcular pagos basado en horas trabajadas"""
+        # Determinar tarifas
+        if self.employee.fixed_rate and self.employee.custom_base_salary:
+            # Empleado con salario fijo
+            daily_rate = self.employee.custom_base_salary / 30  # Aproximación mensual
+            self.regular_rate = daily_rate / 8 if self.productive_hours > 0 else 0
+        elif self.employee.position and self.employee.position.hour_rate:
+            # Tarifa por posición
+            self.regular_rate = self.employee.position.hour_rate
+        elif self.employee.current_campaign and self.employee.current_campaign.hour_rate:
+            # Tarifa por campaña
+            self.regular_rate = self.employee.current_campaign.hour_rate
+        else:
+            # Tarifa por defecto
+            self.regular_rate = Decimal('0.00')
+        
+        # Calcular horas regulares vs overtime
+        if self.productive_hours <= 8:
+            self.regular_hours = self.productive_hours
+            self.overtime_hours = Decimal('0.00')
+        else:
+            self.regular_hours = Decimal('8.00')
+            self.overtime_hours = self.productive_hours - Decimal('8.00')
+        
+        # Calcular overtime rate (1.5x regular rate)
+        self.overtime_rate = self.regular_rate * Decimal('1.5')
+        
+        # Calcular pagos
+        self.regular_pay = self.regular_hours * self.regular_rate
+        self.overtime_pay = self.overtime_hours * self.overtime_rate
+        self.total_pay = self.regular_pay + self.overtime_pay
+    
+    def approve(self, approved_by_user):
+        """Aprobar día para nómina"""
+        self.is_approved = True
+        self.approved_by = approved_by_user
+        self.approved_at = timezone.now()
+        self.save()
+    
+    def unapprove(self):
+        """Desaprobar día"""
+        self.is_approved = False
+        self.approved_by = None
+        self.approved_at = None
+        self.save()
 
+    # Tus métodos existentes se mantienen...
     def add_adjustment_record(self, adjusted_by, reason="", sessions_affected=None):
         """Agregar registro al historial de ajustes"""
         adjustment_record = {
@@ -86,7 +158,7 @@ class WorkDay(models.Model):
         self.last_adjustment_date = timezone.now()
         self.adjustment_count_field += 1
         self.save()
-    
+
     def update_adjustment_info(self, adjusted_by):
         """Actualizar información de ajustes"""
         self.last_adjusted_by = adjusted_by

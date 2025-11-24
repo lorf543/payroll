@@ -111,7 +111,7 @@
                             <i class="bi bi-funnel me-2"></i>
                             Apply Filters
                         </button>
-                        <a href="" class="btn btn-outline-secondary">
+                        <a hx-boost="true" href="{{request.path}}" class="btn btn-outline-secondary" id="clearBtn">
                             Clear
                         </a>
                     </div>
@@ -292,6 +292,8 @@
         </div>
     </div>
 </div>
+
+
 
 <style>
 .avatar-lg {

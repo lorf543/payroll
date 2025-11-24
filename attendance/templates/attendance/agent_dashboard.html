@@ -36,8 +36,8 @@
                     <h5 class="card-title mb-0">Activity Controls</h5>
                 </div>
                 <div class="card-body">
-                    {% include "attendance/partials/activity_controls.html" %}
-                </div>
+                    {% include "attendance/partials/activity_controls.html" with campaign=employee.current_campaign  %}
+                </div>                
             </div>
         </div>
 
