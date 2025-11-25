@@ -11,6 +11,29 @@ from django.http import JsonResponse
 from core.models import Employee, Payment, PaymentConcept,PaymentDetail, PayPeriod
 from attendance.models import WorkDay
 
+from decimal import Decimal, InvalidOperation
+
+def to_decimal(value, default=0):
+    """Safely convert any value to Decimal"""
+    if value is None:
+        return Decimal(str(default))
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal(str(default))
+
+def to_float(value, default=0):
+    """Safely convert any value to float"""
+    if value is None:
+        return float(default)
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
 
 
 @login_required
@@ -98,55 +121,55 @@ def create_pay_period(request):
 
 
 
-
 @login_required
 def review_pay_period(request, period_id):
-    """Revisar y gestionar un período de pago completo"""
+    """Review and manage a complete pay period"""
     period = get_object_or_404(PayPeriod, id=period_id)
     
-    # Obtener todos los empleados activos
+    # Get all active employees
     active_employees = Employee.objects.filter(is_active=True)
     
-    # Preparar datos para cada empleado
+    # Prepare data for each employee
     employees_data = []
     total_gross = Decimal('0.00')
     total_net = Decimal('0.00')
     
     for employee in active_employees:
-        # Obtener workdays del empleado en el período
+        # Get employee workdays in the period
         workdays = WorkDay.objects.filter(
             employee=employee,
             date__range=[period.start_date, period.end_date]
         ).order_by('date')
         
-        # Calcular totales
+        # Calculate totals
         workdays_data = []
         employee_gross = Decimal('0.00')
         employee_approved = True
         
         for workday in workdays:
-            # Calcular pago si no está calculado
+            # Calculate pay if not calculated
             if workday.total_pay == 0 and workday.productive_hours > 0:
                 workday.calculate_pay()
                 workday.save()
             
             workdays_data.append(workday)
-            employee_gross += workday.total_pay
+            employee_gross += Decimal(str(workday.total_pay))
             
-            # Verificar si todos están aprobados
+            # Check if all are approved
             if not workday.is_approved:
                 employee_approved = False
         
-        # Calcular deducciones y neto
+        # Calculate deductions and net
         employee_net = calculate_employee_net_salary(employee, employee_gross)
         
+        # Convert to float for template display
         employees_data.append({
             'employee': employee,
             'workdays': workdays_data,
             'workdays_count': len(workdays_data),
             'approved_count': sum(1 for w in workdays_data if w.is_approved),
-            'total_gross': employee_gross,
-            'total_net': employee_net,
+            'total_gross': float(employee_gross),  # Convert to float for template
+            'total_net': float(employee_net),      # Convert to float for template
             'fully_approved': employee_approved,
             'has_workdays': len(workdays_data) > 0,
         })
@@ -154,7 +177,7 @@ def review_pay_period(request, period_id):
         total_gross += employee_gross
         total_net += employee_net
     
-    # Estadísticas del período
+    # Period statistics
     all_workdays = WorkDay.objects.filter(
         date__range=[period.start_date, period.end_date],
         employee__is_active=True
@@ -165,8 +188,8 @@ def review_pay_period(request, period_id):
         'employees_with_workdays': sum(1 for ed in employees_data if ed['has_workdays']),
         'total_workdays': all_workdays.count(),
         'approved_workdays': all_workdays.filter(is_approved=True).count(),
-        'total_gross': total_gross,
-        'total_net': total_net,
+        'total_gross': float(total_gross),  # Convert to float for template
+        'total_net': float(total_net),      # Convert to float for template
         'all_approved': all(ed['fully_approved'] for ed in employees_data if ed['has_workdays']),
     }
     
@@ -181,40 +204,52 @@ def review_pay_period(request, period_id):
 
 
 def calculate_employee_net_salary(employee, gross_salary):
-    """Calcular salario neto con deducciones"""
-    if gross_salary == 0:
+    """Calculate net salary with deductions"""
+    from decimal import Decimal
+    
+    # Convertir gross_salary a Decimal si es necesario
+    if isinstance(gross_salary, Decimal):
+        gross = gross_salary
+    else:
+        gross = Decimal(str(gross_salary))
+    
+    if gross == Decimal('0.00'):
         return Decimal('0.00')
     
-    # AFP (2.87%)
-    afp = gross_salary * Decimal('0.0287')
-    
-    # SFS (3.04%)
-    sfs = gross_salary * Decimal('0.0304')
-    
-    # ISR (simplificado - deberías implementar tablas reales)
-    isr = calculate_isr(gross_salary)
+    # Usar Decimal para todos los cálculos
+    afp = gross * Decimal('0.0287')  # AFP (2.87%)
+    sfs = gross * Decimal('0.0304')  # SFS (3.04%)
+    isr = calculate_isr(gross)       # ISR
     
     total_deductions = afp + sfs + isr
-    return gross_salary - total_deductions
-
-
+    return gross - total_deductions
 
 def calculate_isr(gross_salary):
-    """Cálculo simplificado de ISR"""
-    # Esto es un ejemplo - implementa las tablas reales del ISR
-    if gross_salary <= Decimal('416220.00'):  # Límite de exención
-        return Decimal('0.00')
-    elif gross_salary <= Decimal('624329.00'):
-        return (gross_salary - Decimal('416220.00')) * Decimal('0.15')
-    else:
-        exceso = gross_salary - Decimal('624329.00')
-        return (Decimal('624329.00') - Decimal('416220.00')) * Decimal('0.15') + exceso * Decimal('0.20')
+    """Simplified ISR calculation with Decimal"""
+    from decimal import Decimal
     
-
+    # Convertir a Decimal si es necesario
+    if isinstance(gross_salary, Decimal):
+        gross = gross_salary
+    else:
+        gross = Decimal(str(gross_salary))
+    
+    # Límites en Decimal
+    exemption_limit = Decimal('416220.00')
+    bracket_limit = Decimal('624329.00')
+    
+    if gross <= exemption_limit:
+        return Decimal('0.00')
+    elif gross <= bracket_limit:
+        return (gross - exemption_limit) * Decimal('0.15')
+    else:
+        excess = gross - bracket_limit
+        base_bracket = bracket_limit - exemption_limit
+        return (base_bracket * Decimal('0.15')) + (excess * Decimal('0.20'))
 
 @login_required
 def approve_all_workdays(request, period_id):
-    """Aprobar todos los workdays del período"""
+    """Approve all workdays in the period"""
     period = get_object_or_404(PayPeriod, id=period_id)
     
     workdays = WorkDay.objects.filter(
@@ -228,15 +263,15 @@ def approve_all_workdays(request, period_id):
         workday.approve(request.user)
         approved_count += 1
     
-    messages.success(request, f"{approved_count} días trabajados aprobados.")
-    return redirect('review_pay_period', period_id=period_id)
+    messages.success(request, f"{approved_count} work days approved.")
+    return redirect('nomina:review_period', period_id=period_id)
 
 @login_required
 def generate_payroll(request, period_id):
-    """Generar nómina completa para el período"""
+    """Generate complete payroll for the period"""
     period = get_object_or_404(PayPeriod, id=period_id)
     
-    # Verificar que todos los workdays estén aprobados
+    # Verify all workdays are approved
     unapproved_count = WorkDay.objects.filter(
         date__range=[period.start_date, period.end_date],
         employee__is_active=True,
@@ -245,12 +280,12 @@ def generate_payroll(request, period_id):
     
     if unapproved_count > 0:
         messages.warning(request, 
-            f"Hay {unapproved_count} días trabajados sin aprobar. "
-            f"Por favor aprueba todos los días antes de generar la nómina."
+            f"There are {unapproved_count} unapproved work days. "
+            f"Please approve all days before generating payroll."
         )
-        return redirect('review_pay_period', period_id=period_id)
+        return redirect('nomina:review_period', period_id=period_id)
     
-    # Generar pagos para cada empleado
+    # Generate payments for each employee
     created_count = 0
     active_employees = Employee.objects.filter(is_active=True)
     
@@ -261,10 +296,13 @@ def generate_payroll(request, period_id):
             is_approved=True
         )
         
-        total_gross = sum(workday.total_pay for workday in workdays)
+        # Use Decimal for calculation
+        total_gross = Decimal('0.00')
+        for workday in workdays:
+            total_gross += Decimal(str(workday.total_pay))
         
-        if total_gross > 0:
-            # Crear o actualizar pago
+        if total_gross > Decimal('0.00'):
+            # Create or update payment
             payment, created = Payment.objects.update_or_create(
                 employee=employee,
                 period=period,
@@ -278,12 +316,19 @@ def generate_payroll(request, period_id):
             if created:
                 created_count += 1
     
+    # Calculate total using aggregation
+    from django.db.models import Sum
+    total_period_result = Payment.objects.filter(period=period).aggregate(
+        total=Sum('gross_salary')
+    )
+    total_period = total_period_result['total'] or Decimal('0.00')
+    
     messages.success(request, 
-        f"Nómina generada exitosamente para {created_count} empleados. "
-        f"Total período: ${sum(p.gross_salary for p in Payment.objects.filter(period=period)):,.2f}"
+        f"Payroll generated successfully for {created_count} employees. "
+        f"Period total: ${float(total_period):,.2f}"  # Convert to float for display
     )
     
-    return redirect('review_pay_period', period_id=period_id)
+    return redirect('nomina:review_period', period_id=period_id)
 
 @login_required
 def toggle_workday_approval(request, workday_id):

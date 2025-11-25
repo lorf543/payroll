@@ -88,30 +88,41 @@ class WorkDay(models.Model):
             self.calculate_pay()
         super().save(*args, **kwargs)
     
+    # En models.py - método calculate_pay
     def calculate_pay(self):
         """Calcular pagos basado en horas trabajadas"""
-        # Determinar tarifas
-        if self.employee.fixed_rate and self.employee.custom_base_salary:
-            # Empleado con salario fijo
-            daily_rate = self.employee.custom_base_salary / 30  # Aproximación mensual
-            self.regular_rate = daily_rate / 8 if self.productive_hours > 0 else 0
-        elif self.employee.position and self.employee.position.hour_rate:
-            # Tarifa por posición
-            self.regular_rate = self.employee.position.hour_rate
-        elif self.employee.current_campaign and self.employee.current_campaign.hour_rate:
-            # Tarifa por campaña
-            self.regular_rate = self.employee.current_campaign.hour_rate
+        from decimal import Decimal
+        
+        # Convertir productive_hours a Decimal de forma segura
+        if isinstance(self.productive_hours, (int, float)):
+            productive_hours = Decimal(str(self.productive_hours))
         else:
-            # Tarifa por defecto
+            # Si ya es Decimal o otro tipo
+            productive_hours = Decimal(str(self.productive_hours))
+        
+        # Determinar tarifas - convertir todo a Decimal
+        if self.employee.fixed_rate and self.employee.custom_base_salary:
+            # Convertir a Decimal
+            custom_salary = Decimal(str(self.employee.custom_base_salary))
+            daily_rate = custom_salary / Decimal('30')
+            self.regular_rate = daily_rate / Decimal('8') if productive_hours > Decimal('0') else Decimal('0')
+        
+        elif self.employee.position and self.employee.position.hour_rate:
+            self.regular_rate = Decimal(str(self.employee.position.hour_rate))
+        
+        elif self.employee.current_campaign and self.employee.current_campaign.hour_rate:
+            self.regular_rate = Decimal(str(self.employee.current_campaign.hour_rate))
+        
+        else:
             self.regular_rate = Decimal('0.00')
         
         # Calcular horas regulares vs overtime
-        if self.productive_hours <= 8:
-            self.regular_hours = self.productive_hours
+        if productive_hours <= Decimal('8'):
+            self.regular_hours = productive_hours
             self.overtime_hours = Decimal('0.00')
         else:
             self.regular_hours = Decimal('8.00')
-            self.overtime_hours = self.productive_hours - Decimal('8.00')
+            self.overtime_hours = productive_hours - Decimal('8.00')
         
         # Calcular overtime rate (1.5x regular rate)
         self.overtime_rate = self.regular_rate * Decimal('1.5')
@@ -120,7 +131,14 @@ class WorkDay(models.Model):
         self.regular_pay = self.regular_hours * self.regular_rate
         self.overtime_pay = self.overtime_hours * self.overtime_rate
         self.total_pay = self.regular_pay + self.overtime_pay
-    
+        
+        # Asegurar que todos los campos sean Decimal
+        self.regular_hours = Decimal(str(self.regular_hours))
+        self.overtime_hours = Decimal(str(self.overtime_hours))
+        self.regular_pay = Decimal(str(self.regular_pay))
+        self.overtime_pay = Decimal(str(self.overtime_pay))
+        self.total_pay = Decimal(str(self.total_pay))
+        
     def approve(self, approved_by_user):
         """Aprobar día para nómina"""
         self.is_approved = True
