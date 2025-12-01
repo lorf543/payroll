@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'attendance',
     'hhrr',
     'payment',
+    'it_management'
 ]
 
 
@@ -247,15 +248,15 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'
 # ==============================================================================
 #email backend
 # ==============================================================================
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development
+
 # For production:
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'your-smtp-server.com'
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'your-email'
-# EMAIL_HOST_PASSWORD = 'your-password'
-DEFAULT_FROM_EMAIL = 'noreply@yourcompany.com'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'lorf543@gmail.com'
+EMAIL_HOST_PASSWORD = 'mgnreflxbqvdykee'
+DEFAULT_FROM_EMAIL = 'noreply@helium.com.co'
 
 
 

@@ -141,7 +141,12 @@
                                 <div class="d-flex align-items-center">
                                     <div>
                                         <h6 class="mb-0">
-                                            {{ employee.user.get_full_name|default:employee.user.username }}
+                                            
+                                            {% if employee.user.get_full_name %}
+                                                {{ employee.user.get_full_name|default:employee.user.username }}
+                                            {% endif %}
+                                                
+
                                         </h6>
                                         <small class="text-muted">{{ employee.employee_code }}</small>
                                     </div>

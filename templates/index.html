@@ -160,54 +160,6 @@
         <!-- Employee Info & Quick Actions -->
         <div class="col-lg-4 mb-4">
             <!-- Employee Profile Card -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-person-circle me-2"></i>
-                        Employee Profile
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="employee-avatar bg-primary me-3">
-                            {{ employee.user.first_name|first }}{{ employee.user.last_name|first }}
-                        </div>
-                        <div>
-                            <h6 class="mb-1">{{ employee.first_name }} {{ employee.last_name }}</h6>
-                            <small class="text-muted">
-                                {% if employee.position %}
-                                    {{ employee.position.title }}
-                                {% else %}
-                                    Employee
-                                {% endif %}
-                            </small>
-                        </div>
-                    </div>
-                    
-                    <div class="employee-details">
-                        <div class="row small text-muted">
-                            <div class="col-12 mb-2">
-                                <i class="bi bi-building me-2"></i>
-                                {% if employee.department %}
-                                    {{ employee.department.name }}
-                                {% else %}
-                                    No Department
-                                {% endif %}
-                            </div>
-                            <div class="col-12 mb-2">
-                                <i class="bi bi-person-badge me-2"></i>
-                                Employee #{{ employee.id }}
-                            </div>
-                            {% if employee.user.email %}
-                            <div class="col-12">
-                                <i class="bi bi-envelope me-2"></i>
-                                {{ employee.user.email }}
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             <!-- Quick Actions -->
             <div class="card shadow-sm">
@@ -223,7 +175,7 @@
                             <i class="bi bi-clock me-2"></i>
                             Time & Attendance
                         </a>
-                        <a href="" class="btn btn-outline-success">
+                        <a href="{% url 'nomina:employee_payments' %}" class="btn btn-outline-success">
                             <i class="bi bi-cash-coin me-2"></i>
                             Payroll Details
                         </a>
@@ -240,43 +192,17 @@
             </div>
         </div>
     </div>
-
-    <!-- Last Payment Details (if exists) -->
-    {% if last_payment %}
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card shadow-sm bg-light">
-                <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-info-circle me-2"></i>
-                        Last Payment Details
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 text-center">
-                            <div class="text-primary fw-bold fs-4">${{ last_payment.net_salary|floatformat:2|intcomma }}</div>
-                            <small class="text-muted">Net Amount</small>
-                        </div>
-                        <div class="col-md-3 text-center">
-                            <div class="fw-bold">{{ last_payment.pay_date|date:"F d, Y" }}</div>
-                            <small class="text-muted">Payment Date</small>
-                        </div>
-                        <div class="col-md-3 text-center">
-                            <div class="fw-bold">${{ last_payment.gross_salary|floatformat:2|intcomma }}</div>
-                            <small class="text-muted">Gross Salary</small>
-                        </div>
-                        <div class="col-md-3 text-center">
-                            <div class="fw-bold text-danger">${{ last_payment.total_deductions|floatformat:2|intcomma }}</div>
-                            <small class="text-muted">Total Deductions</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 </div>
+
+
+                                    <a href="{% url 'nomina:employee_payments' %}" class="btn btn-outline-primary">
+                <i class="bi bi-wallet2 me-2"></i>
+                Review My Payments
+            </a>
+            <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-success">
+                <i class="bi bi-clock me-2"></i>
+                Time & Attendance
+            </a>
 
 <style>
 .employee-avatar {

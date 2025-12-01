@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Crear Período de Pago{% endblock %}
+{% block title %}Create Pay Period{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -11,78 +11,83 @@
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-plus-circle me-2"></i>
-                        Crear Nuevo Período de Pago
+                        Create New Pay Period
                     </h5>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" id="payPeriodForm">
                         {% csrf_token %}
                         
                         <div class="row g-3">
-                            <!-- Nombre del Período -->
+                            <!-- Period Name -->
                             <div class="col-md-6">
-                                <label class="form-label">Nombre del Período *</label>
-                                <input type="text" class="form-control" name="name" required
-                                       placeholder="Ej: Quincena Enero 1-15">
+                                <label for="name" class="form-label">Period Name *</label>
+                                <input type="text" class="form-control" id="name" name="name" required
+                                       placeholder="e.g., January 1-15 Payroll" maxlength="100">
+                                <div class="form-text">A descriptive name for this pay period</div>
                             </div>
 
-                            <!-- Frecuencia -->
+                            <!-- Frequency -->
                             <div class="col-md-6">
-                                <label class="form-label">Frecuencia *</label>
-                                <select class="form-select" name="frequency" required>
-                                    <option value="">Seleccionar frecuencia...</option>
-                                    <option value="weekly">Semanal</option>
-                                    <option value="biweekly">Quincenal</option>
-                                    <option value="monthly">Mensual</option>
+                                <label for="frequency" class="form-label">Frequency *</label>
+                                <select class="form-select" id="frequency" name="frequency" required>
+                                    <option value="">Select frequency...</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="biweekly">Biweekly</option>
+                                    <option value="monthly">Monthly</option>
                                 </select>
                             </div>
 
-                            <!-- Fecha de Inicio -->
+                            <!-- Start Date -->
                             <div class="col-md-4">
-                                <label class="form-label">Fecha de Inicio *</label>
-                                <input type="date" class="form-control" name="start_date" required
-                                       value="{{ today|date:'Y-m-d' }}">
+                                <label for="start_date" class="form-label">Start Date *</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" required>
                             </div>
 
-                            <!-- Fecha de Fin -->
+                            <!-- End Date -->
                             <div class="col-md-4">
-                                <label class="form-label">Fecha de Fin *</label>
-                                <input type="date" class="form-control" name="end_date" required
-                                       value="{{ today|date:'Y-m-d' }}">
+                                <label for="end_date" class="form-label">End Date *</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" required>
                             </div>
 
-                            <!-- Fecha de Pago -->
+                            <!-- Pay Date -->
                             <div class="col-md-4">
-                                <label class="form-label">Fecha de Pago *</label>
-                                <input type="date" class="form-control" name="pay_date" required
-                                       value="{{ today|date:'Y-m-d' }}">
+                                <label for="pay_date" class="form-label">Pay Date *</label>
+                                <input type="date" class="form-control" id="pay_date" name="pay_date" required>
                             </div>
                         </div>
 
-                        <!-- Información del Período -->
+                        <!-- Validation Messages -->
+                        <div id="dateValidation" class="alert alert-warning mt-3 d-none">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <span id="validationMessage"></span>
+                        </div>
+
+                        <!-- Period Information -->
                         <div class="alert alert-info mt-4">
                             <h6 class="alert-heading">
                                 <i class="bi bi-info-circle me-2"></i>
-                                Información del Período
+                                Period Information
                             </h6>
                             <ul class="mb-0">
-                                <li>Se incluirán automáticamente todos los empleados activos</li>
-                                <li>Se buscarán los días trabajados en el rango de fechas seleccionado</li>
-                                <li>Los pagos se calcularán basado en las tarifas configuradas</li>
+                                <li>All active employees will be automatically included</li>
+                                <li>Work days will be searched within the selected date range</li>
+                                <li>Payments will be calculated based on configured rates</li>
+                                <li>You can review and approve individual work days after creation</li>
                             </ul>
                         </div>
 
-                        <!-- Botones -->
+                        <!-- Buttons -->
                         <div class="row mt-4">
                             <div class="col-12">
                                 <div class="d-flex justify-content-between">
                                     <a href="{% url 'nomina:dashboard' %}" class="btn btn-secondary">
                                         <i class="bi bi-arrow-left me-2"></i>
-                                        Cancelar
+                                        Cancel
                                     </a>
-                                    <button type="submit" class="btn btn-primary">
+                                    <button type="submit" class="btn btn-primary" id="submitBtn">
                                         <i class="bi bi-check-circle me-2"></i>
-                                        Crear Período
+                                        Create Period
                                     </button>
                                 </div>
                             </div>
@@ -96,34 +101,138 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Get DOM elements
+    const form = document.getElementById('payPeriodForm');
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    const payDateInput = document.getElementById('pay_date');
+    const frequencySelect = document.getElementById('frequency');
+    const validationDiv = document.getElementById('dateValidation');
+    const validationMessage = document.getElementById('validationMessage');
+    const submitBtn = document.getElementById('submitBtn');
+
     // Set default dates
-    const today = new Date();
-    const startDate = new Date(today);
-    const endDate = new Date(today);
-    const payDate = new Date(today);
-    
-    // Set start date to Monday of current week
-    startDate.setDate(today.getDate() - today.getDay() + 1);
-    
-    // Set end date to Friday of current week
-    endDate.setDate(startDate.getDate() + 4);
-    
-    // Set pay date to next Friday
-    payDate.setDate(endDate.getDate() + 7);
-    
-    // Format dates as YYYY-MM-DD
-    function formatDate(date) {
-        return date.toISOString().split('T')[0];
+    function setDefaultDates() {
+        const today = new Date();
+        
+        // Set start date to Monday of current week
+        const startDate = new Date(today);
+        const dayOfWeek = startDate.getDay();
+        const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        startDate.setDate(today.getDate() + diffToMonday);
+        
+        // Set end date based on frequency
+        const endDate = new Date(startDate);
+        if (frequencySelect.value === 'weekly') {
+            endDate.setDate(startDate.getDate() + 6); // Sunday
+        } else if (frequencySelect.value === 'biweekly') {
+            endDate.setDate(startDate.getDate() + 13); // 2 weeks
+        } else {
+            endDate.setDate(startDate.getDate() + 6); // Default to weekly
+        }
+        
+        // Set pay date to 3 days after end date
+        const payDate = new Date(endDate);
+        payDate.setDate(endDate.getDate() + 3);
+        
+        // Format dates as YYYY-MM-DD
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        // Set values only if they're empty
+        if (!startDateInput.value) startDateInput.value = formatDate(startDate);
+        if (!endDateInput.value) endDateInput.value = formatDate(endDate);
+        if (!payDateInput.value) payDateInput.value = formatDate(payDate);
     }
-    
-    // Set default values if not already set
-    const startInput = document.querySelector('input[name="start_date"]');
-    const endInput = document.querySelector('input[name="end_date"]');
-    const payInput = document.querySelector('input[name="pay_date"]');
-    
-    if (!startInput.value) startInput.value = formatDate(startDate);
-    if (!endInput.value) endInput.value = formatDate(endDate);
-    if (!payInput.value) payInput.value = formatDate(payDate);
+
+    // Validate dates
+    function validateDates() {
+        const startDate = new Date(startDateInput.value);
+        const endDate = new Date(endDateInput.value);
+        const payDate = new Date(payDateInput.value);
+        const today = new Date();
+        
+        let isValid = true;
+        let message = '';
+
+        // Check if start date is before end date
+        if (startDate >= endDate) {
+            isValid = false;
+            message = 'Start date must be before end date.';
+        }
+        
+        // Check if end date is before pay date
+        if (endDate >= payDate) {
+            isValid = false;
+            message = message ? message + ' End date must be before pay date.' : 'End date must be before pay date.';
+        }
+        
+        // Check if dates are in the future
+        if (startDate > today) {
+            isValid = false;
+            message = message ? message + ' Start date cannot be in the future.' : 'Start date cannot be in the future.';
+        }
+        
+        // Check if pay date is reasonable (not too far in the future)
+        const maxPayDate = new Date(today);
+        maxPayDate.setDate(today.getDate() + 30); // Max 30 days from today
+        if (payDate > maxPayDate) {
+            isValid = false;
+            message = message ? message + ' Pay date seems too far in the future.' : 'Pay date seems too far in the future.';
+        }
+
+        // Show/hide validation message
+        if (!isValid) {
+            validationMessage.textContent = message;
+            validationDiv.classList.remove('d-none');
+            submitBtn.disabled = true;
+        } else {
+            validationDiv.classList.add('d-none');
+            submitBtn.disabled = false;
+        }
+        
+        return isValid;
+    }
+
+    // Update dates when frequency changes
+    frequencySelect.addEventListener('change', function() {
+        setDefaultDates();
+        validateDates();
+    });
+
+    // Validate dates on input change
+    [startDateInput, endDateInput, payDateInput].forEach(input => {
+        input.addEventListener('change', validateDates);
+    });
+
+    // Form submission validation
+    form.addEventListener('submit', function(e) {
+        if (!validateDates()) {
+            e.preventDefault();
+            validationMessage.textContent = 'Please fix the date validation errors before submitting.';
+            validationDiv.classList.remove('d-none');
+        }
+    });
+
+    // Initialize
+    setDefaultDates();
+    validateDates();
 });
 </script>
+
+<style>
+.form-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+</style>
 {% endblock %}

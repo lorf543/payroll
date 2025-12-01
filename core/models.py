@@ -283,10 +283,15 @@ class PayPeriod(models.Model):
         ordering = ['-start_date']
 
 
+
 class Payment(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
+        ('pending_employee', 'Pending Employee Approval'),
+        ('approved_by_employee', 'Approved by Employee'),
+        ('rejected_by_employee', 'Rejected by Employee'),
         ('calculated', 'Calculated'),
+        ('pending_payment', 'Pending Payment'),
         ('paid', 'Paid'),
         ('canceled', 'Canceled'),
     ]
@@ -296,26 +301,129 @@ class Payment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     pay_date = models.DateField(blank=True, null=True)
     
-
+    # Salary breakdown
     gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_earnings = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    # Deductions
     isr = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     afp = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     sfs = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-
-    
     total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='draft')
     comments = models.TextField(blank=True, null=True)
+    
+    # Employee approval tracking
+    employee_approved = models.BooleanField(default=False)
+    employee_approved_at = models.DateTimeField(null=True, blank=True)
+    employee_rejection_reason = models.TextField(blank=True, null=True)
+    
+    # Payroll admin tracking
+    calculated_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='calculated_payments'
+    )
+    calculated_at = models.DateTimeField(null=True, blank=True)
+    
+    processed_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='processed_payments'
+    )
+    processed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Payment proof
+    payment_reference = models.CharField(max_length=100, blank=True, null=True)
+    payment_proof = models.FileField(upload_to='payment_proofs/', blank=True, null=True)
         
     def __str__(self):
-        return f"Payroll {self.period} - {self.employee}"
+        return f"Payment {self.period} - {self.employee}"
 
     class Meta:
         verbose_name = "Payment"
         verbose_name_plural = "Payments"
         unique_together = ['employee', 'period']
+        ordering = ['-created_at']
+    
+    def calculate_totals(self):
+        """Calculate all payment totals"""
+        from decimal import Decimal
+        
+        if not self.gross_salary:
+            return
+        
+        # Constants
+        AFP_RATE = Decimal('0.0287')
+        SFS_RATE = Decimal('0.0304')
+        
+        # Calculate mandatory deductions
+        self.afp = self.gross_salary * AFP_RATE
+        self.sfs = self.gross_salary * SFS_RATE
+        
+        # Calculate ISR
+        self.isr = self.calculate_isr()
+        
+        # Get additional earnings/deductions from details
+        additional_earnings = sum(
+            detail.amount for detail in self.details.filter(concept__type='earning')
+        )
+        additional_deductions = sum(
+            detail.amount for detail in self.details.filter(concept__type='deduction')
+        )
+        
+        # Update totals
+        self.total_earnings = self.gross_salary + Decimal(str(additional_earnings))
+        self.total_deductions = self.afp + self.sfs + self.isr + Decimal(str(additional_deductions))
+        self.net_salary = self.total_earnings - self.total_deductions
+    
+    def calculate_isr(self):
+        """Calculate ISR based on gross salary"""
+        from decimal import Decimal
+        
+        gross = Decimal(str(self.gross_salary))
+        exemption_limit = Decimal('416220.00')
+        bracket_limit = Decimal('624329.00')
+        
+        if gross <= exemption_limit:
+            return Decimal('0.00')
+        elif gross <= bracket_limit:
+            return (gross - exemption_limit) * Decimal('0.15')
+        else:
+            excess = gross - bracket_limit
+            base_bracket = bracket_limit - exemption_limit
+            return (base_bracket * Decimal('0.15')) + (excess * Decimal('0.20'))
+    
+    def approve_by_employee(self):
+        """Employee approves their payment"""
+        from django.utils import timezone
+        self.employee_approved = True
+        self.employee_approved_at = timezone.now()
+        self.status = 'approved_by_employee'
+        self.save()
+    
+    def reject_by_employee(self, reason):
+        """Employee rejects their payment"""
+        self.employee_approved = False
+        self.status = 'rejected_by_employee'
+        self.employee_rejection_reason = reason
+        self.save()
+    
+    def mark_as_paid(self, processed_by, payment_reference=None):
+        """Mark payment as paid"""
+        from django.utils import timezone
+        self.status = 'paid'
+        self.processed_by = processed_by
+        self.processed_at = timezone.now()
+        if payment_reference:
+            self.payment_reference = payment_reference
+        self.save()
     
 
 class PaymentDetail(models.Model):

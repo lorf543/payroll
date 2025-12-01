@@ -1,0 +1,56 @@
+<!-- nomina/payment_approval.html -->
+{% extends "base.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}Approve Payment - {{ payment.period.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white text-center">
+                    <h4 class="card-title mb-0">
+                        <i class="bi bi-check-circle me-2"></i>
+                        Approve Payment
+                    </h4>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="bi bi-check-circle text-success display-1"></i>
+                    </div>
+                    
+                    <h5 class="mb-3">Confirm Payment Approval</h5>
+                    
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">Payment Details</h6>
+                        <p class="mb-1"><strong>Period:</strong> {{ payment.period.name }}</p>
+                        <p class="mb-1"><strong>Net Salary:</strong> ${{ payment.net_salary|floatformat:2|intcomma }}</p>
+                        <p class="mb-0"><strong>Payment Date:</strong> {{ payment.pay_date|date:"M d, Y" }}</p>
+                    </div>
+                    
+                    <p class="text-muted mb-4">
+                        By approving this payment, you confirm that all the details are correct 
+                        and you agree with the calculated amounts.
+                    </p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                            <a href="{{request.META.HTTP_REFERER }}" class="btn btn-outline-secondary me-md-2">
+                                <i class="bi bi-arrow-left me-2"></i>
+                                Back to Details
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-lg me-2"></i>
+                                Confirm Approval
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

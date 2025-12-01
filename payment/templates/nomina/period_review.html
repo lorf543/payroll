@@ -2,7 +2,7 @@
 {% load static %}
 {% load humanize %}
 
-{% block title %}Revisar Período - {{ period.name }}{% endblock %}
+{% block title %}Review Period - {{ period.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
@@ -15,7 +15,7 @@
                     {{ period.name }}
                 </h1>
                 <p class="page-subtitle">
-                    {{ period.start_date }} al {{ period.end_date }} • Pago: {{ period.pay_date }}
+                    {{ period.start_date }} to {{ period.end_date }} • Payment: {{ period.pay_date }}
                 </p>
             </div>
             <div class="col-auto">
@@ -23,54 +23,31 @@
                     {% if stats.all_approved %}
                     <button class="btn btn-success" onclick="generatePayroll()">
                         <i class="bi bi-calculator me-2"></i>
-                        Generar Nómina
+                        Generate Payroll
                     </button>
                     {% else %}
                     <button class="btn btn-warning" onclick="approveAll()">
                         <i class="bi bi-check-all me-2"></i>
-                        Aprobar Todo
+                        Approve All
                     </button>
                     {% endif %}
                     <a href="{% url 'nomina:dashboard' %}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left me-2"></i>
-                        Volver
+                        Back
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Estadísticas del Período -->
+    <!-- Period Statistics -->
     <div class="row mb-4">
         <div class="col-xl-2 col-md-4 mb-4">
             <div class="card border-start border-primary border-4">
                 <div class="card-body text-center">
-                    <div class="text-primary text-uppercase small fw-bold">Empleados</div>
+                    <div class="text-primary text-uppercase small fw-bold">Employees</div>
                     <div class="number text-primary">{{ stats.total_employees }}</div>
-                    <small class="text-muted">{{ stats.employees_with_workdays }} con días</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-2 col-md-4 mb-4">
-            <div class="card border-start border-info border-4">
-                <div class="card-body text-center">
-                    <div class="text-info text-uppercase small fw-bold">Días Trabajados</div>
-                    <div class="number text-info">{{ stats.total_workdays }}</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-2 col-md-4 mb-4">
-            <div class="card border-start border-success border-4">
-                <div class="card-body text-center">
-                    <div class="text-success text-uppercase small fw-bold">Días Aprobados</div>
-                    <div class="number text-success">{{ stats.approved_workdays }}</div>
-                    <div class="progress mt-2" style="height: 4px;">
-                        <div class="progress-bar bg-success" 
-                             style="width: {% widthratio stats.approved_workdays stats.total_workdays 100 %}%">
-                        </div>
-                    </div>
+                    <small class="text-muted">{{ stats.employees_with_workdays }} with days</small>
                 </div>
             </div>
         </div>
@@ -78,9 +55,9 @@
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-start border-warning border-4">
                 <div class="card-body text-center">
-                    <div class="text-warning text-uppercase small fw-bold">Total Bruto</div>
+                    <div class="text-warning text-uppercase small fw-bold">Gross Total</div>
                     <div class="number text-warning">${{ stats.total_gross|floatformat:2|intcomma }}</div>
-                    <small class="text-muted">Salarios brutos</small>
+                    <small class="text-muted">Gross salaries</small>
                 </div>
             </div>
         </div>
@@ -88,204 +65,280 @@
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-start border-danger border-4">
                 <div class="card-body text-center">
-                    <div class="text-danger text-uppercase small fw-bold">Total Neto</div>
+                    <div class="text-danger text-uppercase small fw-bold">Net Total</div>
                     <div class="number text-danger">${{ stats.total_net|floatformat:2|intcomma }}</div>
-                    <small class="text-muted">Después de deducciones</small>
+                    <small class="text-muted">After deductions</small>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Estado de Aprobación -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="card-title mb-0">
-                <i class="bi bi-check-circle me-2"></i>
-                Estado de Aprobación
-            </h5>
-            {% if not stats.all_approved %}
-            <span class="badge bg-warning">
-                {{ stats.total_workdays|add:"-stats.approved_workdays" }} días pendientes
-            </span>
-            {% else %}
-            <span class="badge bg-success">
-                <i class="bi bi-check-lg me-1"></i>Todo Aprobado
-            </span>
-            {% endif %}
-        </div>
-        <div class="card-body">
-            <div class="progress" style="height: 20px;">
-                <div class="progress-bar bg-success" 
-                     style="width: {% widthratio stats.approved_workdays stats.total_workdays 100 %}%">
-                    {{ stats.approved_workdays }} aprobados
-                </div>
-                <div class="progress-bar bg-warning" 
-                     style="width: {% widthratio stats.total_workdays|add:"-stats.approved_workdays" stats.total_workdays 100 %}%">
-                    {{ stats.total_workdays|add:"-stats.approved_workdays" }} pendientes
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Lista de Empleados -->
+      
+    <!-- Employee List by Campaign -->
     <div class="card shadow-sm">
         <div class="card-header">
             <h5 class="card-title mb-0">
                 <i class="bi bi-people me-2"></i>
-                Empleados del Período
+                Period Employees by Campaign
             </h5>
         </div>
         <div class="card-body p-0">
-            {% for employee_data in employees_data %}
-            <div class="employee-card card mb-3 mx-3 mt-3 {% if employee_data.fully_approved %}approved{% else %}pending{% endif %}">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <!-- Información del Empleado -->
-                        <div class="col-md-3">
-                            <h6 class="mb-1">{{ employee_data.employee.full_name }}</h6>
-                            <small class="text-muted">
-                                {{ employee_data.employee.position.name|default:"Sin puesto" }} • 
-                                {{ employee_data.employee.department.name|default:"Sin departamento" }}
-                            </small>
-                        </div>
-
-                        <!-- Estadísticas -->
-                        <div class="col-md-2">
-                            <div class="text-center">
-                                <strong class="d-block">{{ employee_data.workdays_count }}</strong>
-                                <small class="text-muted">Días</small>
-                            </div>
-                        </div>
-
-                        <!-- Estado -->
-                        <div class="col-md-2">
-                            {% if employee_data.fully_approved %}
-                            <span class="badge bg-success">
-                                <i class="bi bi-check-lg me-1"></i>Completado
-                            </span>
-                            {% else %}
-                            <span class="badge bg-warning">
-                                {{ employee_data.workdays_count|add:"-employee_data.approved_count" }} pendientes
-                            </span>
-                            {% endif %}
-                        </div>
-
-                        <!-- Totales -->
-                        <div class="col-md-3">
-                            <div class="text-end">
-                                <strong class="d-block text-success">
-                                    ${{ employee_data.total_gross|floatformat:2|intcomma }}
-                                </strong>
-                                <small class="text-muted">Bruto</small>
-                                <br>
-                                <strong class="d-block text-primary">
-                                    ${{ employee_data.total_net|floatformat:2|intcomma }}
-                                </strong>
-                                <small class="text-muted">Neto</small>
-                            </div>
-                        </div>
-
-                        <!-- Acciones -->
-                        <div class="col-md-2">
-                            <div class="d-grid gap-2">
-                                {% if not employee_data.fully_approved and employee_data.has_workdays %}
-                                <button class="btn btn-sm btn-outline-warning" 
-                                        onclick="approveEmployee({{ employee_data.employee.id }})">
-                                    <i class="bi bi-check"></i> Aprobar
-                                </button>
-                                {% endif %}
-                                <button class="btn btn-sm btn-outline-primary" 
-                                        onclick="viewDetails({{ employee_data.employee.id }})">
-                                    <i class="bi bi-eye"></i> Detalles
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Días Trabajados (Expandible) -->
-                    <div class="row mt-3" id="details-{{ employee_data.employee.id }}" style="display: none;">
+            <!-- Campaign Tabs -->
+            {% if grouped_employees %}
+            <ul class="nav nav-tabs" id="campaignTabs" role="tablist">
+                {% for campaign_name, employees in grouped_employees.items %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if forloop.first %}active{% endif %}" 
+                            id="tab-{{ forloop.counter }}" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#campaign-{{ forloop.counter }}" 
+                            type="button" 
+                            role="tab" 
+                            aria-controls="campaign-{{ forloop.counter }}" 
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+                        {{ campaign_name }}
+                        <span class="badge bg-secondary ms-1">{{ employees|length }}</span>
+                    </button>
+                </li>
+                {% endfor %}
+            </ul>
+            
+            <!-- Tab Content -->
+            <div class="tab-content p-3" id="campaignTabsContent">
+                {% for campaign_name, employees in grouped_employees.items %}
+                <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" 
+                     id="campaign-{{ forloop.counter }}" 
+                     role="tabpanel" 
+                     aria-labelledby="tab-{{ forloop.counter }}">
+                    
+                    <!-- Campaign Statistics -->
+                    <div class="row mb-3">
                         <div class="col-12">
-                            <h6 class="border-bottom pb-2">Días Trabajados</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Fecha</th>
-                                            <th>Horas</th>
-                                            <th>Regular</th>
-                                            <th>Extra</th>
-                                            <th>Total</th>
-                                            <th>Estado</th>
-                                            <th>Acción</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for workday in employee_data.workdays %}
-                                        <tr>
-                                            <td>{{ workday.date }}</td>
-                                            <td>{{ workday.productive_hours|floatformat:2 }}h</td>
-                                            <td>${{ workday.regular_pay|floatformat:2 }}</td>
-                                            <td>${{ workday.overtime_pay|floatformat:2 }}</td>
-                                            <td><strong>${{ workday.total_pay|floatformat:2 }}</strong></td>
-                                            <td>
-                                                {% if workday.is_approved %}
-                                                <span class="badge bg-success">Aprobado</span>
-                                                {% else %}
-                                                <span class="badge bg-warning">Pendiente</span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                <button class="btn btn-sm {% if workday.is_approved %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
-                                                        onclick="toggleWorkday({{ workday.id }})">
-                                                    {% if workday.is_approved %}
-                                                    <i class="bi bi-x"></i> Desaprobar
-                                                    {% else %}
-                                                    <i class="bi bi-check"></i> Aprobar
-                                                    {% endif %}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                        {% empty %}
-                                        <tr>
-                                            <td colspan="7" class="text-center text-muted">
-                                                No hay días trabajados en este período
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">{{ campaign_name }} - {{ employees|length }} employees</h6>
+                                <div>
+                                    {% with approved_count=employees|length %}
+                                    {% with pending_count=employees|length %}
+                                    <span class="badge bg-success me-2">
+                                        Approved: <span id="approved-count-{{ forloop.counter }}">{{ employees|length }}</span>
+                                    </span>
+                                    <span class="badge bg-warning">
+                                        Pending: <span id="pending-count-{{ forloop.counter }}">0</span>
+                                    </span>
+                                    {% endwith %}
+                                    {% endwith %}
+                                </div>
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Campaign Filter -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control campaign-filter" 
+                                       data-campaign="{{ forloop.counter }}" 
+                                       placeholder="Filter employees by name...">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="btn-group float-end" role="group">
+                                <input type="radio" 
+                                       class="btn-check status-filter" 
+                                       name="status-{{ forloop.counter }}" 
+                                       id="all-{{ forloop.counter }}" 
+                                       value="all" 
+                                       autocomplete="off" 
+                                       checked>
+                                <label class="btn btn-outline-primary" for="all-{{ forloop.counter }}">
+                                    All
+                                </label>
+
+                                <input type="radio" 
+                                       class="btn-check status-filter" 
+                                       name="status-{{ forloop.counter }}" 
+                                       id="approved-{{ forloop.counter }}" 
+                                       value="approved" 
+                                       autocomplete="off">
+                                <label class="btn btn-outline-success" for="approved-{{ forloop.counter }}">
+                                    Approved
+                                </label>
+
+                                <input type="radio" 
+                                       class="btn-check status-filter" 
+                                       name="status-{{ forloop.counter }}" 
+                                       id="pending-{{ forloop.counter }}" 
+                                       value="pending" 
+                                       autocomplete="off">
+                                <label class="btn btn-outline-warning" for="pending-{{ forloop.counter }}">
+                                    Pending
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Employees in this campaign -->
+                    {% for employee_data in employees %}
+                    <div class="employee-card card mb-3 campaign-{{ forloop.parentloop.counter }} 
+                                {% if employee_data.fully_approved %}approved{% else %}pending{% endif %}" 
+                         data-employee-name="{{ employee_data.employee.user.get_full_name|default:employee_data.employee.user.username|default:employee_data.employee.employee_code|default:'Unknown Employee'|lower }}"
+                         data-status="{% if employee_data.fully_approved %}approved{% else %}pending{% endif %}">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <!-- Employee Information -->
+                                <div class="col-md-3">
+                                    <h6 class="mb-1">
+                                        {% if employee_data.employee.user %}
+                                            {{ employee_data.employee.user.get_full_name|default:employee_data.employee.user.username }}
+                                        {% else %}
+                                            {{ employee_data.employee.employee_code|default:"Unknown Employee" }}
+                                        {% endif %}
+                                    </h6>
+                                    <small class="text-muted">
+                                        {{ employee_data.employee.position.name|default:"No position" }} • 
+                                        {{ employee_data.employee.department.name|default:"No department" }}
+                                    </small>
+                                </div>
+
+                                <!-- Statistics -->
+                                <div class="col-md-2">
+                                    <div class="text-center">
+                                        <strong class="d-block">{{ employee_data.workdays_count }}</strong>
+                                        <small class="text-muted">Days</small>
+                                    </div>
+                                </div>
+
+                                <!-- Status -->
+                                <div class="col-md-2">
+                                    {% if employee_data.fully_approved %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-lg me-1"></i>Completed
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning">
+                                        {{ employee_data.workdays_count|add:"-employee_data.approved_count" }} pending
+                                    </span>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Totals -->
+                                <div class="col-md-3">
+                                    <div class="text-end">
+                                        <strong class="d-block text-success">
+                                            ${{ employee_data.total_gross|floatformat:2|intcomma }}
+                                        </strong>
+                                        <small class="text-muted">Gross</small>
+                                        <br>
+                                        <strong class="d-block text-primary">
+                                            ${{ employee_data.total_net|floatformat:2|intcomma }}
+                                        </strong>
+                                        <small class="text-muted">Net</small>
+                                    </div>
+                                </div>
+
+                                <!-- Actions -->
+                                <div class="col-md-2">
+                                    <div class="d-grid gap-2">
+                                        {% if not employee_data.fully_approved and employee_data.has_workdays %}
+                                        <button class="btn btn-sm btn-outline-warning" 
+                                                onclick="approveEmployee({{ employee_data.employee.id }})">
+                                            <i class="bi bi-check"></i> Approve
+                                        </button>
+                                        {% endif %}
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="viewDetails({{ employee_data.employee.id }})">
+                                            <i class="bi bi-eye"></i> Details
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Work Days (Expandable) -->
+                            <div class="row mt-3" id="details-{{ employee_data.employee.id }}" style="display: none;">
+                                <div class="col-12">
+                                    <h6 class="border-bottom pb-2">Work Days</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Hours</th>
+                                                    <th>Regular</th>
+                                                    <th>Overtime</th>
+                                                    <th>Total</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for workday in employee_data.workdays %}
+                                                <tr>
+                                                    <td>{{ workday.date }}</td>
+                                                    <td>{{ workday.productive_hours|floatformat:2 }}h</td>
+                                                    <td>${{ workday.regular_pay|floatformat:2 }}</td>
+                                                    <td>${{ workday.overtime_pay|floatformat:2 }}</td>
+                                                    <td><strong>${{ workday.total_pay|floatformat:2 }}</strong></td>
+                                                    <td>
+                                                        {% if workday.is_approved %}
+                                                        <span class="badge bg-success">Approved</span>
+                                                        {% else %}
+                                                        <span class="badge bg-warning">Pending</span>
+                                                        {% endif %}
+                                                    </td>
+
+                                                </tr>
+                                                {% empty %}
+                                                <tr>
+                                                    <td colspan="7" class="text-center text-muted">
+                                                        No work days in this period
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-people display-4 d-block mb-2"></i>
+                        No employees in this campaign
+                    </div>
+                    {% endfor %}
                 </div>
+                {% endfor %}
             </div>
-            {% empty %}
+            {% else %}
             <div class="text-center text-muted py-5">
                 <i class="bi bi-people display-4 d-block mb-2"></i>
-                No hay empleados activos
+                No employees found for this period
             </div>
-            {% endfor %}
+            {% endif %}
         </div>
     </div>
 </div>
 
 <script>
 function generatePayroll() {
-    if (confirm('¿Estás seguro de que quieres generar la nómina para este período? Esto creará los pagos para todos los empleados.')) {
+    if (confirm('Are you sure you want to generate the payroll for this period? This will create payments for all employees.')) {
         window.location.href = "{% url 'nomina:generate_payroll' period.id %}";
     }
 }
 
 function approveAll() {
-    if (confirm('¿Estás seguro de que quieres aprobar todos los días trabajados pendientes?')) {
+    if (confirm('Are you sure you want to approve all pending work days?')) {
         window.location.href = "{% url 'nomina:approve_all' period.id %}";
     }
 }
 
 function approveEmployee(employeeId) {
-    if (confirm('¿Aprobar todos los días de este empleado?')) {
-        // Implementar aprobación por empleado
-        alert('Funcionalidad en desarrollo: Aprobar empleado ' + employeeId);
+    if (confirm('Approve all days for this employee?')) {
+        // Implement employee approval
+        alert('Feature in development: Approve employee ' + employeeId);
     }
 }
 
@@ -309,15 +362,58 @@ function toggleWorkday(workdayId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            location.reload(); // Recargar para ver cambios
+            location.reload(); // Reload to see changes
         } else {
             alert('Error: ' + data.error);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Error al actualizar el día trabajado');
+        alert('Error updating work day');
     });
 }
+
+// Filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Text filter
+    document.querySelectorAll('.campaign-filter').forEach(filter => {
+        filter.addEventListener('input', function() {
+            const campaignNum = this.getAttribute('data-campaign');
+            const searchTerm = this.value.toLowerCase();
+            
+            document.querySelectorAll(`.campaign-${campaignNum}`).forEach(card => {
+                const employeeName = card.getAttribute('data-employee-name');
+                if (employeeName.includes(searchTerm)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+    
+    // Status filter
+    document.querySelectorAll('.status-filter').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const name = this.getAttribute('name');
+            const campaignNum = name.split('-')[1];
+            const status = this.value;
+            
+            document.querySelectorAll(`.campaign-${campaignNum}`).forEach(card => {
+                const cardStatus = card.getAttribute('data-status');
+                
+                if (status === 'all' || 
+                    (status === 'approved' && cardStatus === 'approved') || 
+                    (status === 'pending' && cardStatus === 'pending')) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+});
 </script>
+
+
 {% endblock %}

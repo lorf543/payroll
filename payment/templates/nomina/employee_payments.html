@@ -1,0 +1,198 @@
+<!-- nomina/employee_payments.html -->
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}My Payments - Payroll System{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    <i class="bi bi-wallet2 me-2"></i>
+                    My Payments
+                </h1>
+                <p class="page-subtitle">Review and approve your payment records</p>
+            </div>
+            <div class="col-auto">
+                <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-primary border-4">
+                <div class="card-body text-center">
+                    <div class="text-primary text-uppercase small fw-bold">Total Payments</div>
+                    <div class="number text-primary">{{ total_payments }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-warning border-4">
+                <div class="card-body text-center">
+                    <div class="text-warning text-uppercase small fw-bold">Pending Approval</div>
+                    <div class="number text-warning">{{ pending_approval }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-success border-4">
+                <div class="card-body text-center">
+                    <div class="text-success text-uppercase small fw-bold">Approved</div>
+                    <div class="number text-success">{{ approved_payments }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-info border-4">
+                <div class="card-body text-center">
+                    <div class="text-info text-uppercase small fw-bold">This Year</div>
+                    <div class="number text-info">{{ total_payments }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payments Table -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-list-ul me-2"></i>
+                Payment History
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if payments %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Period</th>
+                            <th>Payment Date</th>
+                            <th>Gross Salary</th>
+                            <th>Deductions</th>
+                            <th>Net Salary</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                        <tr>
+                            <td>
+                                <strong>{{ payment.period.name }}</strong><br>
+                                <small class="text-muted">
+                                    {{ payment.period.start_date|date:"M d" }} - {{ payment.period.end_date|date:"M d, Y" }}
+                                </small>
+                            </td>
+                            <td>
+                                {% if payment.pay_date %}
+                                    {{ payment.pay_date|date:"M d, Y" }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>${{ payment.gross_salary|floatformat:2|intcomma }}</td>
+                            <td class="text-danger">${{ payment.total_deductions|floatformat:2|intcomma }}</td>
+                            <td class="fw-bold text-success">${{ payment.net_salary|floatformat:2|intcomma }}</td>
+                            <td>
+                                {% if payment.status == 'pending_employee' %}
+                                    <span class="badge bg-warning">Pending Approval</span>
+                                {% elif payment.status == 'approved_by_employee' %}
+                                    <span class="badge bg-success">Approved</span>
+                                {% elif payment.status == 'rejected_by_employee' %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                {% elif payment.status == 'paid' %}
+                                    <span class="badge bg-info">Paid</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ payment.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <!-- CORREGIDO: Todas las URLs con namespace 'nomina:' -->
+                                    <a href="{% url 'nomina:payment_detail' payment.id %}" 
+                                       class="btn btn-outline-primary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    {% if payment.status == 'pending_employee' %}
+                                    <a href="{% url 'nomina:payment_approve' payment.id %}" 
+                                       class="btn btn-outline-success">
+                                        <i class="bi bi-check-lg"></i> Approve
+                                    </a>
+                                    <a href="{% url 'nomina:payment_reject' payment.id %}" 
+                                       class="btn btn-outline-danger">
+                                        <i class="bi bi-x-lg"></i> Reject
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if is_paginated %}
+            <div class="card-footer">
+                <nav aria-label="Payment pagination">
+                    <ul class="pagination justify-content-center mb-0">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for num in page_obj.paginator.page_range %}
+                        <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        </li>
+                        {% endfor %}
+                        
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-wallet2 display-4 text-muted d-block mb-3"></i>
+                <p class="text-muted mb-0">No payment records found.</p>
+                <small class="text-muted">Your payment history will appear here once available.</small>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.number {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+}
+
+.btn-group-sm .btn {
+    border-radius: 4px;
+}
+</style>
+{% endblock %}

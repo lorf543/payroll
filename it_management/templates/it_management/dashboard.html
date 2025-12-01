@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}IT Dashboard - System Administration{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="page-header mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1 class="page-title">
+                    <i class="bi bi-gear me-2"></i>
+                    IT Administration Dashboard
+                </h1>
+                <p class="page-subtitle">System management and technical operations</p>
+            </div>
+            <div class="col-auto">
+                <div class="badge bg-dark px-3 py-2">
+                    <i class="bi bi-shield-check me-2"></i>
+                    IT Administrator
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <!-- System Health -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-success border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-success text-uppercase small fw-bold">System Status</div>
+                            <div class="number text-success">Operational</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-check-circle text-success fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Users -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-primary border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-primary text-uppercase small fw-bold">Active Users</div>
+                            <div class="number text-primary">{{ active_users_count }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-people text-primary fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Tickets -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-warning border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-warning text-uppercase small fw-bold">Pending Tickets</div>
+                            <div class="number text-warning">{{ pending_tickets_count }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-ticket-perforated text-warning fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Devices Online -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-start border-info border-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-info text-uppercase small fw-bold">Devices Online</div>
+                            <div class="number text-info">{{ online_devices_count }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-laptop text-info fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Left Column: Quick Actions & System Tools -->
+        <div class="col-lg-4 mb-4">
+            <!-- Quick Actions -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-lightning me-2"></i>
+                        Quick Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'it_device_management' %}" class="btn btn-outline-primary text-start">
+                            <i class="bi bi-key me-2"></i>
+                            Device Token Management
+                        </a>
+                        <a href="{% url 'bulk_invitation' %}" class="btn btn-outline-success text-start">
+                            <i class="bi bi-envelope-plus me-2"></i>
+                            Bulk Employee Invitation
+                        </a>
+                        <a href="" class="btn btn-outline-info text-start">
+                            <i class="bi bi-person-gear me-2"></i>
+                            User Account Management
+                        </a>
+                        <a href="" class="btn btn-outline-secondary text-start">
+                            <i class="bi bi-journal-text me-2"></i>
+                            System Logs
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-heart-pulse me-2"></i>
+                        System Health
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="system-status">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>Database</span>
+                            <span class="badge bg-success">Healthy</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>File Storage</span>
+                            <span class="badge bg-success">85% Free</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>Backup Status</span>
+                            <span class="badge bg-success">Up to date</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>API Services</span>
+                            <span class="badge bg-success">Running</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Column: Ticket System & Inventory -->
+        <div class="col-lg-4 mb-4">
+            <!-- Ticket System -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-ticket-perforated me-2"></i>
+                        Support Tickets
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if recent_tickets %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ticket ID</th>
+                                    <th>Subject</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in recent_tickets %}
+                                <tr>
+                                    <td>#{{ ticket.id }}</td>
+                                    <td>{{ ticket.subject|truncatewords:4 }}</td>
+                                    <td>
+                                        {% if ticket.priority == 'high' %}
+                                        <span class="badge bg-danger">High</span>
+                                        {% elif ticket.priority == 'medium' %}
+                                        <span class="badge bg-warning">Medium</span>
+                                        {% else %}
+                                        <span class="badge bg-info">Low</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if ticket.status == 'open' %}
+                                        <span class="badge bg-warning">Open</span>
+                                        {% elif ticket.status == 'in_progress' %}
+                                        <span class="badge bg-info">In Progress</span>
+                                        {% else %}
+                                        <span class="badge bg-success">Closed</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-ticket-perforated display-4 text-muted d-block mb-2"></i>
+                        <p class="text-muted mb-0">No recent tickets</p>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-plus-circle me-1"></i>
+                        Manage Tickets
+                    </a>
+                </div>
+            </div>
+
+            <!-- Inventory Overview -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-pc-display me-2"></i>
+                        Inventory Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="inventory-stats">
+                        <div class="row text-center">
+                            <div class="col-6 mb-3">
+                                <div class="fw-bold text-primary fs-4">{{ laptops_count }}</div>
+                                <small class="text-muted">Laptops</small>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="fw-bold text-primary fs-4">{{ desktops_count }}</div>
+                                <small class="text-muted">Desktops</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="fw-bold text-primary fs-4">{{ mobiles_count }}</div>
+                                <small class="text-muted">Mobile Devices</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="fw-bold text-primary fs-4">{{ accessories_count }}</div>
+                                <small class="text-muted">Accessories</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="" class="btn btn-outline-info btn-sm">
+                        <i class="bi bi-box-seam me-1"></i>
+                        View Full Inventory
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Recent Activity & System Alerts -->
+        <div class="col-lg-4 mb-4">
+            <!-- System Alerts -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        System Alerts
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if system_alerts %}
+                    <div class="alert-list">
+                        {% for alert in system_alerts %}
+                        <div class="alert alert-warning alert-dismissible fade show mb-2" role="alert">
+                            <small>
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                {{ alert.message }}
+                            </small>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted">
+                        <i class="bi bi-check-circle display-6 d-block mb-2"></i>
+                        <p class="mb-0">No active alerts</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_activity %}
+                    <div class="activity-timeline">
+                        {% for activity in recent_activity %}
+                        <div class="activity-item mb-3">
+                            <div class="d-flex">
+                                <div class="activity-icon me-3">
+                                    <i class="bi bi-{{ activity.icon }} text-primary"></i>
+                                </div>
+                                <div class="activity-content flex-grow-1">
+                                    <p class="mb-1 small">{{ activity.description }}</p>
+                                    <small class="text-muted">{{ activity.timestamp}} ago</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-activity display-6 d-block mb-2"></i>
+                        <p class="mb-0">No recent activity</p>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="" class="btn btn-outline-dark btn-sm">
+                        <i class="bi bi-list-check me-1"></i>
+                        View All Activity
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional IT Tools Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-tools me-2"></i>
+                        IT Management Tools
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <!-- Security Tools -->
+                        <div class="col-md-3">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-shield-lock display-6 text-primary mb-3"></i>
+                                    <h6 class="card-title">Security Center</h6>
+                                    <p class="card-text small text-muted">
+                                        Manage user permissions, security policies, and access controls
+                                    </p>
+                                    <a href="" class="btn btn-outline-primary btn-sm">
+                                        Access
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Backup & Recovery -->
+                        <div class="col-md-3">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-cloud-arrow-down display-6 text-success mb-3"></i>
+                                    <h6 class="card-title">Backup Management</h6>
+                                    <p class="card-text small text-muted">
+                                        Configure automated backups and disaster recovery procedures
+                                    </p>
+                                    <a href="" class="btn btn-outline-success btn-sm">
+                                        Manage
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Network Monitoring -->
+                        <div class="col-md-3">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-wifi display-6 text-info mb-3"></i>
+                                    <h6 class="card-title">Network Monitor</h6>
+                                    <p class="card-text small text-muted">
+                                        Real-time network monitoring and performance analytics
+                                    </p>
+                                    <a href="" class="btn btn-outline-info btn-sm">
+                                        Monitor
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Software Deployment -->
+                        <div class="col-md-3">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-cloud-upload display-6 text-warning mb-3"></i>
+                                    <h6 class="card-title">Software Deployment</h6>
+                                    <p class="card-text small text-muted">
+                                        Deploy software updates and manage application distribution
+                                    </p>
+                                    <a href="" class="btn btn-outline-warning btn-sm">
+                                        Deploy
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.number {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.card {
+    border: none;
+    border-radius: 12px;
+}
+
+.card-header {
+    border-radius: 12px 12px 0 0 !important;
+}
+
+.btn-group-sm .btn {
+    border-radius: 6px;
+}
+
+.activity-timeline .activity-item {
+    border-left: 3px solid #e9ecef;
+    padding-left: 15px;
+}
+
+.activity-timeline .activity-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.system-status .badge {
+    font-size: 0.7rem;
+}
+</style>
+{% endblock %}
