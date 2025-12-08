@@ -87,13 +87,7 @@
                                 </button>
                             </div>
                         </div>
-                        
-                        <div class="row mt-4">
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-primary btn-lg">Send Invitations</button>
-                                <button type="button" id="preview-emails" class="btn btn-outline-secondary btn-lg">Preview</button>
-                            </div>
-                        </div>
+                    
                     </form>
                 </div>
             </div>
@@ -101,20 +95,8 @@
     </div>
 </div>
 
-<!-- Preview Modal -->
-<div class="modal fade" id="previewModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Invitation Preview</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="preview-content">
-                <!-- Preview content will be loaded here -->
-            </div>
-        </div>
-    </div>
-</div>
+
+
 
 <script>
 let emailCount = {{ email_forms|length }};
@@ -170,31 +152,5 @@ function updateRowNumbers() {
     emailCount = rows.length;
 }
 
-// Preview functionality
-document.getElementById('preview-emails').addEventListener('click', function() {
-    // Collect form data and show preview
-    const formData = new FormData(document.getElementById('bulkInvitationForm'));
-    const previewContent = document.getElementById('preview-content');
-    
-    // Simple preview - in real implementation, you might want to send this to a view
-    let previewHtml = '<h6>Employees to be invited:</h6><ul>';
-    
-    const emails = [];
-    for (let [key, value] of formData.entries()) {
-        if (key.includes('email') && value) {
-            emails.push(value);
-        }
-    }
-    
-    emails.forEach(email => {
-        previewHtml += `<li>${email}</li>`;
-    });
-    
-    previewHtml += '</ul>';
-    previewContent.innerHTML = previewHtml;
-    
-    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
-    modal.show();
-});
 </script>
 {% endblock %}

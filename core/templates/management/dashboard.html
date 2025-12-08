@@ -144,9 +144,9 @@
                         <i class="bi {{ alert.icon }} me-2 fs-5"></i>
                         <strong>{{ alert.campaign.name }}:</strong>
                         <span class="ms-1">{{ alert.message }}</span>
-                        <a href="{% url 'admin:tracking_campaign_change' alert.campaign.id %}" class="btn btn-sm btn-outline-{{ alert.type }} ms-auto">
+                        {% comment %} <a href="{% url 'admin:tracking_campaign_change' alert.campaign.id %}" class="btn btn-sm btn-outline-{{ alert.type }} ms-auto">
                             Review
-                        </a>
+                        </a> {% endcomment %}
                     </div>
                     {% endfor %}
                 </div>

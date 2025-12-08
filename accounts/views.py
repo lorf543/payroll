@@ -1,3 +1,4 @@
+from django_q.tasks import async_task
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from allauth.account.views import PasswordChangeView
@@ -29,6 +30,8 @@ from .forms import EmployeeInvitationForm, EmployeeEmailForm
 from core.models import Employee, BulkInvitation
 from django.utils import timezone
 
+def test_view(request):
+    return render(request,'emails/invitation.html')
 
 class CustomPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
     template_name = 'account/password_change.html'
@@ -216,125 +219,69 @@ def add_email_field(request):
     return HttpResponse(html)
 
 MAX_EMAILS = 20
-
 @login_required
 def bulk_employee_invitation(request):
-
-    # if not request.user.is_staff:
-    #     messages.error(request, "You don't have permission to access this page.")
-    #     return redirect('home')
-
-    # Start with 1 email input
+   
     email_forms = [EmployeeEmailForm(prefix=str(i)) for i in range(1)]
-
+    
     if request.method == 'POST':
         main_form = EmployeeInvitationForm(request.POST)
-
+        
         if main_form.is_valid():
             campaign = main_form.cleaned_data['campaign']
             position = main_form.cleaned_data['position']
             department = main_form.cleaned_data['department']
             supervisor = main_form.cleaned_data['supervisor']
             hire_date = main_form.cleaned_data['hire_date']
-
+            
             # Collect valid email forms
             valid_emails = []
-            for i in range(20):  # Allow up to 20 email fields
+            for i in range(MAX_EMAILS):
                 email_form = EmployeeEmailForm(request.POST, prefix=str(i))
                 if email_form.is_valid() and email_form.cleaned_data.get('email'):
                     valid_emails.append(email_form.cleaned_data)
-
+            
             if not valid_emails:
                 messages.error(request, "Please enter at least one email address.")
                 return render(request, 'bulk/bulk_invitation.html', {
                     'main_form': main_form,
                     'email_forms': email_forms
                 })
-
-            successful = 0
+            
+            # Get base URL for email links
+            base_url = request.build_absolute_uri('/').rstrip('/')
+            
+            # Queue tasks asynchronously
+            task_ids = []
             for email_data in valid_emails:
                 email = email_data['email']
                 custom_identification = email_data.get('identification')
-
-                # Skip existing emails
-                if Employee.objects.filter(email=email).exists() or User.objects.filter(email=email).exists():
-                    messages.warning(request, f"Email {email} already exists. Skipping.")
-                    continue
-
-                try:
-                    # Create Employee object (User will register later)
-                    employee = Employee.objects.create(
-                        email=email,
-                        position=position,
-                        department=department,
-                        supervisor=supervisor,
-                        current_campaign=campaign,
-                        hire_date=hire_date
-                    )
-
-                    if custom_identification:
-                        employee.identification = custom_identification
-                        employee.save()
-
-                    employee.campaigns.add(campaign)
-
-                    # Build signup URL with pre-filled email
-                    signup_url = request.build_absolute_uri(reverse('account_signup') + f"?email={email}")
-
-                    # Render HTML email template
-                    html_content = render_to_string("emails/invitation.html", {
-                        "email": email,
-                        "signup_url": signup_url,
-                        "position": position.name,
-                        "department": department.name,
-                        "hire_date": hire_date.strftime("%Y-%m-%d"),
-                        "supervisor": supervisor.employee_code if supervisor else "",
-                    })
-
-                    # Plain text fallback
-                    text_content = f"""
-                        Hello,
-
-                        You have been invited to join our Employee Portal.
-
-                        Your email: {email}
-
-                        Please complete your registration by setting your password using this link: {signup_url}
-
-                        After setting your password, you'll be able to complete your personal information.
-
-                        Preliminary information:
-                        - Position: {position.name}
-                        - Department: {department.name}
-                        - Hire Date: {hire_date.strftime('%Y-%m-%d')}
-                        {'Supervisor: ' + supervisor.employee_code if supervisor else ''}
-
-                        Best regards,
-                        HR Department
-                        """
-
-                    # Send the email
-                    msg = EmailMultiAlternatives(
-                        subject="Employee Portal Registration Invitation",
-                        body=text_content,
-                        from_email="noreply@yourcompany.com",
-                        to=[email]
-                    )
-                    msg.attach_alternative(html_content, "text/html")
-                    msg.send()
-
-                    successful += 1
-                    messages.success(request, f"Invitation sent to {email}")
-
-                except Exception as e:
-                    messages.error(request, f"Failed to send invitation to {email}: {str(e)}")
-
-            messages.success(request, f"Successfully sent {successful} invitation(s).")
+                
+                # Submit task to Django Q
+                task_id = async_task(
+                    'accounts.tasks.send_employee_invitation',
+                    email,
+                    position.id,
+                    department.id,
+                    supervisor.id if supervisor else None,
+                    campaign.id,
+                    hire_date,
+                    custom_identification,
+                    base_url,
+                    group='employee_invitations',  
+                )
+                task_ids.append(task_id)
+            
+            messages.success(
+                request, 
+                f"Queued {len(valid_emails)} invitation(s) for processing. "
+                "Emails will be sent in the background."
+            )
             return redirect('bulk_invitation')
-
+    
     else:
         main_form = EmployeeInvitationForm()
-
+    
     return render(request, 'bulk/bulk_invitation.html', {
         'main_form': main_form,
         'email_forms': email_forms

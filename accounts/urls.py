@@ -12,4 +12,8 @@ urlpatterns = [
 
     path('hr/bulk-invitation/', views.bulk_employee_invitation, name='bulk_invitation'),
     path("add-email-field/", views.add_email_field, name="add_email_field"),
+
+    path("test_view/", views.test_view, name="test_view"),
+
+
 ]

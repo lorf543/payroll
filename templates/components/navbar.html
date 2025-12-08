@@ -1,10 +1,136 @@
+<!-- Add this CSS to your stylesheet -->
+<style>
+    /* Alert/Notification Button Styles */
+    .alert-btn {
+        position: relative;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .alert-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+    }
+
+    .alert-btn i {
+        font-size: 1.2rem;
+    }
+
+    .alert-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #dc3545;
+        color: white;
+        font-size: 0.65rem;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 10px;
+        min-width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.1);
+        }
+    }
+
+    /* User Dropdown Styles */
+    .user-dropdown {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 25px;
+        padding: 5px 15px 5px 10px;
+        transition: all 0.3s ease;
+        margin-left: 10px;
+    }
+
+    .user-dropdown:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .user-dropdown .bi-person-circle {
+        font-size: 1.5rem;
+        margin-right: 8px;
+    }
+
+    .dropdown-menu {
+        border-radius: 12px;
+        padding: 8px;
+        margin-top: 8px;
+    }
+
+    .dropdown-item {
+        border-radius: 8px;
+        padding: 10px 16px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .dropdown-item:hover {
+        transform: translateX(5px);
+    }
+
+    .dropdown-item i {
+        font-size: 1.1rem;
+        width: 20px;
+    }
+
+    .navbar-nav-buttons {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 991px) {
+        .navbar-nav-buttons {
+            margin-top: 15px;
+            justify-content: center;
+        }
+
+        .user-dropdown {
+            border-radius: 8px;
+            width: 100%;
+            justify-content: center;
+            margin-left: 0;
+            margin-top: 10px;
+        }
+
+        .alert-btn {
+            margin: 0 auto;
+        }
+    }
+</style>
+
+<!-- Django Navbar Template -->
 <nav class="navbar navbar-expand-lg navbar-dark fixed-top" aria-label="Main navigation" hx-boost="false">
   <div class="container-fluid" hx-boost="false">
     <a class="navbar-brand" href="" aria-label="Home" hx-boost="false">
       <i class="bi bi-cash-coin me-2"></i>
       Helium Nomina sys
     </a>
-    
+      
     <button class="navbar-toggler" type="button" 
             data-bs-toggle="collapse" 
             data-bs-target="#navbarNav" 
@@ -17,29 +143,70 @@
     
     <div class="collapse navbar-collapse" id="navbarNav" hx-boost="false">
       <ul class="navbar-nav ms-auto" hx-boost="false">
-        <li class="nav-item dropdown" hx-boost="false">
-          <a class="nav-link dropdown-toggle" 
-             href="#" 
-             id="navbarDropdown" 
-             role="button" 
-             data-bs-toggle="dropdown" 
-             aria-expanded="false"
-             hx-boost="false">
-            <i class="bi bi-person-circle"></i> {{request.user.first_name}}
-          </a>
-          <ul class="dropdown-menu dropdown-menu-end" 
-              aria-labelledby="navbarDropdown"
-              hx-boost="false">
-            <li><a class="dropdown-item" href="{% url 'employee_profile' %}" hx-boost="false">Mi Perfil</a></li>
-            <li><a class="dropdown-item" href="{% url 'list_employees' %}" aria-label="View Employees" hx-boost="false">Employees</a></li>
-            <li><a class="dropdown-item" href="{% url 'account_change_password' %}" aria-label="View Employees" hx-boost="false">Password</a></li>
-            <li><hr class="dropdown-divider" hx-boost="false" /></li>
-            {% if request.user.is_authenticated %}
-            <li><a class="dropdown-item" href="{% url 'account_logout' %}" hx-boost="false">Cerrar Sesión</a></li>
-            {% else %}
-            <li><a class="dropdown-item" href="{% url 'account_login' %}" hx-boost="false">Login</a></li>
-            {% endif %}
-          </ul>
+        <li class="nav-item" hx-boost="false">
+          <div class="navbar-nav-buttons">
+            <!-- Alert/Sidebar Toggle Button -->
+            <button class="alert-btn" 
+                    id="sidebarToggle"
+                    aria-label="Toggle sidebar"
+                    hx-boost="false">
+              <i class="bi bi-journal-bookmark"></i>
+              <span class="alert-badge">3</span>
+            </button>
+            
+            <!-- User Dropdown -->
+            <div class="dropdown">
+              <a class="nav-link dropdown-toggle user-dropdown d-flex align-items-center" 
+                 href="#" 
+                 id="navbarDropdown" 
+                 role="button" 
+                 data-bs-toggle="dropdown" 
+                 aria-expanded="false"
+                 hx-boost="false">
+                <i class="bi bi-person-circle"></i>
+                <span>{{request.user.first_name}}</span>
+              </a>
+              
+              <ul class="dropdown-menu dropdown-menu-end" 
+                  aria-labelledby="navbarDropdown"
+                  hx-boost="false">
+                <li>
+                  <a class="dropdown-item" href="{% url 'employee_profile' %}" hx-boost="false">
+                    <i class="bi bi-person"></i>
+                    Mi Perfil
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="{% url 'list_employees' %}" aria-label="View Employees" hx-boost="false">
+                    <i class="bi bi-people"></i>
+                    Employees
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="{% url 'account_change_password' %}" aria-label="Change Password" hx-boost="false">
+                    <i class="bi bi-key"></i>
+                    Password
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" hx-boost="false" /></li>
+                {% if request.user.is_authenticated %}
+                <li>
+                  <a class="dropdown-item" href="{% url 'account_logout' %}" hx-boost="false">
+                    <i class="bi bi-box-arrow-right"></i>
+                    Cerrar Sesión
+                  </a>
+                </li>
+                {% else %}
+                <li>
+                  <a class="dropdown-item" href="{% url 'account_login' %}" hx-boost="false">
+                    <i class="bi bi-box-arrow-in-right"></i>
+                    Login
+                  </a>
+                </li>
+                {% endif %}
+              </ul>
+            </div>
+          </div>
         </li>
       </ul>
     </div>

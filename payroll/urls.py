@@ -35,6 +35,7 @@ urlpatterns = [
 
 
 if settings.DEBUG:
-    # Sirve archivos estáticos y media en desarrollo
+    # Archivos estáticos
     urlpatterns += static(settings.STATIC_URL, document_root=os.path.join(settings.BASE_DIR, 'static'))
-    urlpatterns += static(settings.MEDIA_URL, document_root=os.path.join(settings.BASE_DIR, 'media'))
+    # Archivos media
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

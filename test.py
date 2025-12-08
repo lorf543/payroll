@@ -37,3 +37,6 @@ if __name__ == "__main__":
             print(f"Active application: {current_app} - {window_title}")
             last_app = current_app
         time.sleep(1)
+
+
+

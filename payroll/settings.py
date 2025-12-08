@@ -27,9 +27,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("SECRET_KEY")
 
+from dotenv import load_dotenv
 
+load_dotenv()
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
+BASE_URL = os.getenv("BASE_URL")
 
 ALLOWED_HOSTS = [
     'payroll-production-890f.up.railway.app',
@@ -119,6 +123,8 @@ WSGI_APPLICATION = 'payroll.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+
+
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.sqlite3',
@@ -148,9 +154,8 @@ Q_CLUSTER = {
     'retry': 120,
     'queue_limit': 50,
     'bulk': 10,
-    'redis': os.getenv("REDIS_PUBLIC_URL"),
+    'orm': 'default',
     'catch_up': False, 
-    'max_attempts':3,
 }
 
 
@@ -279,6 +284,10 @@ USE_TZ = False
 
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+
+
+MEDIA_URL = '/media/'
+
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]

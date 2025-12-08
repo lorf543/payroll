@@ -1,8 +1,33 @@
 from django import forms
 from .models import Employee
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import Layout, Field, Div, Row, Column, HTML
 from django.contrib.auth.models import User
 
-from .models import ActivitySession
+from .models import ActivitySession, Occurrence
+
+
+class OccurrenceForm(forms.ModelForm):
+    class Meta:
+        model = Occurrence
+        fields = ['start_time', 'end_time', 'comment']
+        widgets = {
+            'start_time': forms.TimeInput(attrs={
+                'type': 'time',  # Solo horas:minutos
+                'class': 'form-control',
+                'step': '3600'  # Incrementos de 1 hora (3600 segundos)
+            }),
+            'end_time': forms.TimeInput(attrs={
+                'type': 'time',
+                'class': 'form-control',
+                'step': '3600'
+            }),
+            'comment': forms.Textarea(attrs={
+                'rows': 4,
+                'class': 'form-control',
+                'placeholder': 'Add any comments or notes...'
+            }),
+        }
 
 class ActivitySessionForm(forms.ModelForm):
     class Meta:

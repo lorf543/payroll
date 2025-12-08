@@ -2,12 +2,15 @@ from django.contrib.sessions.models import Session
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
-from django.db.models import Sum, Count
 from django.shortcuts import render, get_object_or_404, redirect, HttpResponse
 from django.utils import timezone
 from django.utils.timezone import now
-from django.db.models import Count, Sum, Avg, Q
+
+from django.db.models import (
+    Count, Sum, Avg, Prefetch, Q, FloatField
+)
+from django.db.models.functions import Coalesce
+from django.db.models import ExpressionWrapper
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -184,22 +187,25 @@ def logout_all_users(request):
 class ManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'management/dashboard.html'
     
+    # ------------------------------------------------------------
+    # ACCESS CONTROL
+    # ------------------------------------------------------------
     def test_func(self):
-        """Solo CEO, managers y supervisores senior pueden acceder"""
         user_employee = getattr(self.request.user, 'employee', None)
         return user_employee and (
             user_employee.is_supervisor or 
-            user_employee.position.name.lower() in ['ceo', 'manager', 'director', 'executive']
+            (user_employee.position and user_employee.position.name.lower() in ['ceo', 'manager', 'director', 'executive'])
         )
     
+    # ------------------------------------------------------------
+    # MAIN CONTEXT
+    # ------------------------------------------------------------
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Obtener período seleccionado
         selected_period = self.request.GET.get('period', '7days')
         context['selected_period'] = selected_period
         
-        # Métricas principales
         context.update({
             'total_employees': Employee.objects.filter(is_active=True).count(),
             'active_campaigns': Campaign.objects.filter(is_active=True).count(),
@@ -207,7 +213,6 @@ class ManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
             'logged_in_today': Employee.objects.filter(is_logged_in=True).count(),
         })
         
-        # NUEVAS MÉTRICAS DE PRODUCTIVIDAD
         context.update({
             'avg_productivity': self.calculate_overall_productivity(),
             'productivity_percentage': self.calculate_productivity_percentage(),
@@ -216,246 +221,239 @@ class ManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
             'optimal_campaigns': self.get_optimal_campaigns_count(),
         })
         
-        # Datos con alertas
         context['campaigns_data'] = self.get_campaigns_data()
         context['department_stats'] = self.get_department_stats()
         context['attendance_trends'] = self.get_attendance_trends(selected_period)
         context['campaign_alerts'] = self.get_campaign_alerts()
         
         return context
-    
+
+    # ------------------------------------------------------------
+    # CAMPAIGNS DATA
+    # ------------------------------------------------------------
     def get_campaigns_data(self):
-        """Obtener estadísticas detalladas por campaña - OPTIMIZADO"""
         campaigns = Campaign.objects.filter(is_active=True).prefetch_related(
-            Prefetch('active_employees', 
-                    queryset=Employee.objects.filter(is_active=True).select_related('department'))
+            Prefetch(
+                'active_employees',
+                queryset=Employee.objects.filter(is_active=True).select_related('department')
+            )
         ).annotate(
             employee_count=Count('active_employees', distinct=True),
-            total_work_hours=Sum('active_employees__work_days__productive_hours'),
-            avg_productivity=Avg('active_employees__work_days__productive_hours')
+            total_work_hours=Coalesce(Sum('active_employees__work_days__productive_hours'), 0.0, output_field=FloatField()),
+            avg_productivity=Avg('active_employees__work_days__productive_hours', output_field=FloatField()),
         )
         
-        campaigns_data = []
-        for campaign in campaigns:
-            logged_in_count = campaign.active_employees.filter(is_logged_in=True).count()
-            attendance_rate = (logged_in_count / campaign.employee_count * 100) if campaign.employee_count > 0 else 0
+        data = []
+        for c in campaigns:
+            logged = c.active_employees.filter(is_logged_in=True).count()
+            emp_count = c.employee_count or 0
+            att_rate = (logged / emp_count * 100) if emp_count > 0 else 0
             
-            headcount_utilization = self.calculate_headcount_utilization(campaign)
-            
-            campaigns_data.append({
-                'campaign': campaign,
-                'employee_count': campaign.employee_count,
-                'logged_in_count': logged_in_count,
-                'attendance_rate': round(attendance_rate, 1),
-                'total_work_hours': campaign.total_work_hours or 0,
-                'avg_productivity': round(campaign.avg_productivity or 0, 2),
-                'completion_percentage': self.calculate_campaign_completion(campaign),
-                'headcount_utilization': headcount_utilization,
+            data.append({
+                'campaign': c,
+                'employee_count': emp_count,
+                'logged_in_count': logged,
+                'attendance_rate': round(att_rate, 1),
+                'total_work_hours': c.total_work_hours or 0,
+                'avg_productivity': round(c.avg_productivity or 0, 2),
+                'completion_percentage': self.calculate_campaign_completion(c),
+                'headcount_utilization': self.calculate_headcount_utilization(c),
             })
         
-        return sorted(campaigns_data, key=lambda x: x['employee_count'], reverse=True)
-    
+        return sorted(data, key=lambda x: x['employee_count'], reverse=True)
+
+    # ------------------------------------------------------------
+    # DEPARTMENT STATS
+    # ------------------------------------------------------------
     def get_department_stats(self):
-        """Estadísticas por departamento con métricas de productividad"""
         departments = Department.objects.annotate(
             employee_count=Count('employee', distinct=True),
             supervisor_count=Count('employee', filter=Q(employee__is_supervisor=True)),
             logged_in_count=Count('employee', filter=Q(employee__is_logged_in=True)),
-            avg_productivity=Avg('employee__work_days__productive_hours')
+            avg_productivity=Avg('employee__work_days__productive_hours', output_field=FloatField()),
         )
         
-        dept_stats = []
-        for dept in departments:
-            dept_stats.append({
-                'department': dept,
-                'employee_count': dept.employee_count,
-                'supervisor_count': dept.supervisor_count,
-                'logged_in_count': dept.logged_in_count,
-                'attendance_rate': round((dept.logged_in_count / dept.employee_count * 100) if dept.employee_count > 0 else 0, 1),
-                'avg_productivity': round(dept.avg_productivity or 0, 1),
+        data = []
+        for d in departments:
+            emp = d.employee_count or 0
+            logged = d.logged_in_count or 0
+            rate = (logged / emp * 100) if emp > 0 else 0
+            
+            data.append({
+                'department': d,
+                'employee_count': emp,
+                'supervisor_count': d.supervisor_count or 0,
+                'logged_in_count': logged,
+                'attendance_rate': round(rate, 1),
+                'avg_productivity': round(d.avg_productivity or 0, 1),
             })
         
-        return dept_stats
-    
+        return data
+
+    # ------------------------------------------------------------
+    # ATTENDANCE TRENDS
+    # ------------------------------------------------------------
     def get_attendance_trends(self, period='7days'):
-        """Tendencias de asistencia con filtro de período"""
         today = timezone.now().date()
         trends = []
         
-        # Definir rango de fechas según el período
+        # -------------- PERÍODO ----------------
         if period == '30days':
             days_range = 30
         elif period == '90days':
             days_range = 90
         elif period == 'current_month':
-            # Primer día del mes actual hasta hoy
             start_date = today.replace(day=1)
             days_range = (today - start_date).days + 1
         elif period == 'previous_month':
-            # Mes completo anterior
             first_day_current = today.replace(day=1)
-            last_day_previous = first_day_current - timedelta(days=1)
-            start_date = last_day_previous.replace(day=1)
-            days_range = (last_day_previous - start_date).days + 1
-        else:  # '7days' por defecto
+            last_day_prev = first_day_current - timedelta(days=1)
+            start_date = last_day_prev.replace(day=1)
+            days_range = (last_day_prev - start_date).days + 1
+        else:
             days_range = 7
-        
-        # Generar tendencias
+
+        # -------------- LOOP ----------------
         for i in range(days_range):
             if period == 'current_month':
                 date = today.replace(day=1) + timedelta(days=i)
                 if date > today:
                     break
             elif period == 'previous_month':
-                first_day_current = today.replace(day=1)
-                last_day_previous = first_day_current - timedelta(days=1)
-                start_date = last_day_previous.replace(day=1)
+                last_day_prev = today.replace(day=1) - timedelta(days=1)
+                start_date = last_day_prev.replace(day=1)
                 date = start_date + timedelta(days=i)
-                if date > last_day_previous:
+                if date > last_day_prev:
                     break
             else:
                 date = today - timedelta(days=(days_range - 1 - i))
+
+            wd_count = WorkDay.objects.filter(date=date).count()
+            present = WorkDay.objects.filter(date=date, check_in__isnull=False).count()
+            rate = (present / wd_count * 100) if wd_count > 0 else 0
             
-            workdays_count = WorkDay.objects.filter(date=date).count()
-            present_count = WorkDay.objects.filter(date=date, check_in__isnull=False).count()
-            
-            # Calcular tendencia
-            trend_direction = 'stable'
-            if len(trends) > 0:
-                prev_trend = trends[-1]
-                if present_count > prev_trend['present_count']:
-                    trend_direction = 'up'
-                elif present_count < prev_trend['present_count']:
-                    trend_direction = 'down'
-            
+            direction = "stable"
+            if trends:
+                prev = trends[-1]["present_count"]
+                if present > prev:
+                    direction = "up"
+                elif present < prev:
+                    direction = "down"
+
             trends.append({
                 'date': date,
-                'workdays_count': workdays_count,
-                'present_count': present_count,
-                'attendance_rate': round((present_count / workdays_count * 100) if workdays_count > 0 else 0, 1),
-                'trend_direction': trend_direction,
-                'is_today': date == today,
+                'workdays_count': wd_count,
+                'present_count': present,
+                'attendance_rate': round(rate, 1),
+                'trend_direction': direction,
+                'is_today': (date == today),
             })
         
         return trends
-    
+
+    # ------------------------------------------------------------
+    # CAMPAIGN ALERTS
+    # ------------------------------------------------------------
     def get_campaign_alerts(self):
-        """Obtener alertas de campañas que necesitan atención"""
         alerts = []
-        
         campaigns = Campaign.objects.filter(is_active=True).annotate(
             employee_count=Count('active_employees'),
-            total_hours=Sum('active_employees__work_days__productive_hours')
+            total_hours=Coalesce(Sum('active_employees__work_days__productive_hours'), 0.0, output_field=FloatField()),
         )
         
-        for campaign in campaigns:
-            # Alerta por bajo headcount
-            if campaign.head_count and campaign.employee_count < (campaign.head_count * 0.7):
+        for c in campaigns:
+            emp = c.employee_count or 0
+            avg = float(c.total_hours / emp) if emp > 0 else 0.0
+            
+            if c.head_count and emp < c.head_count * 0.7:
                 alerts.append({
                     'type': 'warning',
-                    'campaign': campaign,
-                    'message': f'Low headcount: {campaign.employee_count}/{campaign.head_count}',
+                    'campaign': c,
+                    'message': f'Low headcount: {emp}/{c.head_count}',
                     'icon': 'bi-people'
                 })
             
-            # Alerta por baja productividad
-            avg_productivity = campaign.total_hours / campaign.employee_count if campaign.employee_count > 0 else 0
-            if avg_productivity < 4:  # Menos de 4 horas promedio
+            if avg < 4 and emp > 0:
                 alerts.append({
                     'type': 'danger',
-                    'campaign': campaign,
-                    'message': f'Low productivity: {avg_productivity:.1f}h average',
-                    'icon': 'bi-speedometer'
+                    'campaign': c,
+                    'message': f'Low productivity: {avg:.1f}h average',
+                    'icon': 'bi-speedometer',
                 })
         
         return alerts[:5]
-    
-    # MÉTODOS DE CÁLCULO ACTUALIZADOS (sin costos)
+
+    # ------------------------------------------------------------
+    # METRICS (NO CAMBIO NOMBRES)
+    # ------------------------------------------------------------
     def calculate_headcount_utilization(self, campaign):
-        """Calcular utilización de headcount"""
-        if campaign.head_count and campaign.employee_count:
-            utilization = (campaign.employee_count / campaign.head_count) * 100
-            return min(utilization, 100)
+        emp = campaign.employee_count or 0
+        if campaign.head_count:
+            return min((emp / campaign.head_count) * 100, 100)
         return 0
-    
+
     def calculate_overall_headcount_utilization(self):
-        """Calcular utilización general de headcount"""
-        total_headcount = sum(camp.head_count or 0 for camp in Campaign.objects.filter(is_active=True))
-        total_employees = Employee.objects.filter(is_active=True, current_campaign__isnull=False).count()
-        
-        if total_headcount > 0:
-            return min((total_employees / total_headcount) * 100, 100)
+        total_hc = sum(c.head_count or 0 for c in Campaign.objects.filter(is_active=True))
+        total_emp = Employee.objects.filter(is_active=True, current_campaign__isnull=False).count()
+        if total_hc > 0:
+            return min((total_emp / total_hc) * 100, 100)
         return 0
-    
+
     def get_campaigns_needing_attention(self):
-        """Contar campañas que necesitan atención"""
-        attention_count = 0
-        campaigns = Campaign.objects.filter(is_active=True).annotate(
+        count = 0
+        camps = Campaign.objects.filter(is_active=True).annotate(
             employee_count=Count('active_employees'),
-            total_hours=Sum('active_employees__work_days__productive_hours')
+            total_hours=Coalesce(Sum('active_employees__work_days__productive_hours'), 0.0, output_field=FloatField()),
         )
-        
-        for campaign in campaigns:
-            needs_attention = False
+        for c in camps:
+            emp = c.employee_count or 0
+            avg = float(c.total_hours / emp) if emp > 0 else 0.0
             
-            # Verificar headcount bajo
-            if campaign.head_count and campaign.employee_count < (campaign.head_count * 0.7):
-                needs_attention = True
-            
-            # Verificar productividad baja
-            avg_productivity = campaign.total_hours / campaign.employee_count if campaign.employee_count > 0 else 0
-            if avg_productivity < 4:
-                needs_attention = True
-            
-            if needs_attention:
-                attention_count += 1
-        
-        return attention_count
-    
+            if (c.head_count and emp < c.head_count * 0.7) or avg < 4:
+                count += 1
+        return count
+
     def get_optimal_campaigns_count(self):
-        """Contar campañas con rendimiento óptimo"""
-        optimal_count = 0
-        campaigns = Campaign.objects.filter(is_active=True).annotate(
+        count = 0
+        camps = Campaign.objects.filter(is_active=True).annotate(
             employee_count=Count('active_employees'),
-            total_hours=Sum('active_employees__work_days__productive_hours')
+            total_hours=Coalesce(Sum('active_employees__work_days__productive_hours'), 0.0, output_field=FloatField()),
+        )
+        for c in camps:
+            emp = c.employee_count or 0
+            avg = float(c.total_hours / emp) if emp > 0 else 0.0
+            
+            if c.head_count:
+                util = (emp / c.head_count) * 100
+                if util < 85 or util > 95:
+                    continue
+            
+            if avg < 6:
+                continue
+            
+            count += 1
+        
+        return count
+
+    def calculate_overall_productivity(self):
+        result = WorkDay.objects.aggregate(
+            total=Coalesce(Sum('productive_hours'), 0.0, output_field=FloatField()),
+            count=Count('id')
         )
         
-        for campaign in campaigns:
-            is_optimal = True
-            
-            # Verificar headcount
-            if campaign.head_count:
-                utilization = (campaign.employee_count / campaign.head_count) * 100
-                if utilization < 85 or utilization > 95:
-                    is_optimal = False
-            
-            # Verificar productividad
-            avg_productivity = campaign.total_hours / campaign.employee_count if campaign.employee_count > 0 else 0
-            if avg_productivity < 6:
-                is_optimal = False
-            
-            if is_optimal:
-                optimal_count += 1
+        total_hours = result['total'] or 0.0
+        total_workdays = result['count'] or 0
         
-        return optimal_count
-    
-    def calculate_overall_productivity(self):
-        """Calcular productividad general promedio"""
-        total_hours = WorkDay.objects.aggregate(total=Sum('productive_hours'))['total'] or 0
-        total_workdays = WorkDay.objects.count()
-        
-        if total_workdays > 0:
-            return total_hours / total_workdays
-        return 0
-    
+        if total_workdays > 0 and total_hours > 0:
+            return float(total_hours) / float(total_workdays)
+        return 0.0
+
     def calculate_productivity_percentage(self):
-        """Calcular porcentaje de productividad (basado en 8h día ideal)"""
-        avg_productivity = self.calculate_overall_productivity()
-        return min((avg_productivity / 8) * 100, 100)
-    
+        avg = self.calculate_overall_productivity()
+        return min((avg / 8) * 100, 100) if avg > 0 else 0
+
     def calculate_campaign_completion(self, campaign):
-        """Calcular porcentaje de completitud de campaña"""
-        if not campaign.end_date or not campaign.start_date:
+        if not campaign.start_date or not campaign.end_date:
             return 0
         
         total_days = (campaign.end_date - campaign.start_date).days
@@ -463,9 +461,7 @@ class ManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
             return 100
         
         days_passed = (timezone.now().date() - campaign.start_date).days
-        completion = min(100, max(0, (days_passed / total_days) * 100))
-        return round(completion, 1)
-    
+        return round(min(max(days_passed / total_days * 100, 0), 100), 1)
 
 @login_required
 def campaign_detail_dashboard(request, campaign_id):

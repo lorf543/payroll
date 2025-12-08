@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -5,13 +6,30 @@
     <style>
         body { font-family: Arial, sans-serif; color: #333; }
         .container { max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; }
-        h2 { color: #007bff; }
+        h2 { color: #24b1aaff; }
         ul { padding-left: 20px; }
-        a.button { display: inline-block; padding: 10px 15px; margin-top: 10px; background-color: #007bff; color: #fff; text-decoration: none; border-radius: 5px; }
+        a.button { display: inline-block; padding: 10px 15px; margin-top: 10px; background-color: #24b1aaff; color: #fff; text-decoration: none; border-radius: 5px; }
+        .img-logo{
+            display: block;
+            margin-left:auto;
+            margin-right: auto;
+            width: 25%;
+        }
+        .signature{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <img
+            src="{{ logo_url }}"
+            class="img-logo"
+            alt="logo header"
+        />
+        
         <h2>Welcome, {{ email }}!</h2>
         <p>You have been invited to join our Employee Portal.</p>
 
@@ -29,8 +47,16 @@
             <li><strong>Supervisor:</strong> {{ supervisor }}</li>
             {% endif %}
         </ul>
-
-        <p>Best regards,<br>HR Department</p>
+        <hr>
+        <div class="signature">
+            <img
+                src="{{ logo_url }}"
+                class="img-fluid rounded-top"
+                alt="logo signature"
+                width="9%"
+            />      
+                <p>Best regards,<br>HR Department</p>
+        </div>
     </div>
 </body>
 </html>

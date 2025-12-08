@@ -31,6 +31,13 @@ urlpatterns = [
     path('update_session/<int:session_id>/', views.update_session, name='update_session'),
 
 
+    path('create/', views.occurrence_create, name='occurrence_create'),
+    path('<int:pk>/', views.occurrence_detail, name='occurrence_detail'),
+    path('<int:pk>/update/', views.occurrence_update, name='occurrence_update'),
+    path('<int:pk>/delete/', views.occurrence_delete, name='occurrence_delete'),
+
+    
+
 ]
 
 

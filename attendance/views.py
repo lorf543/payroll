@@ -1,5 +1,5 @@
-from django.shortcuts import render, get_object_or_404, redirect, HttpResponse
-from django.http import JsonResponse, HttpResponseForbidden
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse, HttpResponseForbidden,HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import user_passes_test
@@ -11,12 +11,14 @@ from django.db import transaction
 from datetime import datetime, time, timedelta,date
 from django.core.paginator import Paginator
 from django.db.models import Q
-from .forms import EmployeeProfileForm,ActivitySessionForm
 from django.contrib.auth.models import User
 from django.contrib.auth import logout
 from django.db import transaction
-from django.db.models import F
-from django.http import HttpResponseBadRequest
+from django_q.tasks import async_task
+from django.core.files.storage import default_storage
+from django.http import FileResponse
+from django.core.files.base import ContentFile
+import os
 
 
 from django.views.generic import DetailView
@@ -30,11 +32,51 @@ import csv
 
 
 from core.models import Employee, Campaign
-from .models import WorkDay,ActivitySession
+from .forms import EmployeeProfileForm,ActivitySessionForm, OccurrenceForm
+from .models import WorkDay,ActivitySession, Occurrence
 from .status_helpers import close_active_status
 from .utility import *
 from core.utils.payroll import get_effective_pay_rate
+from .tasks import generate_and_email_team_report
 # Create your views here.
+
+
+def format_duration_simple(duration):
+    """
+    Acepta timedelta, segundos, minutos o strings numéricos y devuelve 'Xh YYm'
+    """
+    if not duration:
+        return "0h 00m"
+
+    try:
+        # Si es timedelta → convertir a segundos
+        if hasattr(duration, "total_seconds"):
+            total_seconds = int(duration.total_seconds())
+
+        # Si es string numérico → convertir
+        elif isinstance(duration, str) and duration.isdigit():
+            total_seconds = int(duration)
+
+        # Si es número → asumir que viene en segundos grandes o minutos pequeños
+        elif isinstance(duration, (int, float)):
+            # Heurística: si es muy grande, probablemente ya está en segundos
+            if duration > 3600:  # más de 1 hora en segundos
+                total_seconds = int(duration)
+            else:
+                # probablemente son minutos → convertir a segundos
+                total_seconds = int(duration) * 60
+        else:
+            return "0h 00m"
+
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+
+        if hours > 0:
+            return f"{hours}h {minutes:02d}m"
+        return f"{minutes}m"
+
+    except Exception:
+        return "0h 00m"
 
 
 def force_logout_all_users(request):
@@ -202,6 +244,7 @@ def agent_dashboard(request):
         'history': history,
         'today': today,
         'current_session_type': current_session.session_type if current_session else '',
+        'form_create_occurrence': OccurrenceForm(),
     }
 
     return render(request, 'attendance/agent_dashboard.html', context)
@@ -378,15 +421,7 @@ def attendance_history(request):
     paginator = Paginator(work_days, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    
-    def format_duration_simple(duration):
-        if not duration:
-            return "0h 00m 00s"
-        total_seconds = int(duration.total_seconds())
-        hours = total_seconds // 3600
-        minutes = (total_seconds % 3600) // 60
-        seconds = total_seconds % 60
-        return f"{hours}h {minutes:02d}m {seconds:02d}s" if hours > 0 else f"{minutes}m {seconds:02d}s"
+
 
     # Preparar datos para cada día
     days_data = []
@@ -452,14 +487,6 @@ def export_attendance_excel(request):
         cell.alignment = Alignment(horizontal="center", vertical="center")
         ws.column_dimensions[get_column_letter(col_num)].width = 18
 
-    # Función auxiliar para formato
-    def format_duration_simple(duration):
-        if not duration:
-            return "0h 00m"
-        total_seconds = int(duration.total_seconds())
-        hours = total_seconds // 3600
-        minutes = (total_seconds % 3600) // 60
-        return f"{hours}h {minutes:02d}m" if hours > 0 else f"{minutes}m"
 
     # Agregar datos
     for work_day in work_days:
@@ -496,20 +523,6 @@ def day_detail(request, date_str):
         work_day = WorkDay.objects.get(employee=employee, date=date_obj)
         
         sessions = work_day.sessions.all().order_by('start_time')
-
-        # Función para formatear duración - MEJORADA
-        def format_duration_simple(duration):
-            if not duration:
-                return "0h 00m"
-            try:
-                total_seconds = int(duration.total_seconds())
-                hours = total_seconds // 3600
-                minutes = (total_seconds % 3600) // 60
-                if hours > 0:
-                    return f"{hours}h {minutes:02d}m"
-                return f"{minutes}m"
-            except (AttributeError, TypeError):
-                return "0h 00m"
         
         # Calcular estadísticas del día con manejo de errores
         try:
@@ -706,7 +719,6 @@ def export_team_report_excel(request):
         messages.error(request, "You don't have supervisor privileges.")
         return redirect('employee_profile')
 
-    # Obtener fechas
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
 
@@ -714,147 +726,11 @@ def export_team_report_excel(request):
         messages.error(request, "Please select valid dates.")
         return redirect("supervisor_dashboard")
 
-    date_from_dt = datetime.strptime(date_from, "%Y-%m-%d").date()
-    date_to_dt = datetime.strptime(date_to, "%Y-%m-%d").date()
+    # Lanzar tarea asíncrona
+    async_task("attendance.tasks.generate_and_email_team_report", supervisor.id, date_from, date_to)
 
-    # Miembros del supervisor
-    team_members = Employee.objects.filter(supervisor=supervisor)
-
-    work_days = (
-        WorkDay.objects.filter(
-            employee__in=team_members,
-            date__range=(date_from_dt, date_to_dt)
-        )
-        .select_related("employee", "employee__user")
-        .prefetch_related("sessions")
-        .order_by("date", "employee__user__last_name")
-    )
-
-    # Crear Excel
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Team Report"
-
-    bold = Font(bold=True)
-    center = Alignment(horizontal="center")
-
-    # Header
-    ws.merge_cells("A1:Q1")
-    ws["A1"] = f"Team Report - Supervisor: {supervisor.user.get_full_name()}"
-    ws["A1"].font = Font(bold=True, size=14)
-    ws["A1"].alignment = center
-
-    ws.merge_cells("A2:Q2")
-    ws["A2"] = f"Generated: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    ws["A2"].alignment = center
-
-    ws.append([])
-
-    # Encabezados EXACTOS + columnas extra
-    headers = [
-        "Agent Name", "Date", "Attendance Status", "Week",
-        "Time In",
-        "Break 1-start", "Break 1-end", "Break1 Duration",
-        "Break 2-start", "Break 2-end", "Break2 Duration",
-        "Lunch start", "Lunch end", "Lunch Duration",
-        "Time Out",
-        "Total Hours",
-        "Notes",
-    ]
-
-    ws.append(headers)
-    for col in range(1, len(headers) + 1):
-        ws.cell(row=4, column=col).font = bold
-        ws.cell(row=4, column=col).alignment = center
-
-    # Helpers
-    def fmt_time(t):
-        return t.strftime("%H:%M") if t else "-"
-
-    def fmt_duration(s):
-        if not s or not s.start_time or not s.end_time:
-            return "-"
-
-        delta = s.end_time - s.start_time
-        total_seconds = int(delta.total_seconds())
-
-        minutes = total_seconds // 60
-        seconds = total_seconds % 60
-
-        return f"{minutes:02d}:{seconds:02d}"
-
-    def fmt_total(td):
-        if td is None:
-            return "0.00"
-        return f"{td.total_seconds() / 3600:.2f}"
-
-    # Escribir filas
-    for wd in work_days:
-        sessions = wd.sessions.all()
-
-        work_sessions = sessions.filter(session_type="work").order_by("start_time")
-        break_sessions = sessions.filter(session_type="break").order_by("start_time")
-        lunch_sessions = sessions.filter(session_type="lunch").order_by("start_time")
-
-        # Time in / out
-        time_in = work_sessions.first().start_time if work_sessions else None
-        time_out = work_sessions.last().end_time if work_sessions else None
-
-        # Break 1
-        break1_start = break_sessions[0].start_time if len(break_sessions) >= 1 else None
-        break1_end = break_sessions[0].end_time if len(break_sessions) >= 1 else None
-        break1_duration = fmt_duration(break_sessions[0]) if len(break_sessions) >= 1 else "-"
-
-        # Break 2
-        break2_out = break_sessions[1].start_time if len(break_sessions) >= 2 else None
-        break2_in = break_sessions[1].end_time if len(break_sessions) >= 2 else None
-        break2_duration = fmt_duration(break_sessions[1]) if len(break_sessions) >= 2 else "-"
-
-        # Lunch
-        lunch_out = lunch_sessions[0].start_time if lunch_sessions else None
-        lunch_in = lunch_sessions[0].end_time if lunch_sessions else None
-        lunch_duration = fmt_duration(lunch_sessions[0]) if lunch_sessions else "-"
-
-        ws.append([
-            wd.employee.user.get_full_name(),
-            wd.date.strftime("%m/%d/%Y"),
-            wd.get_day_status(),                 # Fijo como en tu ejemplo
-            wd.date.isocalendar()[1],        # week number
-            fmt_time(time_in),
-
-            fmt_time(break1_start),
-            fmt_time(break1_end),
-            break1_duration,
-
-            fmt_time(break2_out),
-            fmt_time(break2_in),
-            break2_duration,
-
-            fmt_time(lunch_out),
-            fmt_time(lunch_in),
-            lunch_duration,
-
-            fmt_time(time_out),
-            fmt_total(wd.total_work_time),
-
-            wd.notes or "",
-        ])
-
-    # Ajustar ancho columnas
-    for col_cells in ws.columns:
-        max_len = max(len(str(c.value)) if c.value else 0 for c in col_cells)
-        ws.column_dimensions[get_column_letter(col_cells[0].column)].width = max_len + 2
-
-    # Respuesta
-    response = HttpResponse(
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    filename = f"team_report_{supervisor.user.username}_{timezone.now().strftime('%Y%m%d')}.xlsx"
-    response["Content-Disposition"] = f'attachment; filename=\"{filename}\"'
-
-    wb.save(response)
-    return response
-
+    messages.success(request, "Report generation started! You will receive an email when it's ready.")
+    return redirect("supervisor_dashboard")
 
 
 @login_required
@@ -959,7 +835,11 @@ def employee_attendance_detail(request, employee_id):
         'date_from': date_from,
         'date_to': date_to,
         'total_work_days': total_work_days,
-        'total_work_time': format_duration_simple(timedelta(minutes=total_work_time)),
+
+        # FIX: total_work_time está en segundos → usar seconds, NO minutes
+        'total_work_time': format_duration_simple(timedelta(seconds=total_work_time)),
+
+        # FIX: avg_work_time también en segundos
         'avg_work_time': format_duration_simple(timedelta(seconds=avg_work_time)),
     }
     
@@ -1122,19 +1002,6 @@ def export_employee_attendance_excel(request, employee_id):
     wb.save(response)
     return response
 
-# Función auxiliar para formatear duración
-def format_duration_simple(duration):
-    """Formatear timedelta a formato legible"""
-    if not duration:
-        return "0h 00m"
-    
-    total_seconds = int(duration.total_seconds())
-    hours = total_seconds // 3600
-    minutes = (total_seconds % 3600) // 60
-    
-    if hours > 0:
-        return f"{hours}h {minutes:02d}m"
-    return f"{minutes}m"
 
 
 
@@ -1332,3 +1199,76 @@ def update_session(request, session_id):
         
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
+    
+
+
+#Occurrence crud
+
+@login_required
+def occurrence_list(request):
+
+    occurrences = Occurrence.objects.filter(employee=request.user)
+    return render(request, 'occurrences/occurrence_list.html', {
+        'occurrences': occurrences
+    })
+
+@login_required
+def occurrence_create(request):
+
+    if request.method == 'POST':
+        form = OccurrenceForm(request.POST)
+        if form.is_valid():
+            occurrence = form.save(commit=False)
+            occurrence.employee = request.user
+            occurrence.save()
+            messages.success(request, 'Occurrence created successfully!')
+            return redirect('occurrence_list')
+    else:
+        form = OccurrenceForm()
+    
+    return render(request, 'occurrences/occurrence_form.html', {
+        'form': form,
+        'title': 'Create Occurrence'
+    })
+
+@login_required
+def occurrence_update(request, pk):
+
+    occurrence = get_object_or_404(Occurrence, pk=pk, employee=request.user)
+    
+    if request.method == 'POST':
+        form = OccurrenceForm(request.POST, instance=occurrence)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Occurrence updated successfully!')
+            return redirect('occurrence_list')
+    else:
+        form = OccurrenceForm(instance=occurrence)
+    
+    return render(request, 'occurrences/occurrence_form.html', {
+        'form': form,
+        'title': 'Update Occurrence',
+        'occurrence': occurrence
+    })
+
+@login_required
+def occurrence_detail(request, pk):
+
+    occurrence = get_object_or_404(Occurrence, pk=pk, employee=request.user)
+    return render(request, 'occurrences/occurrence_detail.html', {
+        'occurrence': occurrence
+    })
+
+@login_required
+def occurrence_delete(request, pk):
+
+    occurrence = get_object_or_404(Occurrence, pk=pk, employee=request.user)
+    
+    if request.method == 'POST':
+        occurrence.delete()
+        messages.success(request, 'Occurrence deleted successfully!')
+        return redirect('occurrence_list')
+    
+    return render(request, 'occurrences/occurrence_confirm_delete.html', {
+        'occurrence': occurrence
+    })

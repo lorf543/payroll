@@ -474,3 +474,19 @@ class ActivitySession(models.Model):
         original_duration = (self.original_end_time - self.original_start_time).total_seconds() / 60
         current_duration = self.duration_minutes
         return int(current_duration - original_duration)
+    
+
+class Occurrence(models.Model):
+    employee = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    duration = models.DurationField(null=True, blank=True)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    comment = models.TextField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+
+        if self.start_time and self.end_time:
+            self.duration = self.end_time - self.start_time
+        
+        super().save(*args, **kwargs)
