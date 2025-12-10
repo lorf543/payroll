@@ -10,7 +10,8 @@ from django.contrib.sessions.models import Session
 from django.db import transaction
 from datetime import datetime, time, timedelta,date
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Value
+from django.db.models.functions import Concat
 from django.contrib.auth.models import User
 from django.contrib.auth import logout
 from django.db import transaction
@@ -1328,33 +1329,121 @@ def update_session(request, session_id):
 
 
 #Occurrence crud
-
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db.models.functions import Concat
 @login_required
 def occurrence_list(request):
+    """Lista todas las ocurrencias con paginación y filtros"""
 
-    occurrences = Occurrence.objects.filter(employee=request.user)
+    search_query = request.GET.get('search', '')
+    campaign_filter = request.GET.get('campaign', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    
+
+    occurrence_list = Occurrence.objects.all().order_by('-start_time')
+    
+
+    if search_query:
+        occurrence_list = occurrence_list.annotate(
+            full_name_db=Concat(
+                'employee__user__first_name',
+                Value(' '),
+                'employee__user__last_name'
+            )
+        ).filter(
+            Q(full_name_db__icontains=search_query) |
+            Q(employee__user__first_name__icontains=search_query) |
+            Q(employee__user__last_name__icontains=search_query)
+  
+        )
+    
+    # Aplicar filtro por campaña (asumiendo que Occurrence tiene relación con Employee)
+    if campaign_filter:
+        occurrence_list = occurrence_list.filter(
+            employee__current_campaign__id=campaign_filter
+        )
+    
+    # Aplicar filtro por fecha de inicio
+    if date_from:
+        occurrence_list = occurrence_list.filter(start_time__date__gte=date_from)
+    
+    if date_to:
+        occurrence_list = occurrence_list.filter(start_time__date__lte=date_to)
+    
+    # Obtener todas las campañas únicas para el dropdown de filtro
+
+    campaigns = Campaign.objects.filter(is_active=True).distinct()
+    
+    # Configurar paginación (10 elementos por página)
+    paginator = Paginator(occurrence_list, 10)
+    page = request.GET.get('page', 1)
+    
+    try:
+        occurrences = paginator.page(page)
+    except PageNotAnInteger:
+        occurrences = paginator.page(1)
+    except EmptyPage:
+        occurrences = paginator.page(paginator.num_pages)
+    
+    # Pasar los parámetros de filtro al contexto para mantenerlos en los links de paginación
+    query_params = ''
+    if request.GET:
+        params = request.GET.copy()
+        if 'page' in params:
+            del params['page']
+        query_params = '&' + params.urlencode()
+    
     return render(request, 'occurrences/occurrence_list.html', {
-        'occurrences': occurrences
+        'occurrences': occurrences,
+        'campaigns': campaigns,
+        'search_query': search_query,
+        'campaign_filter': campaign_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+        'query_params': query_params,
     })
 
 @login_required
 def occurrence_create(request):
 
-    if request.method == 'POST':
-        form = OccurrenceForm(request.POST)
-        if form.is_valid():
-            occurrence = form.save(commit=False)
-            occurrence.employee = request.user
-            occurrence.save()
-            messages.success(request, 'Occurrence created successfully!')
-            return redirect('occurrence_list')
-    else:
-        form = OccurrenceForm()
+    employee = Employee.objects.get(user=request.user)
+
+
+    if request.method == "POST":
+        session_occurrence = request.POST.get("session_occurrence")
+        start_time_str = request.POST.get("start_time")
+        end_time_str = request.POST.get("end_time")
+        comment = request.POST.get("comment")
+
+
+        start_time = datetime.strptime(start_time_str, "%H:%M").time()
+        end_time = datetime.strptime(end_time_str, "%H:%M").time()
+
+        if not session_occurrence:
+            messages.info(request, 'Yous must Select and Occurrence')
+
+        if not start_time or not end_time:
+            messages.info(request, "Start time and end time are required.")
+            return redirect("agent_dashboard")
+        
+        if not comment:
+            messages.info(request, "comment is required.")
+            return redirect("agent_dashboard")
+
+
+        Occurrence.objects.create(
+            employee=employee,
+            occurrence_type=session_occurrence,
+            start_time=start_time,
+            end_time=end_time,
+            comment=comment,
+            created_at=timezone.now()
+        )
+
+        messages.success(request, "Occurrence registered successfully!")
     
-    return render(request, 'occurrences/occurrence_form.html', {
-        'form': form,
-        'title': 'Create Occurrence'
-    })
+    return redirect("agent_dashboard")
 
 @login_required
 def occurrence_update(request, pk):

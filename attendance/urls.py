@@ -32,6 +32,7 @@ urlpatterns = [
 
 
     path('create/', views.occurrence_create, name='occurrence_create'),
+    path('occurrence_list/', views.occurrence_list, name='occurrence_list'),
     path('<int:pk>/', views.occurrence_detail, name='occurrence_detail'),
     path('<int:pk>/update/', views.occurrence_update, name='occurrence_update'),
     path('<int:pk>/delete/', views.occurrence_delete, name='occurrence_delete'),

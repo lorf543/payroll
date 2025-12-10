@@ -2,7 +2,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from decimal import Decimal
 import logging
 
@@ -477,16 +477,29 @@ class ActivitySession(models.Model):
     
 
 class Occurrence(models.Model):
-    employee = models.ForeignKey(User, on_delete=models.CASCADE)
 
-    duration = models.DurationField(null=True, blank=True)
-    start_time = models.TimeField(null=True, blank=True)
-    end_time = models.TimeField(null=True, blank=True)
+    OCCURRENCE_TYPES = [
+        ("technical_issues", "Technical Issues"),
+        ("call_drop", "Call Drop"),
+    ]
+    
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    occurrence_type = models.CharField(max_length=50, choices=OCCURRENCE_TYPES)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
     comment = models.TextField(null=True, blank=True)
+    duration = models.DurationField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.employee.full_name}"
+    
 
     def save(self, *args, **kwargs):
-
         if self.start_time and self.end_time:
-            self.duration = self.end_time - self.start_time
-        
+            self.duration = (
+                datetime.combine(datetime.today(), self.end_time)
+                - datetime.combine(datetime.today(), self.start_time)
+            )
         super().save(*args, **kwargs)

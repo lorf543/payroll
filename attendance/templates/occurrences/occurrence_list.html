@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+{% load tz %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Occurrences</h1>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small">
+                Showing {{ occurrences.start_index }} - {{ occurrences.end_index }} of {{ occurrences.paginator.count }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Panel de Filtros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="bi bi-funnel me-2"></i>Filters
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="" class="row g-3">
+                <!-- Buscador por nombre/email -->
+                <div class="col-md-4">
+                    <label for="search" class="form-label">Search Agent</label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" 
+                               class="form-control" 
+                               id="search" 
+                               name="search" 
+                               placeholder="Search by name"
+                               value="{{ search_query }}">
+                        {% if search_query %}
+                        <a href="?{% if campaign_filter %}campaign={{ campaign_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                           class="btn btn-outline-secondary" 
+                           title="Clear search">
+                            <i class="bi bi-x"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Filtro por Campaign -->
+                <div class="col-md-3">
+                    <label for="campaign" class="form-label">Campaign</label>
+                    <select class="form-select" id="campaign" name="campaign">
+                        <option value="">All Campaigns</option>
+                        {% for campaign in campaigns %}
+                        <option value="{{ campaign.id }}" 
+                                {% if campaign_filter == campaign.id|stringformat:"i" %}selected{% endif %}>
+                            {{ campaign.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Filtro por fecha desde -->
+                <div class="col-md-2">
+                    <label for="date_from" class="form-label">From Date</label>
+                    <input type="date" 
+                           class="form-control" 
+                           id="date_from" 
+                           name="date_from" 
+                           value="{{ date_from }}"
+                           disabled>
+                </div>
+                
+                <!-- Filtro por fecha hasta -->
+                <div class="col-md-2">
+                    <label for="date_to" class="form-label">To Date</label>
+                    <input type="date" 
+                           class="form-control" 
+                           id="date_to" 
+                           name="date_to" 
+                           value="{{ date_to }}"
+                           disabled>
+                </div>
+                <small class="text-danger fw-bolder">Filter date fields are disabled for now </small>
+                
+                <!-- Botones de acción -->
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-filter me-1"></i> Filter
+                    </button>
+                </div>
+                
+                <div class="col-md-1 d-flex align-items-end">
+                    <a href="{% url 'occurrence_list' %}" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-x-circle me-1"></i> Clear
+                    </a>
+                </div>
+            </form>
+            
+            <!-- Indicadores de filtros activos -->
+            {% if search_query or campaign_filter or date_from or date_to %}
+            <div class="mt-3 pt-3 border-top">
+                <small class="text-muted">Active filters:</small>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    {% if search_query %}
+                    <span class="badge bg-info">
+                        Search: "{{ search_query }}"
+                        <a href="?{% if campaign_filter %}campaign={{ campaign_filter }}&{% endif %}{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}{% endif %}" 
+                           class="text-white ms-1" style="text-decoration: none;">
+                            <i class="bi bi-x"></i>
+                        </a>
+                    </span>
+                    {% endif %}
+                    
+                    {% if campaign_filter %}
+                    <span class="badge bg-info">
+                        Campaign: 
+                        <a href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}{% endif %}" 
+                           class="text-white ms-1" style="text-decoration: none;">
+                            <i class="bi bi-x"></i>
+                        </a>
+                    </span>
+                    {% endif %}
+                    
+                    {% if date_from %}
+                    <span class="badge bg-info">
+                        From: {{ date_from }}
+                        <a href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if campaign_filter %}campaign={{ campaign_filter }}&{% endif %}{% if date_to %}date_to={{ date_to }}{% endif %}" 
+                           class="text-white ms-1" style="text-decoration: none;">
+                            <i class="bi bi-x"></i>
+                        </a>
+                    </span>
+                    {% endif %}
+                    
+                    {% if date_to %}
+                    <span class="badge bg-info">
+                        To: {{ date_to }}
+                        <a href="?{% if search_query %}search={{ search_query }}&{% endif %}{% if campaign_filter %}campaign={{ campaign_filter }}&{% endif %}{% if date_from %}date_from={{ date_from }}{% endif %}" 
+                           class="text-white ms-1" style="text-decoration: none;">
+                            <i class="bi bi-x"></i>
+                        </a>
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tabla de Occurrences -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if occurrences %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Duration</th>
+                                <th>Employee</th>
+                                <th>Campaign</th>
+                                <th>Comment</th>
+                                {% comment %} <th>Actions</th> {% endcomment %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for occurrence in occurrences %}
+                            <tr>
+                                <td>{{ occurrence.created_at|date:"M d, Y" }}</td>
+                                <td>{{ occurrence.start_time|date:"H:i" }}</td>
+                                <td>
+                                    {% if occurrence.end_time %}
+                                        {{ occurrence.end_time|date:"H:i" }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if occurrence.duration %}
+                                        {{ occurrence.duration }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if occurrence.employee.full_name %}
+                                        {{ occurrence.employee.full_name }}
+                                    {% else %}
+                                        {{ occurrence.employee.username }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if occurrence.employee.current_campaign %}
+                                        <span class="badge bg-primary">
+                                            {{ occurrence.employee.current_campaign.name }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">No campaign</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if occurrence.comment %}
+                                        <span title="{{ occurrence.comment }}">
+                                            {{ occurrence.comment|truncatechars:50 }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">No comment</span>
+                                    {% endif %}
+                                </td>
+                                {% comment %} <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="#" class="btn btn-outline-info" title="View">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a href="#" class="btn btn-outline-warning" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <a href="#" class="btn btn-outline-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </td> {% endcomment %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Paginador -->
+                {% if occurrences.has_other_pages %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        <!-- Botón Anterior -->
+                        {% if occurrences.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ occurrences.previous_page_number }}{{ query_params }}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link" aria-hidden="true">&laquo;</span>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Números de página -->
+                        {% for i in occurrences.paginator.page_range %}
+                            {% if occurrences.number == i %}
+                            <li class="page-item active" aria-current="page">
+                                <span class="page-link">{{ i }}</span>
+                            </li>
+                            {% elif i > occurrences.number|add:'-3' and i < occurrences.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ i }}{{ query_params }}">{{ i }}</a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <!-- Botón Siguiente -->
+                        {% if occurrences.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ occurrences.next_page_number }}{{ query_params }}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link" aria-hidden="true">&raquo;</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                
+                <!-- Paginador simplificado -->
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="text-muted small">
+                        Page {{ occurrences.number }} of {{ occurrences.paginator.num_pages }}
+                        | Total records: {{ occurrences.paginator.count }}
+                    </div>
+                    <div class="btn-group" role="group">
+                        {% if occurrences.has_previous %}
+                        <a href="?page=1{{ query_params }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-chevron-double-left"></i> First
+                        </a>
+                        <a href="?page={{ occurrences.previous_page_number }}{{ query_params }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </a>
+                        {% else %}
+                        <button class="btn btn-outline-secondary btn-sm disabled">
+                            <i class="bi bi-chevron-double-left"></i> First
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm disabled">
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </button>
+                        {% endif %}
+                        
+                        {% if occurrences.has_next %}
+                        <a href="?page={{ occurrences.next_page_number }}{{ query_params }}" class="btn btn-outline-secondary btn-sm">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </a>
+                        <a href="?page={{ occurrences.paginator.num_pages }}{{ query_params }}" class="btn btn-outline-secondary btn-sm">
+                            Last <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                        {% else %}
+                        <button class="btn btn-outline-secondary btn-sm disabled">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm disabled">
+                            Last <i class="bi bi-chevron-double-right"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-calendar-x fa-3x text-muted mb-3"></i>
+                    <h4>No occurrences found</h4>
+                    <p class="text-muted">
+                        {% if search_query or campaign_filter or date_from or date_to %}
+                            Try adjusting your filters
+                        {% else %}
+                            Start by creating your first occurrence
+                        {% endif %}
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+/* Estilos para los filtros */
+.card-header {
+    background-color: #f8f9fa !important;
+}
+
+.input-group-text {
+    background-color: #f8f9fa;
+}
+
+.badge {
+    font-size: 0.85em;
+    padding: 0.35em 0.65em;
+}
+
+/* Estilos para la tabla */
+.table th {
+    border-top: none;
+    font-weight: 600;
+    color: #495057;
+    background-color: #f8f9fa;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Responsive para móviles */
+@media (max-width: 768px) {
+    .card-body .row > div {
+        margin-bottom: 1rem;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .btn-group .btn {
+        border-radius: 0.25rem !important;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .table td, .table th {
+        padding: 0.5rem;
+    }
+}
+</style>
+{% endblock %}
