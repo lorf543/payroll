@@ -1334,45 +1334,69 @@ from django.db.models.functions import Concat
 @login_required
 def occurrence_list(request):
     """Lista todas las ocurrencias con paginación y filtros"""
-
+    
+    # Get the employee for the current user
+    try:
+        employee = Employee.objects.get(user=request.user)
+    except Employee.DoesNotExist:
+        messages.error(request, "Employee profile not found.")
+        return redirect('dashboard')
+    
+    # Get filter parameters
     search_query = request.GET.get('search', '')
     campaign_filter = request.GET.get('campaign', '')
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
     
 
-    occurrence_list = Occurrence.objects.all().order_by('-start_time')
+    if employee.is_supervisor or employee.is_it or request.user.is_superuser:
+        occurrence_list = Occurrence.objects.all()
+    else:
+        occurrence_list = Occurrence.objects.filter(employee=employee)
     
 
+    occurrence_list = occurrence_list.order_by('-start_time')
+    
+    # Apply search filter (only for supervisors or when searching within own data)
     if search_query:
-        occurrence_list = occurrence_list.annotate(
-            full_name_db=Concat(
-                'employee__user__first_name',
-                Value(' '),
-                'employee__user__last_name'
+        if employee.is_supervisor or employee.is_it or request.user.is_superuser:
+            # Supervisors can search across all employees
+            occurrence_list = occurrence_list.annotate(
+                full_name_db=Concat(
+                    'employee__user__first_name',
+                    Value(' '),
+                    'employee__user__last_name'
+                )
+            ).filter(
+                Q(full_name_db__icontains=search_query) |
+                Q(employee__user__first_name__icontains=search_query) |
+                Q(employee__user__last_name__icontains=search_query)
             )
-        ).filter(
-            Q(full_name_db__icontains=search_query) |
-            Q(employee__user__first_name__icontains=search_query) |
-            Q(employee__user__last_name__icontains=search_query)
-  
-        )
+        else:
+            # Regular employees can only search within their own data
+            # They could search within their own comments or occurrence types
+            occurrence_list = occurrence_list.filter(
+                Q(comment__icontains=search_query) |
+                Q(occurrence_type__icontains=search_query)
+            )
     
-    # Aplicar filtro por campaña (asumiendo que Occurrence tiene relación con Employee)
+    # Apply campaign filter (only for supervisors)
     if campaign_filter:
-        occurrence_list = occurrence_list.filter(
-            employee__current_campaign__id=campaign_filter
-        )
+        if employee.is_supervisor or employee.is_it or request.user.is_superuser:
+            # Supervisors can filter by campaign
+            occurrence_list = occurrence_list.filter(
+                employee__current_campaign__id=campaign_filter
+            )
+        # Regular employees ignore this filter since they only see their own data
     
-    # Aplicar filtro por fecha de inicio
+    # Apply date filters
     if date_from:
         occurrence_list = occurrence_list.filter(start_time__date__gte=date_from)
     
     if date_to:
         occurrence_list = occurrence_list.filter(start_time__date__lte=date_to)
     
-    # Obtener todas las campañas únicas para el dropdown de filtro
-
+    # Get all active campaigns for the filter dropdown (only for supervisors)
     campaigns = Campaign.objects.filter(is_active=True).distinct()
     
     # Configurar paginación (10 elementos por página)
@@ -1402,13 +1426,12 @@ def occurrence_list(request):
         'date_from': date_from,
         'date_to': date_to,
         'query_params': query_params,
+        'is_supervisor': employee.is_supervisor or employee.is_it or request.user.is_superuser,
     })
 
 @login_required
 def occurrence_create(request):
-
     employee = Employee.objects.get(user=request.user)
-
 
     if request.method == "POST":
         session_occurrence = request.POST.get("session_occurrence")
@@ -1416,22 +1439,33 @@ def occurrence_create(request):
         end_time_str = request.POST.get("end_time")
         comment = request.POST.get("comment")
 
-
-        start_time = datetime.strptime(start_time_str, "%H:%M").time()
-        end_time = datetime.strptime(end_time_str, "%H:%M").time()
-
+        # Collect validation errors
+        errors = []
+        
         if not session_occurrence:
-            messages.info(request, 'Yous must Select and Occurrence')
-
-        if not start_time or not end_time:
-            messages.info(request, "Start time and end time are required.")
-            return redirect("agent_dashboard")
+            errors.append('You must select an Occurrence')
+        
+        if not start_time_str or not end_time_str:
+            errors.append('Start time and end time are required.')
         
         if not comment:
-            messages.info(request, "comment is required.")
+            errors.append('Comment is required.')
+
+        # If there are any validation errors, show them and redirect
+        if errors:
+            for error in errors:
+                messages.info(request, error)
             return redirect("agent_dashboard")
 
+        try:
+            # Only parse time if strings are not empty
+            start_time = datetime.strptime(start_time_str, "%H:%M").time()
+            end_time = datetime.strptime(end_time_str, "%H:%M").time()
+        except ValueError:
+            messages.info(request, "Invalid time format. Please use HH:MM format (e.g., 09:30, 14:45)")
+            return redirect("agent_dashboard")
 
+        # Create the occurrence
         Occurrence.objects.create(
             employee=employee,
             occurrence_type=session_occurrence,
@@ -1444,6 +1478,7 @@ def occurrence_create(request):
         messages.success(request, "Occurrence registered successfully!")
     
     return redirect("agent_dashboard")
+
 
 @login_required
 def occurrence_update(request, pk):

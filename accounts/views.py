@@ -221,8 +221,8 @@ def add_email_field(request):
 MAX_EMAILS = 20
 @login_required
 def bulk_employee_invitation(request):
-   
-    email_forms = [EmployeeEmailForm(prefix=str(i)) for i in range(1)]
+    initial_forms = 1
+    email_forms = [EmployeeEmailForm(prefix=str(i)) for i in range(initial_forms)]
     
     if request.method == 'POST':
         main_form = EmployeeInvitationForm(request.POST)
@@ -248,36 +248,39 @@ def bulk_employee_invitation(request):
                     'email_forms': email_forms
                 })
             
-            # Get base URL for email links
             base_url = request.build_absolute_uri('/').rstrip('/')
             
-            # Queue tasks asynchronously
-            task_ids = []
+            # Generar links de invitación
+            links = []
             for email_data in valid_emails:
                 email = email_data['email']
-                custom_identification = email_data.get('identification')
+                custom_id = email_data.get('identification', '')
                 
-                # Submit task to Django Q
-                task_id = async_task(
-                    'accounts.tasks.send_employee_invitation',
-                    email,
-                    position.id,
-                    department.id,
-                    supervisor.id if supervisor else None,
-                    campaign.id,
-                    hire_date,
-                    custom_identification,
-                    base_url,
-                    group='employee_invitations',  
+                # Aquí el link apunta a la signup page de Allauth con el email
+                signup_url = f"{base_url}{reverse('account_signup')}?email={email}"
+                if custom_id:
+                    signup_url += f"&id={custom_id}"
+                
+                links.append(f"{email}: {signup_url}")
+                
+                # Crear Employee INVITADO en la base si no existe aún
+                from core.models import Employee
+                Employee.objects.get_or_create(
+                    email=email,
+                    defaults={
+                        'position': position,
+                        'department': department,
+                        'supervisor': supervisor,
+                        'current_campaign': campaign,
+                        'hire_date': hire_date,
+                        'identification': custom_id
+                    }
                 )
-                task_ids.append(task_id)
             
-            messages.success(
-                request, 
-                f"Queued {len(valid_emails)} invitation(s) for processing. "
-                "Emails will be sent in the background."
-            )
-            return redirect('bulk_invitation')
+            # Descargar archivo .txt con todos los links
+            response = HttpResponse("\n".join(links), content_type="text/plain")
+            response['Content-Disposition'] = 'attachment; filename="employee_invites.txt"'
+            return response
     
     else:
         main_form = EmployeeInvitationForm()

@@ -205,6 +205,7 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'               # SIN verificación de email (
 ACCOUNT_USERNAME_MIN_LENGTH = 3
 ACCOUNT_USERNAME_BLACKLIST = ['admin', 'administrator', 'moderator', 'root', 'superuser']
 ACCOUNT_PRESERVE_USERNAME_CASING = False
+ACCOUNT_ALLOW_REGISTRATION = True 
 
 # CONFIGURACIÓN DE EMAIL
 ACCOUNT_EMAIL_SUBJECT_PREFIX = '[Payroll] '

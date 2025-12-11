@@ -51,7 +51,7 @@ def send_employee_invitation(email, position_id, department_id, supervisor_id,
             "department": department.name,
             "hire_date": hire_date.strftime("%Y-%m-%d"),
             "supervisor": supervisor.full_name if supervisor else "",
-            "logo_url": "cid:company_logo",  # Content ID
+            "logo_url": "cid:company_logo", 
         })
         
         msg = EmailMultiAlternatives(

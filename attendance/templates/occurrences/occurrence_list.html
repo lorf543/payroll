@@ -44,6 +44,7 @@
                     </div>
                 </div>
                 
+                {% if is_supervisor  %}
                 <!-- Filtro por Campaign -->
                 <div class="col-md-3">
                     <label for="campaign" class="form-label">Campaign</label>
@@ -57,6 +58,9 @@
                         {% endfor %}
                     </select>
                 </div>
+                {% endif %}
+                    
+
                 
                 <!-- Filtro por fecha desde -->
                 <div class="col-md-2">
@@ -157,10 +161,11 @@
                                 <th>Start Time</th>
                                 <th>End Time</th>
                                 <th>Duration</th>
+                                <th>Occurrence</th>
                                 <th>Employee</th>
                                 <th>Campaign</th>
                                 <th>Comment</th>
-                                {% comment %} <th>Actions</th> {% endcomment %}
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -168,6 +173,7 @@
                             <tr>
                                 <td>{{ occurrence.created_at|date:"M d, Y" }}</td>
                                 <td>{{ occurrence.start_time|date:"H:i" }}</td>
+
                                 <td>
                                     {% if occurrence.end_time %}
                                         {{ occurrence.end_time|date:"H:i" }}
@@ -182,6 +188,7 @@
                                         <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
+                                <td>{{ occurrence.occurrence_type }}</td>
                                 <td>
                                     {% if occurrence.employee.full_name %}
                                         {{ occurrence.employee.full_name }}
@@ -207,19 +214,19 @@
                                         <span class="text-muted">No comment</span>
                                     {% endif %}
                                 </td>
-                                {% comment %} <td>
+                                <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="#" class="btn btn-outline-info" title="View">
+                                        {% comment %} <a href="#" class="btn btn-outline-info" title="View">
                                             <i class="bi bi-eye"></i>
-                                        </a>
-                                        <a href="#" class="btn btn-outline-warning" title="Edit">
+                                        </a> {% endcomment %}
+                                        {% comment %} <a href="#" class="btn btn-outline-warning" title="Edit">
                                             <i class="bi bi-pencil"></i>
-                                        </a>
-                                        <a href="#" class="btn btn-outline-danger" title="Delete">
+                                        </a> {% endcomment %}
+                                        {% comment %} <a href="#" class="btn btn-outline-danger" title="Delete">
                                             <i class="bi bi-trash"></i>
-                                        </a>
+                                        </a> {% endcomment %}
                                     </div>
-                                </td> {% endcomment %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
