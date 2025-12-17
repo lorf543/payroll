@@ -127,7 +127,7 @@
                             <th>Status</th>
                             <th>Work Time</th>
                             <th>Login</th>
-                            {% comment %} <th>Actions</th> {% endcomment %}
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="team-status-body">
@@ -200,15 +200,15 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <button 
-                                class="btn btn-outline-danger btn-sm"
-                                data-bs-toggle="modal"
-                                data-bs-target="#forceLogoutModal"
-                                data-employee-id="{{ employee.id }}"
-                                data-employee-name="{{ employee.user.username }}"
+                                {% comment %} <button 
+                                    class="btn btn-outline-danger btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#forceLogoutModal"
+                                    data-employee-id="{{ employee.id }}"
+                                    data-employee-name="{{ employee.user.username }}"
                                 >
                                 <i class="bi bi-power"></i> Logout
-                                </button>
+                                </button> {% endcomment %}
                             </td>
                         </tr>   
                         {% empty %}

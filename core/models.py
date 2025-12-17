@@ -58,7 +58,6 @@ class Department(models.Model):
         verbose_name_plural = "Departments"
         ordering = ["name"]
 
-
 class Position(models.Model):
     CONTRACT_TYPE_CHOICES = [
         ('full_time', 'Full Time'),
@@ -140,6 +139,7 @@ class Employee(models.Model):
     address = models.TextField(blank=True, null=True)
     city = models.CharField(max_length=100, blank=True, null=True)
     country = models.CharField(max_length=100, blank=True, null=True)
+
     is_active = models.BooleanField(default=True)
     
     #Profile
@@ -147,6 +147,7 @@ class Employee(models.Model):
     education = models.CharField(max_length=50, null=True, blank=True)
     email = models.EmailField(max_length=60, null=True, blank=True)
     skills = models.CharField(max_length=250, null=True, blank=True)
+
     
     #payment info
     fixed_rate = models.BooleanField(default=False)
@@ -207,6 +208,21 @@ class Employee(models.Model):
             self.identification = self.employee_code
             
         super().save(*args, **kwargs)
+
+
+class RelatedFamily(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+
+    name = models.CharField(max_length=50, null=True, blank=True)
+    phone = models.CharField(max_length=50, null=True, blank=True)
+    relationship = models.CharField(max_length=50, null=True, blank=True)
+
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __stre__(self):
+        return f'{self.employee.full_name} - {self.name}'
+
 
 
 class BulkInvitation(models.Model):

@@ -30,7 +30,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 from dotenv import load_dotenv
 
 load_dotenv()
-# SECURITY WARNING: don't run with debug turned on in production!
+
 DEBUG = True
 
 BASE_URL = os.getenv("BASE_URL")
@@ -68,6 +68,8 @@ INSTALLED_APPS = [
     'django_q',
     'pwa',
     'django_user_agents',
+    'rest_framework',
+    'corsheaders',
     
     'core',
     'payroll',
@@ -84,6 +86,7 @@ CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -97,6 +100,17 @@ MIDDLEWARE = [
     'django_user_agents.middleware.UserAgentMiddleware',
     'core.middleware.block_mobile.BlockMobileMiddleware'
 ]
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 1000,  
+}
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'payroll.urls'
 
@@ -151,7 +165,7 @@ Q_CLUSTER = {
     'workers': 4,
     'recycle': 500,
     'timeout': 300,
-    'retry': 120,
+    'retry': 620,
     'queue_limit': 50,
     'bulk': 10,
     'orm': 'default',

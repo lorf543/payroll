@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %} 
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">{{ title }}</h1>
+    
+    <form method="POST">
+        {% csrf_token %}
+        
+        <div class="card">
+            <div class="card-body">
+                <div class="form-group row mb-3">
+                    <div class="col-md-3">
+                        {{ form.start_time|as_crispy_field }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ form.end_time|as_crispy_field }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ form.occurrence_type|as_crispy_field }}
+                    </div>
+                </div>
+                
+                <div class="form-group mb-3">
+                    {{ form.comment|as_crispy_field }}
+                </div>
+                
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Save Changes
+                    </button>
+                    <a href="{% url 'occurrence_list' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+
+
+{% endblock content %}

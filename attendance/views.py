@@ -656,7 +656,10 @@ def supervisor_dashboard(request):
         return redirect('employee_profile')
     
     # Obtener los miembros del equipo con información del usuario
-    team_members = Employee.objects.filter(supervisor=supervisor).select_related(
+    team_members = Employee.objects.filter(
+        supervisor=supervisor,
+        is_active=True
+    ).select_related(
         'user', 'position', 'department', 'current_campaign'
     )
 
@@ -1354,13 +1357,19 @@ def occurrence_list(request):
     else:
         occurrence_list = Occurrence.objects.filter(employee=employee)
     
-
-    occurrence_list = occurrence_list.order_by('-start_time')
+    # Apply date filters
+    if date_from:
+        occurrence_list = occurrence_list.filter(date__gte=date_from)  # Use date field
     
-    # Apply search filter (only for supervisors or when searching within own data)
+    if date_to:
+        occurrence_list = occurrence_list.filter(date__lte=date_to)  # Use date field
+    
+    # Continue with other filters...
+    occurrence_list = occurrence_list.order_by('-date', '-start_time')  # Order by date first
+    
+    # Apply search filter
     if search_query:
         if employee.is_supervisor or employee.is_it or request.user.is_superuser:
-            # Supervisors can search across all employees
             occurrence_list = occurrence_list.annotate(
                 full_name_db=Concat(
                     'employee__user__first_name',
@@ -1373,61 +1382,53 @@ def occurrence_list(request):
                 Q(employee__user__last_name__icontains=search_query)
             )
         else:
-            # Regular employees can only search within their own data
-            # They could search within their own comments or occurrence types
             occurrence_list = occurrence_list.filter(
                 Q(comment__icontains=search_query) |
                 Q(occurrence_type__icontains=search_query)
             )
     
-    # Apply campaign filter (only for supervisors)
+    # Apply campaign filter
     if campaign_filter:
         if employee.is_supervisor or employee.is_it or request.user.is_superuser:
-            # Supervisors can filter by campaign
             occurrence_list = occurrence_list.filter(
                 employee__current_campaign__id=campaign_filter
             )
-        # Regular employees ignore this filter since they only see their own data
     
-    # Apply date filters
-    if date_from:
-        occurrence_list = occurrence_list.filter(start_time__date__gte=date_from)
-    
-    if date_to:
-        occurrence_list = occurrence_list.filter(start_time__date__lte=date_to)
-    
-    # Get all active campaigns for the filter dropdown (only for supervisors)
-    campaigns = Campaign.objects.filter(is_active=True).distinct()
-    
-    # Configurar paginación (10 elementos por página)
-    paginator = Paginator(occurrence_list, 10)
-    page = request.GET.get('page', 1)
-    
-    try:
-        occurrences = paginator.page(page)
-    except PageNotAnInteger:
-        occurrences = paginator.page(1)
-    except EmptyPage:
-        occurrences = paginator.page(paginator.num_pages)
-    
-    # Pasar los parámetros de filtro al contexto para mantenerlos en los links de paginación
+    # Build query parameters for pagination links
     query_params = ''
-    if request.GET:
-        params = request.GET.copy()
-        if 'page' in params:
-            del params['page']
-        query_params = '&' + params.urlencode()
+    if search_query:
+        query_params += f'&search={search_query}'
+    if campaign_filter:
+        query_params += f'&campaign={campaign_filter}'
+    if date_from:
+        query_params += f'&date_from={date_from}'
+    if date_to:
+        query_params += f'&date_to={date_to}'
     
-    return render(request, 'occurrences/occurrence_list.html', {
-        'occurrences': occurrences,
-        'campaigns': campaigns,
+    # Pagination
+    paginator = Paginator(occurrence_list, 20)  # Show 20 occurrences per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get campaigns for filter dropdown (only for supervisors)
+    if employee.is_supervisor or employee.is_it or request.user.is_superuser:
+        campaigns = Campaign.objects.all()
+    else:
+        campaigns = None
+    
+    context = {
+        'occurrences': page_obj,  # Changed from 'page_obj' to 'occurrences'
+        'page_obj': page_obj,  # Keep both for compatibility
         'search_query': search_query,
         'campaign_filter': campaign_filter,
         'date_from': date_from,
         'date_to': date_to,
-        'query_params': query_params,
+        'campaigns': campaigns,
         'is_supervisor': employee.is_supervisor or employee.is_it or request.user.is_superuser,
-    })
+        'query_params': query_params,  # Added this
+    }
+    
+    return render(request, 'occurrences/occurrence_list.html', context)
 
 @login_required
 def occurrence_create(request):
@@ -1472,7 +1473,8 @@ def occurrence_create(request):
             start_time=start_time,
             end_time=end_time,
             comment=comment,
-            created_at=timezone.now()
+            created_at=timezone.now(),
+            date=timezone.now()
         )
 
         messages.success(request, "Occurrence registered successfully!")
@@ -1483,7 +1485,7 @@ def occurrence_create(request):
 @login_required
 def occurrence_update(request, pk):
 
-    occurrence = get_object_or_404(Occurrence, pk=pk, employee=request.user)
+    occurrence = get_object_or_404(Occurrence, pk=pk)
     
     if request.method == 'POST':
         form = OccurrenceForm(request.POST, instance=occurrence)

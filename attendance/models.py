@@ -481,10 +481,12 @@ class Occurrence(models.Model):
     OCCURRENCE_TYPES = [
         ("technical_issues", "Technical Issues"),
         ("call_drop", "Call Drop"),
+        ("Bath_room", "Bath room"),
     ]
     
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     occurrence_type = models.CharField(max_length=50, choices=OCCURRENCE_TYPES)
+    date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
     comment = models.TextField(null=True, blank=True)

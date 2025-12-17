@@ -1,7 +1,10 @@
 from django.urls import path
 from django.shortcuts import redirect
 
-from . import views
+from . import views  
+from . import api_views 
+
+
 
 urlpatterns = [
     path('dashboard/', views.agent_dashboard, name='agent_dashboard'),
@@ -37,8 +40,9 @@ urlpatterns = [
     path('<int:pk>/update/', views.occurrence_update, name='occurrence_update'),
     path('<int:pk>/delete/', views.occurrence_delete, name='occurrence_delete'),
 
-    
 
+    path('api/occurrences/', api_views.OccurrenceDataView.as_view(), name='api-occurrence-data'),
+    path('api/workdays/', api_views.WorkDayDataView.as_view(), name='workday-data'),
 ]
 
 

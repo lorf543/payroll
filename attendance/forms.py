@@ -10,7 +10,7 @@ from .models import ActivitySession, Occurrence
 class OccurrenceForm(forms.ModelForm):
     class Meta:
         model = Occurrence
-        fields = ['start_time', 'end_time', 'comment']
+        fields = ['start_time', 'end_time', 'comment','occurrence_type']
         widgets = {
             'start_time': forms.TimeInput(attrs={
                 'type': 'time',  # Solo horas:minutos
