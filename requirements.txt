@@ -23,6 +23,7 @@ diff-match-patch==20241021
 dj-database-url==3.0.1
 Django==5.2.6
 django-allauth==65.11.2
+django-cors-headers==4.9.0
 django-crispy-forms==2.4
 django-humanize==0.1.2
 django-import-export==4.3.10
@@ -30,6 +31,7 @@ django-picklefield==3.3
 django-pwa==2.0.1
 django-q2==1.8.0
 django-user-agents==0.4.0
+djangorestframework==3.16.1
 et_xmlfile==2.0.0
 Faker==37.8.0
 fonttools==4.60.1
@@ -64,7 +66,6 @@ redis==3.5.3
 reportlab==4.4.4
 requests==2.32.5
 rlPyCairo==0.4.0
-sendgrid==6.12.5
 setuptools==80.9.0
 six==1.17.0
 sqlparse==0.5.3
