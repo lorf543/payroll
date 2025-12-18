@@ -77,7 +77,8 @@ INSTALLED_APPS = [
     'attendance',
     'hhrr',
     'payment',
-    'it_management'
+    'it_management',
+    'workforce',
 ]
 
 
@@ -288,11 +289,8 @@ EMAIL_TIMEOUT = 60
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'America/Santo_Domingo'
-
 USE_I18N = True
-
 USE_TZ = False
 
 # Static files (CSS, JavaScript, Images)

@@ -36,4 +36,3 @@ class DeviceToken(models.Model):
         verbose_name = "Device Token"
         verbose_name_plural = "Device Tokens"
 
-

@@ -31,6 +31,7 @@ urlpatterns = [
     path('hhrr/', include('hhrr.urls')),
     path('payments/', include('payment.urls')),
     path('it_management/', include('it_management.urls')),
+    path('workforce/', include('workforce.urls')),
     path('api-auth/', include('rest_framework.urls')),
 ]
 

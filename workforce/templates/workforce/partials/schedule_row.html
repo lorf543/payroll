@@ -1,0 +1,52 @@
+<div class="schedule-row border rounded p-3 mb-3">
+    <input type="hidden" name="{{ form.prefix }}-id">
+
+    <div class="row g-3">
+        <div class="col-md-2">
+            <label class="form-label">Employee</label>
+            {{ form.employee }}
+        </div>
+
+        <div class="col-md-1">
+            <label class="form-label">Start Date</label>
+            {{ form.start_date }}
+        </div>
+
+        <div class="col-md-1">
+            <label class="form-label">Weekday</label>
+            {{ form.primary_weekday }}
+        </div>
+
+        <div class="col-md-1">
+            <label class="form-label">Start</label>
+            {{ form.custom_start_time }}
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Break 1</label>
+            {{ form.custom_first_break_time }}
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Break 2</label>
+            {{ form.custom_second_break_time }}
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Lunch</label>
+            {{ form.custom_lunch_time }}
+        </div>
+    </div>
+
+    <div class="row g-3 mt-2 align-items-end">
+
+
+        <div class="col-md-3">
+            <button
+                type="button"
+                class="btn btn-outline-danger btn-sm"
+                hx-on="click: this.closest('.schedule-row').remove()">
+                🗑 Remove
+            </button>
+        </div>
+    </div>
+</div>

@@ -20,9 +20,9 @@ class OccurrenceDataView(APIView):
     - format: 'json' (default) o 'summary'
     
     Ejemplos:
-    /api/data/occurrences/
-    /api/data/occurrences/?start_date=2024-01-01&end_date=2024-12-31
-    /api/data/occurrences/?occurrence_type=call_drop
+    /api/occurrences/
+    /api/occurrences/?start_date=2024-01-01&end_date=2024-12-31
+    /api/occurrences/?occurrence_type=call_drop
 
     """
     

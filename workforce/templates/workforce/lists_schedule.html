@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Employee Schedules</h3>
+    <span class="badge bg-secondary">
+      Total: {{ total_schedules }}
+    </span>
+  </div>
+
+  <!-- Filters -->
+  <form method="get" class="card card-body mb-3">
+    <div class="row g-2 align-items-end">
+
+      <div class="col-md-3">
+        <label class="form-label">Employee</label>
+        <select name="employee" class="form-select">
+          <option value="">All</option>
+          {% for emp in employees %}
+            <option value="{{ emp.id }}"
+              {% if filter_params.employee == emp.id|stringformat:"s" %}selected{% endif %}
+            >
+              {{ emp.full_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Shift</label>
+        <select name="shift" class="form-select">
+          <option value="">All</option>
+          {% for sh in shifts %}
+            <option value="{{ sh.id }}"
+              {% if filter_params.shift == sh.id|stringformat:"s" %}selected{% endif %}
+            >
+              {{ sh.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          {% for key, label in status_choices %}
+            <option value="{{ key }}"
+              {% if filter_params.status == key %}selected{% endif %}
+            >
+              {{ label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label">From</label>
+        <input type="date" name="start_date" class="form-control"
+               value="{{ filter_params.start_date }}">
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label">To</label>
+        <input type="date" name="end_date" class="form-control"
+               value="{{ filter_params.end_date }}">
+      </div>
+
+      <div class="col-md-12 mt-2 d-flex gap-2">
+        <button class="btn btn-primary">
+          <i class="bi bi-filter"></i> Filter
+        </button>
+        <a hx-boost="true" href="{% url 'list_schedule' %}" class="btn btn-outline-secondary">
+          Clear
+        </a>
+      </div>
+
+    </div>
+  </form>
+
+  <!-- Table -->
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Employee</th>
+            <th>Shift</th>
+            <th>Period</th>
+            <th>Days</th>
+            <th>Status</th>
+
+          </tr>
+        </thead>
+        <tbody>
+          {% for schedule in schedules %}
+            <tr>
+              <td>{{ schedule.employee.full_name }}</td>
+
+              <td>
+                <span class="badge"
+                      style="background-color: {{ schedule.shift.color_code }}">
+                  {{ schedule.shift.name }}
+                </span>
+              </td>
+
+              <td>
+                {{ schedule.start_date }}
+                {% if schedule.end_date %}
+                  → {{ schedule.end_date }}
+                {% else %}
+                  → <em>Open</em>
+                {% endif %}
+              </td>
+
+              <td>
+                {{ schedule.active_days }}
+              </td>
+
+              <td>
+                {% if schedule.status == 'active' %}
+                  <span class="badge bg-success">Active</span>
+                {% elif schedule.status == 'published' %}
+                  <span class="badge bg-primary">Published</span>
+                {% elif schedule.status == 'draft' %}
+                  <span class="badge bg-secondary">Draft</span>
+                {% else %}
+                  <span class="badge bg-danger">Cancelled</span>
+                {% endif %}
+              </td>
+
+
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center text-muted py-4">
+                No schedules found
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

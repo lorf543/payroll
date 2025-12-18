@@ -1,0 +1,421 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet" />
+
+
+<style>
+    .fc-event {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .fc-event:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .break-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        padding: 8px;
+        background: #f8f9fa;
+        border-radius: 4px;
+    }
+    .break-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        border-radius: 50%;
+    }
+    .break-1 { background-color: #e3f2fd; color: #1976d2; }
+    .break-2 { background-color: #f3e5f5; color: #7b1fa2; }
+    .lunch-icon { background-color: #e8f5e8; color: #2e7d32; }
+    .custom-badge {
+        background-color: #ff9800;
+        color: white;
+        font-size: 0.7em;
+        padding: 2px 6px;
+        border-radius: 10px;
+        margin-left: 8px;
+    }
+    .timeline-bar {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        margin: 16px 0;
+        position: relative;
+    }
+    .timeline-break {
+        position: absolute;
+        height: 100%;
+        background: #4caf50;
+        border-radius: 4px;
+    }
+    .timeline-lunch {
+        position: absolute;
+        height: 100%;
+        background: #2196f3;
+        border-radius: 4px;
+    }
+</style>
+
+<div class="container mt-4">
+    <h3 class="mb-3">Shift Schedule - {{ employee.full_name }}</h3>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">{{ schedules.count }}</h5>
+                    <p class="card-text">Active Schedules</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-body">
+                    <p class="mb-1"><strong>Today:</strong> {{ today }}</p>
+                    {% for schedule in schedules %}
+                        {% if schedule.works_today %}
+                        <p class="mb-0">
+                            <span class="badge bg-success">Working Today</span> 
+                            {{ schedule.shift.name }}: 
+                            {{ schedule.get_effective_start_time|time:"H:i" }} - {{ schedule.get_effective_end_time|time:"H:i" }}
+                        </p>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Calendar -->
+    <div class="card">
+        <div class="card-body">
+            <div id="calendar"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Details Modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scheduleModalLabel">Shift Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="scheduleDetails">
+                <!-- Content will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const calendarEl = document.getElementById('calendar');
+    const modal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+    
+    // Parse schedule data from Django template
+    const scheduleData = JSON.parse('{{ schedules_json|escapejs }}');
+    
+    // Create events for calendar
+    const events = [];
+    scheduleData.forEach(function(schedule) {
+        schedule.active_dates.forEach(function(date) {
+            events.push({
+                title: schedule.shift_name,
+                start: date,
+                color: schedule.status === 'active' ? '#28a745' : 
+                       schedule.status === 'published' ? '#007bff' : '#6c757d',
+                extendedProps: {
+                    scheduleId: schedule.id,
+                    date: date,
+                    shiftType: schedule.shift_type,
+                    times: schedule.times,
+                    breaks: schedule.breaks,
+                    hasCustomSettings: schedule.has_custom_settings,
+                    customNotes: schedule.custom_notes,
+                    startDate: schedule.start_date,
+                    endDate: schedule.end_date,
+                }
+            });
+        });
+    });
+
+    // Initialize calendar
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        height: 'auto',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,listMonth,timeGridWeek'
+        },
+        events: events,
+        eventClick: function(info) {
+            showScheduleDetails(info.event);
+        },
+        eventDidMount: function(info) {
+            const props = info.event.extendedProps;
+            
+            // Tooltip with basic info
+            info.el.title = `${props.times.start_time} - ${props.times.end_time}\n` +
+                          `Breaks: ${props.breaks.break_count} × ${props.breaks.break_duration} min\n` +
+                          `Lunch: ${props.breaks.lunch_duration} min`;
+            
+            // Add custom indicator badge if custom settings exist
+            if (props.hasCustomSettings) {
+                const badge = document.createElement('span');
+                badge.className = 'position-absolute top-0 start-100 translate-middle p-1 bg-warning border border-light rounded-circle';
+                badge.style.fontSize = '0.5em';
+                badge.title = 'Custom Schedule Settings';
+                info.el.appendChild(badge);
+            }
+        },
+        displayEventTime: false,
+        eventDisplay: 'block'
+    });
+
+    calendar.render();
+
+    // Function to show schedule details in modal
+    function showScheduleDetails(event) {
+        const props = event.extendedProps;
+        
+        // Build HTML for modal
+        let html = `
+            <div class="schedule-details">
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <h4>${event.title}</h4>
+                        <p class="text-muted">${props.shiftType.charAt(0).toUpperCase() + props.shiftType.slice(1)} Shift</p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <span class="badge ${props.hasCustomSettings ? 'bg-warning' : 'bg-info'}">
+                            ${props.hasCustomSettings ? 'Custom Schedule' : 'Standard Schedule'}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">Shift Time</h6>
+                                <h3 class="card-title">${props.times.start_time} - ${props.times.end_time}</h3>
+                                <p class="card-text">
+                                    ${props.times.effective_hours} working hours<br>
+                                    <small class="text-muted">Date: ${props.date}</small>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">Schedule Period</h6>
+                                <p class="mb-1"><strong>From:</strong> ${props.startDate}</p>
+                                <p class="mb-0"><strong>To:</strong> ${props.endDate || 'Ongoing'}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h5 class="mb-3">Break & Lunch Schedule</h5>
+        `;
+        
+        // Break timeline visualization
+        html += `
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title">Daily Timeline</h6>
+                    <div class="timeline-bar mb-3" id="timelineBar">
+                        <!-- Timeline breaks will be added by JavaScript -->
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col">
+                            <small class="text-muted">${props.times.start_time} Start</small>
+                        </div>
+                        <div class="col text-center">
+                            <small class="text-muted">Shift Duration</small>
+                        </div>
+                        <div class="col text-end">
+                            <small class="text-muted">${props.times.end_time} End</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Breaks section
+        html += '<div class="row">';
+        
+        // Scheduled Breaks
+        if (props.breaks.scheduled_breaks && props.breaks.scheduled_breaks.length > 0) {
+            html += `
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-cup-hot me-2"></i>Scheduled Breaks
+                                <span class="badge bg-secondary ms-2">${props.breaks.break_count} breaks</span>
+                            </h6>
+                            ${props.breaks.scheduled_breaks.map(breakItem => `
+                                <div class="break-item">
+                                    <div class="break-icon break-${breakItem.break_number}">
+                                        <i class="bi bi-${breakItem.break_number === 1 ? 'cup-hot' : 'cup-straw'}"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <strong>Break #${breakItem.break_number}</strong>
+                                        <div class="d-flex justify-content-between">
+                                            <span>${breakItem.scheduled_time}</span>
+                                            <span>${breakItem.duration_minutes} minutes</span>
+                                        </div>
+                                    </div>
+                                    ${breakItem.is_custom ? '<span class="custom-badge">Custom</span>' : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Lunch
+        if (props.breaks.lunch_time) {
+            html += `
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-egg-fried me-2"></i>Lunch Break
+                            </h6>
+                            <div class="break-item">
+                                <div class="break-icon lunch-icon">
+                                    <i class="bi bi-egg-fried"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <strong>Lunch Time</strong>
+                                    <div class="d-flex justify-content-between">
+                                        <span>${props.breaks.lunch_time.scheduled_time}</span>
+                                        <span>${props.breaks.lunch_time.duration_minutes} minutes</span>
+                                    </div>
+                                </div>
+                                ${props.breaks.lunch_time.is_custom ? '<span class="custom-badge">Custom</span>' : ''}
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Total break time: ${props.breaks.total_break_time_minutes} minutes
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        
+        // Notes
+        if (props.customNotes) {
+            html += `
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="bi bi-sticky me-2"></i>Notes
+                        </h6>
+                        <p class="card-text">${props.customNotes}</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += '</div>'; // Close schedule-details
+        
+        // Set modal content and show
+        document.getElementById('scheduleDetails').innerHTML = html;
+        document.getElementById('scheduleModalLabel').textContent = `Shift Details - ${props.date}`;
+        modal.show();
+        
+        // Draw timeline after modal is shown
+        setTimeout(() => {
+            drawTimeline(props.times.start_time, props.times.end_time, props.breaks);
+        }, 100);
+    }
+    
+    // Function to draw timeline visualization
+    function drawTimeline(startTime, endTime, breaks) {
+        const timelineBar = document.getElementById('timelineBar');
+        if (!timelineBar) return;
+        
+        // Clear previous timeline
+        timelineBar.innerHTML = '';
+        
+        // Calculate total minutes in shift
+        const start = parseTime(startTime);
+        const end = parseTime(endTime);
+        const totalMinutes = (end.hours * 60 + end.minutes) - (start.hours * 60 + start.minutes);
+        if (totalMinutes <= 0) return;
+        
+        // Draw breaks on timeline
+        if (breaks.scheduled_breaks) {
+            breaks.scheduled_breaks.forEach(breakItem => {
+                const breakStart = parseTime(breakItem.scheduled_time);
+                const breakStartMinutes = (breakStart.hours * 60 + breakStart.minutes) - (start.hours * 60 + start.minutes);
+                
+                if (breakStartMinutes >= 0) {
+                    const left = (breakStartMinutes / totalMinutes) * 100;
+                    const width = (breakItem.duration_minutes / totalMinutes) * 100;
+                    
+                    const breakEl = document.createElement('div');
+                    breakEl.className = 'timeline-break';
+                    breakEl.style.left = `${left}%`;
+                    breakEl.style.width = `${width}%`;
+                    breakEl.title = `Break #${breakItem.break_number}: ${breakItem.scheduled_time} (${breakItem.duration_minutes} min)`;
+                    timelineBar.appendChild(breakEl);
+                }
+            });
+        }
+        
+        // Draw lunch on timeline
+        if (breaks.lunch_time) {
+            const lunchStart = parseTime(breaks.lunch_time.scheduled_time);
+            const lunchStartMinutes = (lunchStart.hours * 60 + lunchStart.minutes) - (start.hours * 60 + start.minutes);
+            
+            if (lunchStartMinutes >= 0) {
+                const left = (lunchStartMinutes / totalMinutes) * 100;
+                const width = (breaks.lunch_time.duration_minutes / totalMinutes) * 100;
+                
+                const lunchEl = document.createElement('div');
+                lunchEl.className = 'timeline-lunch';
+                lunchEl.style.left = `${left}%`;
+                lunchEl.style.width = `${width}%`;
+                lunchEl.title = `Lunch: ${breaks.lunch_time.scheduled_time} (${breaks.lunch_time.duration_minutes} min)`;
+                timelineBar.appendChild(lunchEl);
+            }
+        }
+    }
+    
+    // Helper function to parse time string
+    function parseTime(timeStr) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return { hours, minutes };
+    }
+});
+</script>
+{% endblock %}

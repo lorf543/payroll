@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import time, timedelta, datetime
 from core.models import Employee, Campaign
+import datetime
 
 
 class Shift(models.Model):
@@ -18,7 +19,7 @@ class Shift(models.Model):
         ('rotating', 'Rotating Shift'),
     ]
 
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, blank=True, null=True)
     shift_type = models.CharField(max_length=20, choices=SHIFT_TYPES)
 
     # Shift hours
@@ -94,6 +95,7 @@ class Shift(models.Model):
     def is_night_shift(self):
         """Detect if this is a night shift (crosses midnight)"""
         return self.start_time > self.end_time
+    
 
     @property
     def total_break_time_minutes(self):
@@ -104,6 +106,11 @@ class Shift(models.Model):
     def formatted_time_range(self):
         """Formatted time range"""
         return f"{self.start_time.strftime('%I:%M %p')} - {self.end_time.strftime('%I:%M %p')}"
+    
+    def save(self, *args, **kwargs):
+        self.name = f"{self.campaign.name } - {self.shift_type.capitalize()}"
+        
+        super().save(*args, **kwargs)
 
 
 class EmployeeSchedule(models.Model):
@@ -151,7 +158,12 @@ class EmployeeSchedule(models.Model):
     custom_end_time = models.TimeField(null=True, blank=True)
     custom_break_duration = models.IntegerField(null=True, blank=True)
     custom_lunch_duration = models.IntegerField(null=True, blank=True)
-
+    
+    custom_break_count = models.IntegerField(null=True, blank=True)
+    custom_first_break_time = models.TimeField(null=True, blank=True)
+    custom_second_break_time = models.TimeField(null=True, blank=True)
+    custom_lunch_time = models.TimeField(null=True, blank=True)
+        
     # Status and metadata
     status = models.CharField(max_length=20, choices=SCHEDULE_STATUS, default='draft')
     notes = models.TextField(blank=True, null=True)
@@ -240,8 +252,11 @@ class EmployeeSchedule(models.Model):
             'end_time': self.custom_end_time or self.shift.end_time,
             'break_duration': self.custom_break_duration or self.shift.break_duration_minutes,
             'lunch_duration': self.custom_lunch_duration or self.shift.lunch_duration_minutes,
+            'first_break_time': self.custom_first_break_time or self.shift.first_break_time,
+            'second_break_time': self.custom_second_break_time or self.shift.second_break_time,
+            'lunch_time': self.custom_lunch_time or self.shift.lunch_time,
         }
-
+    
     def get_schedule_for_date(self, date):
         """Return schedule details for a specific date"""
         if not self.is_valid_for_date(date):
@@ -258,6 +273,25 @@ class EmployeeSchedule(models.Model):
             'lunch_duration': times['lunch_duration'],
             'expected_hours': self.shift.expected_hours,
         }
+    
+    def get_schedule_for_date_range(self):
+        """Devuelve lista de fechas activas según días de la semana y rango de fechas"""
+        start = self.start_date
+        end = self.end_date or (self.start_date + timedelta(days=180))  # hasta 6 meses si indefinido
+        current = start
+        active_dates = []
+
+        weekdays = [
+            self.monday, self.tuesday, self.wednesday,
+            self.thursday, self.friday, self.saturday, self.sunday
+        ]
+
+        while current <= end:
+            if weekdays[current.weekday()]:
+                active_dates.append(current)
+            current += timedelta(days=1)
+
+        return active_dates
 
     def is_valid_for_date(self, date):
         """Check if schedule applies to a specific date"""
@@ -272,7 +306,158 @@ class EmployeeSchedule(models.Model):
             self.friday, self.saturday, self.sunday
         ]
         return days_active[weekday]
-
+    
+    def get_effective_start_time(self):
+        """Get effective start time (custom or shift default)"""
+        return self.custom_start_time or self.shift.start_time
+    
+    def get_effective_end_time(self):
+        """Get effective end time (custom or shift default)"""
+        return self.custom_end_time or self.shift.end_time
+    
+    def get_effective_break_duration(self):
+        """Get effective break duration"""
+        return self.custom_break_duration or self.shift.break_duration_minutes
+    
+    def get_effective_lunch_duration(self):
+        """Get effective lunch duration"""
+        return self.custom_lunch_duration or self.shift.lunch_duration_minutes
+    
+    def get_effective_break_count(self):
+        """Get effective break count"""
+        return self.custom_break_count or self.shift.break_count
+    
+    def get_effective_first_break_time(self):
+        """Get effective first break time"""
+        return self.custom_first_break_time or self.shift.first_break_time
+    
+    def get_effective_second_break_time(self):
+        """Get effective second break time"""
+        return self.custom_second_break_time or self.shift.second_break_time
+    
+    def get_effective_lunch_time(self):
+        """Get effective lunch time"""
+        return self.custom_lunch_time or self.shift.lunch_time
+    
+    def get_effective_hours(self):
+        """Calculate effective working hours considering custom times"""
+        start = self.get_effective_start_time()
+        end = self.get_effective_end_time()
+        
+        if start and end:
+            # Handle night shifts (crossing midnight)
+            if start > end:
+                # Night shift - add 24 hours to end time
+                end_dt = datetime.datetime.combine(datetime.date.today(), end)
+                end_dt += timedelta(days=1)
+                start_dt = datetime.datetime.combine(datetime.date.today(), start)
+            else:
+                start_dt = datetime.datetime.combine(datetime.date.today(), start)
+                end_dt = datetime.datetime.combine(datetime.date.today(), end)
+            
+            total_minutes = (end_dt - start_dt).total_seconds() / 60
+            return round(total_minutes / 60, 2)
+        
+        return self.shift.expected_hours
+    
+    def get_break_schedule_details(self):
+        """Calculate and return detailed break schedule"""
+        start_time = self.get_effective_start_time()
+        end_time = self.get_effective_end_time()
+        break_count = self.get_effective_break_count()
+        break_duration = self.get_effective_break_duration()
+        lunch_duration = self.get_effective_lunch_duration()
+        
+        # Initialize result
+        result = {
+            'scheduled_breaks': [],
+            'lunch_time': None,
+            'total_break_time_minutes': 0,
+        }
+        
+        # Get custom times if available
+        first_break_time = self.get_effective_first_break_time()
+        second_break_time = self.get_effective_second_break_time()
+        lunch_time = self.get_effective_lunch_time()
+        
+        # If custom times are specified, use them
+        if first_break_time:
+            result['scheduled_breaks'].append({
+                'break_number': 1,
+                'scheduled_time': first_break_time.strftime('%H:%M'),
+                'duration_minutes': break_duration,
+                'type': 'break',
+                'is_custom': bool(self.custom_first_break_time),
+            })
+        
+        if second_break_time and break_count >= 2:
+            result['scheduled_breaks'].append({
+                'break_number': 2,
+                'scheduled_time': second_break_time.strftime('%H:%M'),
+                'duration_minutes': break_duration,
+                'type': 'break',
+                'is_custom': bool(self.custom_second_break_time),
+            })
+        
+        if lunch_time:
+            result['lunch_time'] = {
+                'scheduled_time': lunch_time.strftime('%H:%M'),
+                'duration_minutes': lunch_duration,
+                'type': 'lunch',
+                'is_custom': bool(self.custom_lunch_time),
+            }
+        
+        # Calculate total break time
+        total_breaks = len(result['scheduled_breaks']) * break_duration
+        if result['lunch_time']:
+            total_breaks += lunch_duration
+        result['total_break_time_minutes'] = total_breaks
+        
+        # If no custom times, calculate suggested times based on shift duration
+        if not result['scheduled_breaks'] and break_count > 0:
+            # Calculate suggested break times (spread evenly)
+            shift_minutes = (datetime.datetime.combine(datetime.date.today(), end_time) - 
+                           datetime.datetime.combine(datetime.date.today(), start_time)).seconds / 60
+            
+            for i in range(break_count):
+                # Break starts after 1/3 of the way through each segment
+                break_offset = (shift_minutes / (break_count + 1)) * (i + 1)
+                break_time = (datetime.datetime.combine(datetime.date.today(), start_time) + 
+                            timedelta(minutes=break_offset)).time()
+                
+                result['scheduled_breaks'].append({
+                    'break_number': i + 1,
+                    'scheduled_time': break_time.strftime('%H:%M'),
+                    'duration_minutes': break_duration,
+                    'type': 'break',
+                    'is_custom': False,
+                })
+        
+        return result
+    
+    def get_daily_schedule_with_breaks(self, date):
+        """Get detailed schedule for a specific date including breaks"""
+        if not self.is_valid_for_date(date):
+            return None
+        
+        break_details = self.get_break_schedule_details()
+        
+        return {
+            'date': date.strftime('%Y-%m-%d'),
+            'day_name': date.strftime('%A'),
+            'shift_name': self.shift.name,
+            'shift_type': self.shift.shift_type,
+            'schedule_id': self.id,
+            'times': {
+                'start': self.get_effective_start_time().strftime('%H:%M'),
+                'end': self.get_effective_end_time().strftime('%H:%M'),
+                'working_hours': self.get_effective_hours(),
+            },
+            'breaks': break_details,
+            'notes': self.notes,
+            'status': self.status,
+        }
+    
 
 class TimeOffRequest(models.Model):
     """

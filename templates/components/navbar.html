@@ -149,7 +149,8 @@
             <button class="alert-btn" 
                     id="sidebarToggle"
                     aria-label="Toggle sidebar"
-                    hx-boost="false">
+                    data-bs-toggle="modal" data-bs-target="#exampleNotifications"
+                    >
               <i class="bi bi-journal-bookmark"></i>
               {% comment %} <span class="alert-badge">3</span> {% endcomment %}
             </button>
@@ -183,6 +184,12 @@
                   </a>
                 </li>
                 <li>
+                  <a class="dropdown-item" href="{% url 'list_schedule_eemployee' %}" aria-label="View Employees" hx-boost="false">
+                    <i class="bi bi-stopwatch"></i>
+                    Schedules
+                  </a>
+                </li>
+                <li>
                   <a class="dropdown-item" href="{% url 'account_change_password' %}" aria-label="Change Password" hx-boost="false">
                     <i class="bi bi-key"></i>
                     Password
@@ -212,3 +219,22 @@
     </div>
   </div>
 </nav>
+
+
+<div class="modal fade" id="exampleNotifications" tabindex="-1" aria-labelledby="exampleNotifications" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h1 class="modal-title fs-5" id="exampleNotifications">Modal title</h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        work in progress!
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>

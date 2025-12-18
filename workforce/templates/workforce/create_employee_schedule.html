@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Employee Schedule</h2>
+    <p class="text-muted">Add multiple schedules for different employees or days</p>
+    
+    <form method="POST" autocomplete="off" novalidate class="mt-4" id="scheduleForm">
+        {% csrf_token %}
+        
+        <!-- Hidden field to track row count -->
+        {{ formset.management_form }}
+        
+        <div id="scheduleRows">
+            {% for form in formset %}
+            <div class="schedule-row mb-4 p-3 border rounded" data-row="{{ forloop.counter0 }}">
+                <div class="row g-3">
+                    <!-- Employee Selection -->
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label class="form-label">Employee</label>
+                            {{ form.employee }}
+                        </div>
+                    </div>
+                    
+                    <!-- Start Date (Date Picker) -->
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label class="form-label">Start Date</label>
+                            {{ form.start_date }}
+                        </div>
+                    </div>
+                    
+                    <!-- Weekday Selection -->
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label class="form-label">Primary Weekday</label>
+                            {{ form.primary_weekday }}
+                        </div>
+                    </div>
+                    
+                    <!-- Start Time (Time Picker) -->
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label class="form-label">Start Time</label>
+                            {{ form.custom_start_time }}
+                        </div>
+                    </div>
+                    
+                    <!-- First Break Time -->
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label class="form-label">First Break</label>
+                            {{ form.custom_first_break_time }}
+                        </div>
+                    </div>
+                    
+                    <!-- Second Break Time -->
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label class="form-label">Second Break</label>
+                            {{ form.custom_second_break_time }}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row g-3 mt-2">
+                    <!-- Lunch Time -->
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label class="form-label">Lunch Time</label>
+                            {{ form.custom_lunch_time }}
+                        </div>
+                    </div>
+                    
+                    <!-- Delete Button (only show if not first row) -->
+                    <div class="col-md-3 d-flex align-items-end">
+                        {% if forloop.counter0 > 0 %}
+                        <button type="button" class="btn btn-outline-danger btn-sm remove-row">
+                            <i class="fas fa-trash"></i> Remove
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Hidden DELETE field for formset -->
+                {% if form.DELETE %}
+                    {{ form.DELETE }}
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Add Row Button -->
+        <div class="mt-3 mb-4">
+            <button type="button" id="addRow" class="btn btn-outline-primary">
+                <i class="fas fa-plus"></i> Add Another Schedule
+            </button>
+        </div>
+        
+        <!-- Form Actions -->
+        <div class="mt-4 border-top pt-3">
+            <button type="submit" class="btn btn-primary">Save All Schedules</button>
+            <a href="{% url 'home' %}" class="btn btn-secondary ms-2">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const formsetPrefix = '{{ formset.prefix }}';
+    const totalFormsInput = document.getElementById('id_' + formsetPrefix + '-TOTAL_FORMS');
+    const maxFormsInput = document.getElementById('id_' + formsetPrefix + '-MAX_NUM_FORMS');
+    const scheduleRows = document.getElementById('scheduleRows');
+    const addRowBtn = document.getElementById('addRow');
+    
+    let formCount = parseInt(totalFormsInput.value);
+    
+    // Template for new row
+    const newRowTemplate = `
+    <div class="schedule-row mb-4 p-3 border rounded" data-row="{rowIndex}">
+        <div class="row g-3">
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label class="form-label">Employee</label>
+                    <select name="${formsetPrefix}-{rowIndex}-employee" class="form-control employee-select" data-row="{rowIndex}" id="id_${formsetPrefix}-{rowIndex}-employee">
+                        <option value="">---------</option>
+                        {% for employee in employees %}
+                        <option value="{{ employee.id }}">{{ employee.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="${formsetPrefix}-{rowIndex}-start_date" class="form-control date-input" data-row="{rowIndex}" id="id_${formsetPrefix}-{rowIndex}-start_date">
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label class="form-label">Primary Weekday</label>
+                    <select name="${formsetPrefix}-{rowIndex}-primary_weekday" class="form-control weekday-select" data-row="{rowIndex}" id="id_${formsetPrefix}-{rowIndex}-primary_weekday">
+                        <option value="">---------</option>
+                        <option value="monday">Monday</option>
+                        <option value="tuesday">Tuesday</option>
+                        <option value="wednesday">Wednesday</option>
+                        <option value="thursday">Thursday</option>
+                        <option value="friday">Friday</option>
+                        <option value="saturday">Saturday</option>
+                        <option value="sunday">Sunday</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label class="form-label">Start Time</label>
+                    <input type="time" name="${formsetPrefix}-{rowIndex}-custom_start_time" class="form-control time-input" data-row="{rowIndex}" id="id_${formsetPrefix}-{rowIndex}-custom_start_time">
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label class="form-label">First Break</label>
+                    <input type="time" name="${formsetPrefix}-{rowIndex}-custom_first_break_time" class="form-control time-input" data-row="{rowIndex}" id="id_${formsetPrefix}-{rowIndex}-custom_first_break_time">
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label class="form-label">Second Break</label>
+                    <input type="time" name="${formsetPrefix}-{rowIndex}-custom_second_break_time" class="form-control time-input" data-row="{rowIndex}" id="id_${formsetPrefix}-{rowIndex}-custom_second_break_time">
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-2">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label class="form-label">Lunch Time</label>
+                    <input type="time" name="${formsetPrefix}-{rowIndex}-custom_lunch_time" class="form-control time-input" data-row="{rowIndex}" id="id_${formsetPrefix}-{rowIndex}-custom_lunch_time">
+                </div>
+            </div>
+            
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="button" class="btn btn-outline-danger btn-sm remove-row">
+                    <i class="fas fa-trash"></i> Remove
+                </button>
+                <!-- Hidden DELETE field -->
+                <input type="hidden" name="${formsetPrefix}-{rowIndex}-DELETE" id="id_${formsetPrefix}-{rowIndex}-DELETE" value="">
+            </div>
+        </div>
+    </div>`;
+    
+    // Add new row
+    addRowBtn.addEventListener('click', function() {
+        if (formCount >= parseInt(maxFormsInput.value)) {
+            alert('Maximum number of schedules reached.');
+            return;
+        }
+        
+        const newRowHtml = newRowTemplate.replace(/{rowIndex}/g, formCount);
+        const newRow = document.createElement('div');
+        newRow.innerHTML = newRowHtml;
+        
+        scheduleRows.appendChild(newRow.firstElementChild);
+        formCount++;
+        totalFormsInput.value = formCount;
+        
+        // Add event listener to new remove button
+        const newRemoveBtn = newRow.querySelector('.remove-row');
+        if (newRemoveBtn) {
+            newRemoveBtn.addEventListener('click', removeRow);
+        }
+    });
+    
+    // Remove row function
+    function removeRow(e) {
+        const row = e.target.closest('.schedule-row');
+        const rowIndex = parseInt(row.getAttribute('data-row'));
+        
+        // Mark for deletion (for formset)
+        const deleteInput = row.querySelector('input[type="hidden"][id$="-DELETE"]');
+        if (deleteInput) {
+            deleteInput.value = 'on';
+            row.style.display = 'none'; // Hide instead of remove for formset
+        } else {
+            // If no delete field, remove immediately (for empty extra forms)
+            row.remove();
+            formCount--;
+            totalFormsInput.value = formCount;
+            updateRowIndices();
+        }
+    }
+    
+    // Update row indices after removal
+    function updateRowIndices() {
+        const rows = scheduleRows.querySelectorAll('.schedule-row:not([style*="display: none"])');
+        rows.forEach((row, index) => {
+            row.setAttribute('data-row', index);
+            
+            // Update all inputs in this row
+            const inputs = row.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                const name = input.getAttribute('name');
+                if (name) {
+                    const newName = name.replace(/-\d+-/, '-' + index + '-');
+                    input.setAttribute('name', newName);
+                    input.setAttribute('id', 'id_' + newName);
+                    input.setAttribute('data-row', index);
+                }
+            });
+        });
+        
+        // Update total forms count
+        formCount = rows.length;
+        totalFormsInput.value = formCount;
+    }
+    
+    // Add event listeners to existing remove buttons
+    document.querySelectorAll('.remove-row').forEach(btn => {
+        btn.addEventListener('click', removeRow);
+    });
+});
+</script>
+
+<style>
+.schedule-row {
+    background-color: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.schedule-row:hover {
+    background-color: #f0f0f0;
+}
+
+.remove-row {
+    transition: all 0.2s ease;
+}
+
+.remove-row:hover {
+    transform: scale(1.05);
+}
+
+.form-control[type="date"]::-webkit-calendar-picker-indicator,
+.form-control[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.form-label {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+.btn-outline-primary:hover {
+    background-color: #0d6efd;
+    color: white;
+}
+</style>
+{% endblock %}

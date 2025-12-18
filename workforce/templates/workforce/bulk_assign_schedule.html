@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+
+<div class="container mt-1">
+  <h3 class="mb-1">Bulk Assign Employee Schedule</h3>
+  <a href="{% url 'list_schedule' %}">lists schedule</a>
+  <a href="{% url 'create_schedule' %}">create_employee_schedule</a>
+
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+
+        <!-- Employees -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Select Employees</label>
+          <select class="form-select" name="employees" multiple size="5" required>
+            {% for employee in employees %}
+              <option value="{{ employee.id }}">
+                {{ employee.full_name }} ({{ employee.department.name|default:"No Department" }})
+              </option>
+            {% empty %}
+              <option disabled>No active employees found</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            <i class="bi bi-info-circle"></i> Hold CTRL (or CMD) to select multiple employees
+          </div>
+        </div>
+
+        <!-- Shift -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Shift</label>
+          <select class="form-select" name="shift" required>
+            <option value="">--------- Select a Shift ---------</option>
+            {% for shift in shifts %}
+              <option value="{{ shift.id }}">
+                {{ shift.name }} ({{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }})
+              </option>
+            {% empty %}
+              <option disabled>No active shifts available</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Dates -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Start Date</label>
+            <input type="date" name="start_date" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">End Date (optional)</label>
+            <input type="date" name="end_date" class="form-control">
+            <div class="form-text">Leave empty for no end date</div>
+          </div>
+        </div>
+
+        <!-- Days -->
+        <div class="container mb-4">
+          <label class="form-label fw-semibold">Active Days</label>
+          <div class="row g-3">
+            {% for key, label in days_of_week %}
+            <div class="col-6 col-md-4 col-lg-3">
+              <div class="form-check form-check-inline bg-light p-2 rounded">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  name="{{ key }}"
+                  id="id_{{ key }}"
+                  value="true"
+                  checked>
+                <label class="form-check-label ms-2" for="id_{{ key }}">
+                  {{ label }}
+                </label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="mt-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="selectAllDays">
+              Select All
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="deselectAllDays">
+              Deselect All
+            </button>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="d-flex justify-content-between align-items-center">
+          <button type="submit" class="btn btn-primary px-4">
+            <i class="bi bi-calendar-plus me-2"></i>
+            Assign Schedule
+          </button>
+          {% comment %} <a href="{% url 'schedule_list' %}" class="btn btn-outline-secondary">
+            View All Schedules
+          </a> {% endcomment %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Set default dates
+  document.addEventListener('DOMContentLoaded', function() {
+    // Set start date to today
+    const today = new Date().toISOString().split('T')[0];
+    const startDateInput = document.querySelector('input[name="start_date"]');
+    if (startDateInput && !startDateInput.value) {
+      startDateInput.value = today;
+    }
+
+    // Day selection helpers
+    document.getElementById('selectAllDays').addEventListener('click', function() {
+      document.querySelectorAll('input[type="checkbox"][name^="monday"], input[type="checkbox"][name^="tuesday"], input[type="checkbox"][name^="wednesday"], input[type="checkbox"][name^="thursday"], input[type="checkbox"][name^="friday"], input[type="checkbox"][name^="saturday"], input[type="checkbox"][name^="sunday"]').forEach(function(checkbox) {
+        checkbox.checked = true;
+      });
+    });
+
+    document.getElementById('deselectAllDays').addEventListener('click', function() {
+      document.querySelectorAll('input[type="checkbox"][name^="monday"], input[type="checkbox"][name^="tuesday"], input[type="checkbox"][name^="wednesday"], input[type="checkbox"][name^="thursday"], input[type="checkbox"][name^="friday"], input[type="checkbox"][name^="saturday"], input[type="checkbox"][name^="sunday"]').forEach(function(checkbox) {
+        checkbox.checked = false;
+      });
+    });
+  });
+</script>
+
+{% endblock %}
