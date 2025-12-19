@@ -1,0 +1,79 @@
+<!-- evaluation/templates/evaluation/evaluation_form.html -->
+{% extends "evaluation/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">{{ title }}</h3>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.employee.id_for_label }}" class="form-label">
+                                    Employee *
+                                </label>
+                                {{ form.employee }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.evaluator.id_for_label }}" class="form-label">
+                                    Evaluator
+                                </label>
+                                {{ form.evaluator }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.question.id_for_label }}" class="form-label">
+                            Question *
+                        </label>
+                        {{ form.question }}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.score.id_for_label }}" class="form-label">
+                                    Score (0-10) *
+                                </label>
+                                {{ form.score }}
+                                {% if form.score.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ form.score.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.comments.id_for_label }}" class="form-label">
+                            Comments
+                        </label>
+                        {{ form.comments }}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            Save Evaluation
+                        </button>
+                        <a href="{% url 'evaluation:evaluation_list' %}" class="btn btn-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

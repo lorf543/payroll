@@ -33,6 +33,7 @@ urlpatterns = [
     path('it_management/', include('it_management.urls')),
     path('workforce/', include('workforce.urls')),
     path('api-auth/', include('rest_framework.urls')),
+    path('evaluation/', include('evaluation.urls')),
 ]
 
 

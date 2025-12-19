@@ -1,0 +1,62 @@
+<!-- evaluation/templates/evaluation/question_form.html -->
+{% extends "evaluation/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">{{ title }}</h3>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.text.id_for_label }}" class="form-label">
+                            Question Text *
+                        </label>
+                        {{ form.text }}
+                        {% if form.text.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ form.text.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.category.id_for_label }}" class="form-label">
+                                    Category *
+                                </label>
+                                {{ form.category }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.weight.id_for_label }}" class="form-label">
+                                    Weight *
+                                </label>
+                                {{ form.weight }}
+                                <small class="text-muted">Default: 1.0</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            Save Question
+                        </button>
+                        <a href="{% url 'evaluation:question_list' %}" class="btn btn-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

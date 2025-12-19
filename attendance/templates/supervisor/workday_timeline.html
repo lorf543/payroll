@@ -595,6 +595,10 @@ document.addEventListener("DOMContentLoaded", () => {
         pendingSessionId = null;
         pendingStartTime = null;
         pendingEndTime = null;
+        setTimeout(function() {
+            location.reload();
+        }, 1000);
+
     });
 });
 

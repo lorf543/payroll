@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     'payment',
     'it_management',
     'workforce',
+    'evaluation',
 ]
 
 

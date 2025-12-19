@@ -1449,8 +1449,8 @@ def occurrence_create(request):
         if not start_time_str or not end_time_str:
             errors.append('Start time and end time are required.')
         
-        if not comment:
-            errors.append('Comment is required.')
+        # if not comment:
+        #     errors.append('Comment is required.')
 
         # If there are any validation errors, show them and redirect
         if errors:
@@ -1511,15 +1511,24 @@ def occurrence_detail(request, pk):
     })
 
 @login_required
-def occurrence_delete(request, pk):
-
-    occurrence = get_object_or_404(Occurrence, pk=pk, employee=request.user)
+def occurrence_delete(request, occurrence_id):
+    try:
+        employee = Employee.objects.get(user=request.user)
+    except Employee.DoesNotExist:
+        messages.error(request, "Employee profile not found.")
+        return redirect('dashboard')
+    
+    # Get the occurrence for this specific employee
+    occurrence = get_object_or_404(Occurrence, id=occurrence_id, employee=employee)
     
     if request.method == 'POST':
         occurrence.delete()
         messages.success(request, 'Occurrence deleted successfully!')
         return redirect('occurrence_list')
     
-    return render(request, 'occurrences/occurrence_confirm_delete.html', {
+    # For GET request, show confirmation page
+    context = {
         'occurrence': occurrence
-    })
+    }
+
+    return HttpResponse()

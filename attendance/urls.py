@@ -38,7 +38,7 @@ urlpatterns = [
     path('occurrence_list/', views.occurrence_list, name='occurrence_list'),
     path('<int:pk>/', views.occurrence_detail, name='occurrence_detail'),
     path('<int:pk>/update/', views.occurrence_update, name='occurrence_update'),
-    path('<int:pk>/delete/', views.occurrence_delete, name='occurrence_delete'),
+    path('occurrence/delete/<int:occurrence_id>/', views.occurrence_delete, name='occurrence_delete'),
 
 
     path('api/occurrences/', api_views.OccurrenceDataView.as_view(), name='api-occurrence-data'),
