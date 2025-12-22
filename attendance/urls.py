@@ -20,6 +20,7 @@ urlpatterns = [
     path('dashboard-supervisor/', views.supervisor_dashboard, name='supervisor_dashboard'),
     path('team/history/', views.team_attendance_history, name='team_attendance_history'),
     path('employee/<int:employee_id>/', views.employee_attendance_detail, name='employee_attendance_detail'),
+    
     path('employee/<int:employee_id>/day/<str:date_str>/', views.supervisor_day_detail, name='supervisor_day_detail'),
 
     path('attendance/export-csv/', views.export_attendance_excel, name='export_attendance_excel'),
@@ -27,6 +28,7 @@ urlpatterns = [
     path('team/report/export/', views.export_team_report_excel, name='export_team_report_excel'),
 
     path('edit-session/<int:pk>/', views.edit_session, name='edit_session'), #ojo con esta remover si funiona el drag adjust
+    
     path('session/delete/<int:pk>/', views.delete_session, name='delete_session'),
     path('force-logout', views.force_logout_all_users, name='force_logout_all_users'),
 

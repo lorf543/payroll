@@ -196,10 +196,10 @@
                                 </span>
                             </td>
                             <td>
-                                <a href="{% url 'supervisor_day_detail' work_day.employee.id work_day.date|date:'Y-m-d' %}" 
-                                class="btn btn-sm btn-outline-primary">
-                                    View Details
-                                </a>
+
+                                    <a hx-boost="true" href="{% url 'day_detail' work_day.date|date:'Y-m-d' %}" class="btn btn-sm btn-outline-primary">
+                                        View Details
+                                    </a>
                                     <a href="{% url 'workday_editor_view' work_day.id %}" 
                                         class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-sliders"></i> Full Timeline Editor

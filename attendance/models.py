@@ -3,7 +3,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 
 
@@ -69,6 +69,29 @@ class WorkDay(models.Model):
     last_adjusted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     last_adjustment_date = models.DateTimeField(null=True, blank=True)
     adjustment_count_field = models.IntegerField(default=0)
+
+
+    # NUEVOS CAMPOS PARA HORAS EXTRAS Y NOCTURNAS
+    regular_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    overtime_hours_135 = models.DecimalField(max_digits=5, decimal_places=2, default=0, 
+    help_text="Horas extras 44-68h (35% premium)")
+    overtime_hours_200 = models.DecimalField(max_digits=5, decimal_places=2, default=0,
+    help_text="Horas extras >68h (100% premium)")
+    night_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0,
+    help_text="Horas trabajadas 9PM-7AM (15% premium)")
+    
+    # PAGOS CALCULADOS
+    regular_pay = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    overtime_pay_135 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    overtime_pay_200 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    night_pay = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_pay = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # TARIFAS APLICADAS
+    regular_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    overtime_rate_135 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    overtime_rate_200 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    night_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
     class Meta:
         unique_together = ['employee', 'date']
@@ -82,16 +105,233 @@ class WorkDay(models.Model):
     def __str__(self):
         return f"{self.employee} - {self.date} - {self.status}"
     
+    def calculate_weekly_hours(self):
+        """
+        Calcula las horas totales trabajadas en la semana para determinar 
+        si hay horas extras según la ley dominicana
+        """
+        # Obtener la semana actual (Lunes a Domingo)
+        start_of_week = self.date - timedelta(days=self.date.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        
+        # Obtener todos los WorkDays de esta semana para este empleado
+        weekly_workdays = WorkDay.objects.filter(
+            employee=self.employee,
+            date__range=[start_of_week, end_of_week]
+        ).exclude(
+            status__in=['absent', 'leave']
+        )
+        
+        total_weekly_hours = Decimal('0')
+        for wd in weekly_workdays:
+            total_weekly_hours += wd.productive_hours
+        
+        return total_weekly_hours
+    
+    def is_night_hours(self, time_obj):
+        """
+        Verifica si una hora específica está en el rango nocturno (9 PM - 7 AM)
+        """
+        # 9 PM = 21:00, 7 AM = 07:00
+        if time_obj.hour >= 21 or time_obj.hour < 7:
+            return True
+        return False
+    
+    def calculate_night_hours_from_sessions(self):
+        """
+        Calcula cuántas horas de trabajo fueron durante horario nocturno
+        """
+        night_minutes = 0
+        sessions = self.sessions.filter(
+            session_type='work',
+            end_time__isnull=False
+        )
+        
+        for session in sessions:
+            current_time = session.start_time
+            end_time = session.end_time
+            
+            # Revisar cada minuto de la sesión
+            while current_time < end_time:
+                if self.is_night_hours(current_time):
+                    night_minutes += 1
+                current_time += timedelta(minutes=1)
+        
+        return Decimal(str(night_minutes / 60))
+    
+    def calculate_overtime_breakdown(self):
+        """
+        Calcula el desglose de horas regulares, extras y nocturnas
+        según la ley dominicana
+        """
+
+        
+        # Total de horas trabajadas HOY
+        daily_hours = self.productive_hours
+        
+        # Total de horas trabajadas en la SEMANA
+        weekly_hours = self.calculate_weekly_hours()
+        
+        # Horas nocturnas
+        night_hours = self.calculate_night_hours_from_sessions()
+        
+        # CÁLCULO DE HORAS EXTRAS SEMANALES
+        # Hasta 44 horas = regulares
+        # 44-68 horas = overtime 135%
+        # >68 horas = overtime 200%
+        
+        regular_hours = Decimal('0')
+        overtime_135 = Decimal('0')
+        overtime_200 = Decimal('0')
+        
+        if weekly_hours <= Decimal('44'):
+            # Todas las horas de hoy son regulares
+            regular_hours = daily_hours
+        elif weekly_hours <= Decimal('68'):
+            # Hay horas extras al 135%
+            # Determinar cuántas horas de HOY caen en overtime
+            hours_before_today = weekly_hours - daily_hours
+            
+            if hours_before_today >= Decimal('44'):
+                # Todas las horas de hoy son overtime 135%
+                overtime_135 = daily_hours
+            else:
+                # Parte son regulares, parte son overtime 135%
+                regular_hours = Decimal('44') - hours_before_today
+                overtime_135 = daily_hours - regular_hours
+        else:
+            # Hay horas extras al 200%
+            hours_before_today = weekly_hours - daily_hours
+            
+            if hours_before_today >= Decimal('68'):
+                # Todas las horas de hoy son overtime 200%
+                overtime_200 = daily_hours
+            elif hours_before_today >= Decimal('44'):
+                # Parte son overtime 135%, parte son overtime 200%
+                overtime_135 = Decimal('68') - hours_before_today
+                overtime_200 = daily_hours - overtime_135
+            else:
+                # Parte regulares, parte overtime 135%, parte overtime 200%
+                regular_hours = Decimal('44') - hours_before_today
+                remaining = daily_hours - regular_hours
+                
+                if remaining <= (Decimal('68') - Decimal('44')):
+                    overtime_135 = remaining
+                else:
+                    overtime_135 = Decimal('68') - Decimal('44')
+                    overtime_200 = remaining - overtime_135
+        
+        return {
+            'regular_hours': regular_hours,
+            'overtime_135': overtime_135,
+            'overtime_200': overtime_200,
+            'night_hours': night_hours,
+            'weekly_total': weekly_hours,
+            'daily_total': daily_hours
+        }
+    
+    def calculate_pay_with_dominican_law(self):
+        """
+        Calcula el pago siguiendo las leyes laborales dominicanas:
+        - Horas regulares (hasta 44h semanales)
+        - Overtime 135% (44-68h semanales) = 35% extra
+        - Overtime 200% (>68h semanales) = 100% extra
+        - Horas nocturnas 115% (9PM-7AM) = 15% extra
+        """
+        # Obtener tarifa base
+        if self.employee.fixed_rate and self.employee.custom_base_salary:
+            custom_salary = Decimal(str(self.employee.custom_base_salary))
+            daily_rate = custom_salary / Decimal('30')
+            self.regular_rate = daily_rate / Decimal('8')
+        elif self.employee.position and self.employee.position.hour_rate:
+            self.regular_rate = Decimal(str(self.employee.position.hour_rate))
+        elif self.employee.current_campaign and self.employee.current_campaign.hour_rate:
+            self.regular_rate = Decimal(str(self.employee.current_campaign.hour_rate))
+        else:
+            self.regular_rate = Decimal('0.00')
+
+        # Calcular tarifas según ley dominicana
+        self.overtime_rate_135 = self.regular_rate * Decimal('1.35')  # 35% extra
+        self.overtime_rate_200 = self.regular_rate * Decimal('2.00')  # 100% extra
+        self.night_rate = self.regular_rate * Decimal('1.15')  # 15% extra
+
+        # Convertir horas a Decimal
+        daily_hours = Decimal(str(self.productive_hours or 0))
+        night_hours = Decimal(str(self.calculate_night_hours_from_sessions() or 0))
+
+        # Calcular horas semanales
+        weekly_hours = Decimal(str(self.calculate_weekly_hours() or 0))
+
+        # Horas regulares vs overtime según ley dominicana
+        regular_hours = Decimal('0')
+        overtime_135 = Decimal('0')
+        overtime_200 = Decimal('0')
+
+        if weekly_hours <= Decimal('44'):
+            regular_hours = daily_hours
+        elif weekly_hours <= Decimal('68'):
+            hours_before_today = weekly_hours - daily_hours
+            if hours_before_today >= Decimal('44'):
+                overtime_135 = daily_hours
+            else:
+                regular_hours = Decimal('44') - hours_before_today
+                overtime_135 = daily_hours - regular_hours
+        else:
+            hours_before_today = weekly_hours - daily_hours
+            if hours_before_today >= Decimal('68'):
+                overtime_200 = daily_hours
+            elif hours_before_today >= Decimal('44'):
+                overtime_135 = Decimal('68') - hours_before_today
+                overtime_200 = daily_hours - overtime_135
+            else:
+                regular_hours = Decimal('44') - hours_before_today
+                remaining = daily_hours - regular_hours
+                if remaining <= (Decimal('68') - Decimal('44')):
+                    overtime_135 = remaining
+                else:
+                    overtime_135 = Decimal('68') - Decimal('44')
+                    overtime_200 = remaining - overtime_135
+
+        # Guardar horas calculadas
+        self.regular_hours = regular_hours
+        self.overtime_hours_135 = overtime_135
+        self.overtime_hours_200 = overtime_200
+        self.night_hours = night_hours
+
+        # Calcular pagos
+        self.regular_pay = regular_hours * self.regular_rate
+        self.overtime_pay_135 = overtime_135 * self.overtime_rate_135
+        self.overtime_pay_200 = overtime_200 * self.overtime_rate_200
+        self.night_pay = night_hours * self.night_rate
+
+        # Total
+        self.total_pay = self.regular_pay + self.overtime_pay_135 + self.overtime_pay_200 + self.night_pay
+
+        return {
+            'regular_pay': float(self.regular_pay),
+            'overtime_pay_135': float(self.overtime_pay_135),
+            'overtime_pay_200': float(self.overtime_pay_200),
+            'night_pay': float(self.night_pay),
+            'total_pay': float(self.total_pay),
+            'breakdown': {
+                'regular_hours': float(regular_hours),
+                'overtime_135': float(overtime_135),
+                'overtime_200': float(overtime_200),
+                'night_hours': float(night_hours),
+                'daily_total': float(daily_hours),
+                'weekly_total': float(weekly_hours)
+            }
+        }
+    
     def save(self, *args, **kwargs):
         # Calcular horas automáticamente antes de guardar
         if self.productive_hours > 0:
-            self.calculate_pay()
+            self.calculate_pay_with_dominican_law()
         super().save(*args, **kwargs)
     
     # En models.py - método calculate_pay
     def calculate_pay(self):
         """Calcular pagos basado en horas trabajadas"""
-        from decimal import Decimal
         
         # Convertir productive_hours a Decimal de forma segura
         if isinstance(self.productive_hours, (int, float)):
@@ -210,18 +450,27 @@ class WorkDay(models.Model):
     
     @property
     def total_break_minutes(self):
-        """Total de minutos de break"""
         return int(self.total_break_time.total_seconds() / 60) if self.total_break_time else 0
     
     @property
     def total_lunch_minutes(self):
-        """Total lunch minutes for easy display"""
         return int(self.total_lunch_time.total_seconds() / 60) if self.total_lunch_time else 0
     
     @property
+    def is_active(self):
+        return self.end_time is None
+    
+    @property
     def formatted_work_time(self):
-        """Tiempo de trabajo formateado (ej: 8h 30m)"""
+
         minutes = self.total_work_minutes
+        hours = minutes // 60
+        mins = minutes % 60
+        return f"{hours}h {mins:02d}m"
+    
+    @property
+    def formatted_lunch_time(self):
+        minutes = self.total_lunch_minutes
         hours = minutes // 60
         mins = minutes % 60
         return f"{hours}h {mins:02d}m"
@@ -403,8 +652,8 @@ class ActivitySession(models.Model):
         super().save(*args, **kwargs)
         
         # Actualizar métricas del WorkDay
-        if self.end_time:
-            self.work_day.calculate_daily_totals()
+        if self.end_time:  # Solo cuando se cierra la sesión
+                self.work_day.calculate_daily_totals()
 
     def adjust_times(self, new_start_time, new_end_time, adjusted_by, notes=""):
         """Método para ajustar tiempos de sesión"""

@@ -51,7 +51,7 @@
       <div class="card border-warning shadow-sm">
         <div class="card-body text-center">
           <h5 class="card-title text-warning mb-2">Total Lunch</h5>
-          <h3 id="totalLunchTime">{{ workday.total_lunch_time|naturaltime }}</h3>
+          <h3 id="totalLunchTime">{{ workday.formatted_lunch_time }}</h3>
           <small class="text-muted">{{ workday.total_lunch_minutes }} min</small>
         </div>
       </div>

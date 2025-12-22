@@ -8,18 +8,24 @@ from django.utils.timezone import now
 from django.db.models import (
     Count, Sum, Avg, Prefetch, Q, FloatField
 )
+
 from django.db.models.functions import Coalesce
+
 from django.db.models import ExpressionWrapper
 from django.utils import timezone
 from datetime import timedelta
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+
 from django.views.generic import TemplateView
 from django.db.models import Prefetch   
 
 from .models import Employee, Payment, Department, Position, Campaign
 from attendance.models import WorkDay
 from .forms import EmployeeForm, UploadCSVForm
+from workforce.models import Shift, EmployeeSchedule
 
+
+def info_payment(request):
+    return render(request,'info_payments.html')
 
 def calculate_daily_stats(work_day):
     """
@@ -183,289 +189,10 @@ def logout_all_users(request):
         return redirect('admin:index')
 
 
-class ManagementDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
-    template_name = 'management/dashboard.html'
-    
-    # ------------------------------------------------------------
-    # ACCESS CONTROL
-    # ------------------------------------------------------------
-    def test_func(self):
-        user_employee = getattr(self.request.user, 'employee', None)
-        return user_employee and (
-            user_employee.is_supervisor or 
-            (user_employee.position and user_employee.position.name.lower() in ['ceo', 'manager', 'director', 'executive'])
-        )
-    
-    # ------------------------------------------------------------
-    # MAIN CONTEXT
-    # ------------------------------------------------------------
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        selected_period = self.request.GET.get('period', '7days')
-        context['selected_period'] = selected_period
-        
-        context.update({
-            'total_employees': Employee.objects.filter(is_active=True).count(),
-            'active_campaigns': Campaign.objects.filter(is_active=True).count(),
-            'total_departments': Department.objects.count(),
-            'logged_in_today': Employee.objects.filter(is_logged_in=True).count(),
-        })
-        
-        context.update({
-            'avg_productivity': self.calculate_overall_productivity(),
-            'productivity_percentage': self.calculate_productivity_percentage(),
-            'campaigns_over_budget': self.get_campaigns_needing_attention(),
-            'headcount_utilization_rate': self.calculate_overall_headcount_utilization(),
-            'optimal_campaigns': self.get_optimal_campaigns_count(),
-        })
-        
-        context['campaigns_data'] = self.get_campaigns_data()
-        context['department_stats'] = self.get_department_stats()
-        context['attendance_trends'] = self.get_attendance_trends(selected_period)
-        context['campaign_alerts'] = self.get_campaign_alerts()
-        
-        return context
-
-    # ------------------------------------------------------------
-    # CAMPAIGNS DATA
-    # ------------------------------------------------------------
-    def get_campaigns_data(self):
-        campaigns = Campaign.objects.filter(is_active=True).prefetch_related(
-            Prefetch(
-                'active_employees',
-                queryset=Employee.objects.filter(is_active=True).select_related('department')
-            )
-        ).annotate(
-            employee_count=Count('active_employees', distinct=True),
-            total_work_hours=Coalesce(Sum('active_employees__work_days__productive_hours'), 0.0, output_field=FloatField()),
-            avg_productivity=Avg('active_employees__work_days__productive_hours', output_field=FloatField()),
-        )
-        
-        data = []
-        for c in campaigns:
-            logged = c.active_employees.filter(is_logged_in=True).count()
-            emp_count = c.employee_count or 0
-            att_rate = (logged / emp_count * 100) if emp_count > 0 else 0
-            
-            data.append({
-                'campaign': c,
-                'employee_count': emp_count,
-                'logged_in_count': logged,
-                'attendance_rate': round(att_rate, 1),
-                'total_work_hours': c.total_work_hours or 0,
-                'avg_productivity': round(c.avg_productivity or 0, 2),
-                'completion_percentage': self.calculate_campaign_completion(c),
-                'headcount_utilization': self.calculate_headcount_utilization(c),
-            })
-        
-        return sorted(data, key=lambda x: x['employee_count'], reverse=True)
-
-    # ------------------------------------------------------------
-    # DEPARTMENT STATS
-    # ------------------------------------------------------------
-    def get_department_stats(self):
-        departments = Department.objects.annotate(
-            employee_count=Count('employee', distinct=True),
-            supervisor_count=Count('employee', filter=Q(employee__is_supervisor=True)),
-            logged_in_count=Count('employee', filter=Q(employee__is_logged_in=True)),
-            avg_productivity=Avg('employee__work_days__productive_hours', output_field=FloatField()),
-        )
-        
-        data = []
-        for d in departments:
-            emp = d.employee_count or 0
-            logged = d.logged_in_count or 0
-            rate = (logged / emp * 100) if emp > 0 else 0
-            
-            data.append({
-                'department': d,
-                'employee_count': emp,
-                'supervisor_count': d.supervisor_count or 0,
-                'logged_in_count': logged,
-                'attendance_rate': round(rate, 1),
-                'avg_productivity': round(d.avg_productivity or 0, 1),
-            })
-        
-        return data
-
-    # ------------------------------------------------------------
-    # ATTENDANCE TRENDS
-    # ------------------------------------------------------------
-    def get_attendance_trends(self, period='7days'):
-        today = timezone.now().date()
-        trends = []
-        
-        # -------------- PERÍODO ----------------
-        if period == '30days':
-            days_range = 30
-        elif period == '90days':
-            days_range = 90
-        elif period == 'current_month':
-            start_date = today.replace(day=1)
-            days_range = (today - start_date).days + 1
-        elif period == 'previous_month':
-            first_day_current = today.replace(day=1)
-            last_day_prev = first_day_current - timedelta(days=1)
-            start_date = last_day_prev.replace(day=1)
-            days_range = (last_day_prev - start_date).days + 1
-        else:
-            days_range = 7
-
-        # -------------- LOOP ----------------
-        for i in range(days_range):
-            if period == 'current_month':
-                date = today.replace(day=1) + timedelta(days=i)
-                if date > today:
-                    break
-            elif period == 'previous_month':
-                last_day_prev = today.replace(day=1) - timedelta(days=1)
-                start_date = last_day_prev.replace(day=1)
-                date = start_date + timedelta(days=i)
-                if date > last_day_prev:
-                    break
-            else:
-                date = today - timedelta(days=(days_range - 1 - i))
-
-            wd_count = WorkDay.objects.filter(date=date).count()
-            present = WorkDay.objects.filter(date=date, check_in__isnull=False).count()
-            rate = (present / wd_count * 100) if wd_count > 0 else 0
-            
-            direction = "stable"
-            if trends:
-                prev = trends[-1]["present_count"]
-                if present > prev:
-                    direction = "up"
-                elif present < prev:
-                    direction = "down"
-
-            trends.append({
-                'date': date,
-                'workdays_count': wd_count,
-                'present_count': present,
-                'attendance_rate': round(rate, 1),
-                'trend_direction': direction,
-                'is_today': (date == today),
-            })
-        
-        return trends
-
-    # ------------------------------------------------------------
-    # CAMPAIGN ALERTS
-    # ------------------------------------------------------------
-    def get_campaign_alerts(self):
-        alerts = []
-        campaigns = Campaign.objects.filter(is_active=True).annotate(
-            employee_count=Count('active_employees'),
-            total_hours=Coalesce(Sum('active_employees__work_days__productive_hours'), 0.0, output_field=FloatField()),
-        )
-        
-        for c in campaigns:
-            emp = c.employee_count or 0
-            avg = float(c.total_hours / emp) if emp > 0 else 0.0
-            
-            if c.head_count and emp < c.head_count * 0.7:
-                alerts.append({
-                    'type': 'warning',
-                    'campaign': c,
-                    'message': f'Low headcount: {emp}/{c.head_count}',
-                    'icon': 'bi-people'
-                })
-            
-            if avg < 4 and emp > 0:
-                alerts.append({
-                    'type': 'danger',
-                    'campaign': c,
-                    'message': f'Low productivity: {avg:.1f}h average',
-                    'icon': 'bi-speedometer',
-                })
-        
-        return alerts[:5]
-
-    # ------------------------------------------------------------
-    # METRICS (NO CAMBIO NOMBRES)
-    # ------------------------------------------------------------
-    def calculate_headcount_utilization(self, campaign):
-        emp = campaign.employee_count or 0
-        if campaign.head_count:
-            return min((emp / campaign.head_count) * 100, 100)
-        return 0
-
-    def calculate_overall_headcount_utilization(self):
-        total_hc = sum(c.head_count or 0 for c in Campaign.objects.filter(is_active=True))
-        total_emp = Employee.objects.filter(is_active=True, current_campaign__isnull=False).count()
-        if total_hc > 0:
-            return min((total_emp / total_hc) * 100, 100)
-        return 0
-
-    def get_campaigns_needing_attention(self):
-        count = 0
-        camps = Campaign.objects.filter(is_active=True).annotate(
-            employee_count=Count('active_employees'),
-            total_hours=Coalesce(Sum('active_employees__work_days__productive_hours'), 0.0, output_field=FloatField()),
-        )
-        for c in camps:
-            emp = c.employee_count or 0
-            avg = float(c.total_hours / emp) if emp > 0 else 0.0
-            
-            if (c.head_count and emp < c.head_count * 0.7) or avg < 4:
-                count += 1
-        return count
-
-    def get_optimal_campaigns_count(self):
-        count = 0
-        camps = Campaign.objects.filter(is_active=True).annotate(
-            employee_count=Count('active_employees'),
-            total_hours=Coalesce(Sum('active_employees__work_days__productive_hours'), 0.0, output_field=FloatField()),
-        )
-        for c in camps:
-            emp = c.employee_count or 0
-            avg = float(c.total_hours / emp) if emp > 0 else 0.0
-            
-            if c.head_count:
-                util = (emp / c.head_count) * 100
-                if util < 85 or util > 95:
-                    continue
-            
-            if avg < 6:
-                continue
-            
-            count += 1
-        
-        return count
-
-    def calculate_overall_productivity(self):
-        result = WorkDay.objects.aggregate(
-            total=Coalesce(Sum('productive_hours'), 0.0, output_field=FloatField()),
-            count=Count('id')
-        )
-        
-        total_hours = result['total'] or 0.0
-        total_workdays = result['count'] or 0
-        
-        if total_workdays > 0 and total_hours > 0:
-            return float(total_hours) / float(total_workdays)
-        return 0.0
-
-    def calculate_productivity_percentage(self):
-        avg = self.calculate_overall_productivity()
-        return min((avg / 8) * 100, 100) if avg > 0 else 0
-
-    def calculate_campaign_completion(self, campaign):
-        if not campaign.start_date or not campaign.end_date:
-            return 0
-        
-        total_days = (campaign.end_date - campaign.start_date).days
-        if total_days <= 0:
-            return 100
-        
-        days_passed = (timezone.now().date() - campaign.start_date).days
-        return round(min(max(days_passed / total_days * 100, 0), 100), 1)
-
 @login_required
 def campaign_detail_dashboard(request, campaign_id):
     """
-    Dashboard detallado para una campaña específica
+    Enhanced dashboard for specific campaign with scheduling integration
     """
     try:
         campaign = Campaign.objects.get(id=campaign_id)
@@ -484,6 +211,9 @@ def campaign_detail_dashboard(request, campaign_id):
     
     # Obtener período seleccionado
     selected_period = request.GET.get('period', '7days')
+    today = timezone.now().date()
+    weekday = today.weekday()
+    day_fields = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     
     # Obtener empleados activos en esta campaña
     campaign_employees = Employee.objects.filter(
@@ -491,15 +221,92 @@ def campaign_detail_dashboard(request, campaign_id):
         is_active=True
     ).select_related('user', 'position', 'department', 'supervisor')
     
-    # Estadísticas de la campaña
+    # Estadísticas básicas
     total_employees = campaign_employees.count()
     logged_in_count = campaign_employees.filter(is_logged_in=True).count()
+    
+    # NEW: Scheduled employees for today
+    day_filter = {day_fields[weekday]: True}
+    scheduled_today = EmployeeSchedule.objects.filter(
+        employee__in=campaign_employees,
+        status__in=['published', 'active'],
+        start_date__lte=today,
+        **day_filter
+    ).filter(
+        Q(end_date__gte=today) | Q(end_date__isnull=True)
+    ).values('employee').distinct().count()
+    
+    # NEW: Actual attendance today (checked in)
+    actual_attendance_today = WorkDay.objects.filter(
+        employee__in=campaign_employees,
+        date=today,
+        check_in__isnull=False
+    ).count()
+    
+    # NEW: Schedule compliance rate
+    schedule_compliance_rate = 0
+    if scheduled_today > 0:
+        schedule_compliance_rate = round((actual_attendance_today / scheduled_today) * 100, 1)
     
     # Métricas de productividad de la campaña
     campaign_metrics = calculate_campaign_productivity_metrics(campaign)
     
+    # NEW: Add scheduling metrics to campaign_metrics
+    campaign_metrics['scheduled_today'] = scheduled_today
+    campaign_metrics['actual_attendance_today'] = actual_attendance_today
+    campaign_metrics['schedule_compliance_rate'] = schedule_compliance_rate
+    
+    # NEW: Get shift information for this campaign
+    campaign_shifts = Shift.objects.filter(
+        campaign=campaign,
+        is_active=True
+    ).annotate(
+        scheduled_count=Count(
+            'scheduled_employees',
+            filter=Q(
+                scheduled_employees__employee__in=campaign_employees,
+                scheduled_employees__status__in=['published', 'active'],
+                scheduled_employees__start_date__lte=today,
+                **{f'scheduled_employees__{day_fields[weekday]}': True}
+            ) & (
+                Q(scheduled_employees__end_date__gte=today) | 
+                Q(scheduled_employees__end_date__isnull=True)
+            )
+        )
+    ).order_by('start_time')
+    
+    # NEW: Calculate shift coverage for each shift
+    shift_coverage_data = []
+    for shift in campaign_shifts:
+        # Get employees scheduled for this shift who checked in today
+        scheduled_employees_ids = EmployeeSchedule.objects.filter(
+            shift=shift,
+            employee__in=campaign_employees,
+            status__in=['published', 'active'],
+            start_date__lte=today,
+            **day_filter
+        ).filter(
+            Q(end_date__gte=today) | Q(end_date__isnull=True)
+        ).values_list('employee_id', flat=True)
+        
+        checked_in = WorkDay.objects.filter(
+            date=today,
+            employee_id__in=scheduled_employees_ids,
+            check_in__isnull=False
+        ).count()
+        
+        scheduled = shift.scheduled_count or 0
+        coverage_rate = (checked_in / scheduled * 100) if scheduled > 0 else 0
+        
+        shift_coverage_data.append({
+            'shift': shift,
+            'scheduled_count': scheduled,
+            'checked_in_count': checked_in,
+            'coverage_rate': round(coverage_rate, 1),
+            'is_understaffed': coverage_rate < 80,
+        })
+    
     # Obtener WorkDays de hoy para los empleados de la campaña
-    today = timezone.now().date()
     campaign_workdays = WorkDay.objects.filter(
         employee__in=campaign_employees,
         date=today
@@ -517,16 +324,41 @@ def campaign_detail_dashboard(request, campaign_id):
             current_session = None
             daily_stats = None
         
+        # NEW: Get employee's schedule for today
+        employee_schedule = None
+        scheduled_shift = None
+        is_scheduled_today = False
+        
+        try:
+            employee_schedule = EmployeeSchedule.objects.filter(
+                employee=employee,
+                status__in=['published', 'active'],
+                start_date__lte=today,
+                **day_filter
+            ).filter(
+                Q(end_date__gte=today) | Q(end_date__isnull=True)
+            ).select_related('shift').first()
+            
+            if employee_schedule:
+                is_scheduled_today = True
+                scheduled_shift = employee_schedule.shift
+        except EmployeeSchedule.DoesNotExist:
+            pass
+        
         employee_data.append({
             'employee': employee,
             'workday': workday_today,
             'current_session': current_session,
             'formatted_session': workday_today.get_formatted_session() if workday_today else None,
             'daily_stats': daily_stats,
+            # NEW: Scheduling data
+            'is_scheduled_today': is_scheduled_today,
+            'scheduled_shift': scheduled_shift,
+            'schedule': employee_schedule,
         })
     
-    # Tendencias de asistencia de la campaña con filtro de período
-    attendance_trends = get_campaign_attendance_trends(campaign, selected_period)
+    # Enhanced attendance trends with schedule compliance
+    attendance_trends = get_campaign_schedule_compliance_trends(campaign, selected_period)
     
     context = {
         'campaign': campaign,
@@ -537,9 +369,160 @@ def campaign_detail_dashboard(request, campaign_id):
         'attendance_trends': attendance_trends,
         'today': today,
         'selected_period': selected_period,
+        # NEW: Scheduling data
+        'scheduled_today': scheduled_today,
+        'actual_attendance_today': actual_attendance_today,
+        'schedule_compliance_rate': schedule_compliance_rate,
+        'shift_coverage_data': shift_coverage_data,
     }
     
     return render(request, 'management/campaign_detail.html', context)
+
+
+def get_campaign_schedule_compliance_trends(campaign, period='7days'):
+    """
+    Track schedule compliance over time for a specific campaign
+    """
+    today = timezone.now().date()
+    trends = []
+    
+    # Determine date range
+    if period == '30days':
+        days_range = 30
+    elif period == '90days':
+        days_range = 90
+    elif period == 'current_month':
+        start_date = today.replace(day=1)
+        days_range = (today - start_date).days + 1
+    elif period == 'previous_month':
+        first_day_current = today.replace(day=1)
+        last_day_prev = first_day_current - timedelta(days=1)
+        start_date = last_day_prev.replace(day=1)
+        days_range = (last_day_prev - start_date).days + 1
+    else:
+        days_range = 7
+    
+    # Get campaign employees
+    campaign_employees = Employee.objects.filter(
+        current_campaign=campaign,
+        is_active=True
+    )
+    
+    for i in range(days_range):
+        if period == 'current_month':
+            date = today.replace(day=1) + timedelta(days=i)
+            if date > today:
+                break
+        elif period == 'previous_month':
+            last_day_prev = today.replace(day=1) - timedelta(days=1)
+            start_date = last_day_prev.replace(day=1)
+            date = start_date + timedelta(days=i)
+            if date > last_day_prev:
+                break
+        else:
+            date = today - timedelta(days=(days_range - 1 - i))
+        
+        # Get scheduled count for this date
+        weekday = date.weekday()
+        day_fields = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        day_filter = {day_fields[weekday]: True}
+        
+        scheduled = EmployeeSchedule.objects.filter(
+            employee__in=campaign_employees,
+            status__in=['published', 'active'],
+            start_date__lte=date,
+            **day_filter
+        ).filter(
+            Q(end_date__gte=date) | Q(end_date__isnull=True)
+        ).values('employee').distinct().count()
+        
+        # Get actual attendance for this date
+        actual = WorkDay.objects.filter(
+            employee__in=campaign_employees,
+            date=date,
+            check_in__isnull=False
+        ).count()
+        
+        # Calculate compliance
+        compliance = (actual / scheduled * 100) if scheduled > 0 else 0
+        
+        # Determine trend direction
+        direction = "stable"
+        if trends:
+            prev = trends[-1]["actual_count"]
+            if actual > prev:
+                direction = "up"
+            elif actual < prev:
+                direction = "down"
+        
+        trends.append({
+            'date': date,
+            'scheduled_count': scheduled,
+            'actual_count': actual,
+            'compliance_rate': round(compliance, 1),
+            'attendance_rate': round(compliance, 1),  # For template compatibility
+            'present_count': actual,  # For template compatibility
+            'workdays_count': scheduled,  # For template compatibility
+            'trend_direction': direction,
+            'is_today': (date == today),
+        })
+    
+    return trends
+
+
+def calculate_campaign_productivity_metrics(campaign):
+    """
+    Calculate comprehensive productivity metrics for a campaign
+    """
+    today = timezone.now().date()
+    
+    # Get all employees in campaign
+    campaign_employees = Employee.objects.filter(
+        current_campaign=campaign,
+        is_active=True
+    )
+    
+    # Basic counts
+    total_employees = campaign_employees.count()
+    
+    # Work hours aggregation
+    work_stats = WorkDay.objects.filter(
+        employee__in=campaign_employees
+    ).aggregate(
+        total_hours=Coalesce(Sum('productive_hours'), 0.0, output_field=FloatField()),
+        total_work_days=Count('id'),
+        avg_productivity=Avg('productive_hours', output_field=FloatField())
+    )
+    
+    total_hours = work_stats['total_hours'] or 0.0
+    total_work_days = work_stats['total_work_days'] or 0
+    avg_productivity = round(work_stats['avg_productivity'] or 0, 2)
+    
+    # Headcount utilization
+    headcount_utilization = 0
+    if campaign.head_count and campaign.head_count > 0:
+        headcount_utilization = round(min((total_employees / campaign.head_count) * 100, 100), 1)
+    
+    # Attendance rate (employees logged in vs total)
+    logged_in = campaign_employees.filter(is_logged_in=True).count()
+    attendance_rate = round((logged_in / total_employees * 100), 1) if total_employees > 0 else 0
+    
+    # Campaign completion percentage
+    completion_percentage = 0
+    if campaign.start_date and campaign.end_date:
+        total_days = (campaign.end_date - campaign.start_date).days
+        if total_days > 0:
+            days_passed = (today - campaign.start_date).days
+            completion_percentage = round(min(max(days_passed / total_days * 100, 0), 100), 1)
+    
+    return {
+        'total_hours': total_hours,
+        'total_work_days': total_work_days,
+        'avg_productivity': avg_productivity,
+        'headcount_utilization': headcount_utilization,
+        'attendance_rate': attendance_rate,
+        'completion_percentage': completion_percentage,
+    }
 
 def calculate_campaign_productivity_metrics(campaign):
     """Calcular métricas de productividad para la campaña"""

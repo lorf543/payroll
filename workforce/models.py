@@ -8,9 +8,6 @@ import datetime
 
 
 class Shift(models.Model):
-    """
-    Base shifts that can be assigned to employees
-    """
     SHIFT_TYPES = [
         ('morning', 'Morning Shift'),
         ('afternoon', 'Afternoon Shift'),
@@ -99,12 +96,11 @@ class Shift(models.Model):
 
     @property
     def total_break_time_minutes(self):
-        """Total break + lunch time in minutes"""
         return (self.break_duration_minutes * self.break_count) + self.lunch_duration_minutes
 
     @property
     def formatted_time_range(self):
-        """Formatted time range"""
+
         return f"{self.start_time.strftime('%I:%M %p')} - {self.end_time.strftime('%I:%M %p')}"
     
     def save(self, *args, **kwargs):
@@ -114,9 +110,6 @@ class Shift(models.Model):
 
 
 class EmployeeSchedule(models.Model):
-    """
-    Specific schedule assigned to an employee for a period of time
-    """
     SCHEDULE_STATUS = [
         ('draft', 'Draft'),
         ('published', 'Published'),

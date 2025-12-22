@@ -19,17 +19,20 @@ from django_q.tasks import async_task
 from django.core.files.storage import default_storage
 from django.http import FileResponse
 from django.core.files.base import ContentFile
-import os
 
+import os
+import decimal
+import openpyxl
+import json
 
 from django.views.generic import DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-import json
 
-import openpyxl
+
+
 from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
-import csv
+
 
 
 from core.models import Employee, Campaign
@@ -40,6 +43,9 @@ from .utility import *
 from core.utils.payroll import get_effective_pay_rate
 from .tasks import generate_and_email_team_report
 # Create your views here.
+
+
+
 
 
 def format_duration_simple(duration):
@@ -141,261 +147,557 @@ def force_logout_all_users(request):
 def is_supervisor(user):
     return user.is_staff or user.groups.filter(name='Supervisors').exists()
 
+
 @login_required
 def agent_dashboard(request):
+    """
+    Main dashboard view that populates all template information
+    """
     employee = get_object_or_404(Employee, user=request.user)
     today = timezone.now().date()
-    now = timezone.now()
-
-    work_day, _ = WorkDay.objects.get_or_create(employee=employee, date=today)
-    current_session = work_day.sessions.filter(end_time__isnull=True).last()
-    history = work_day.sessions.all().order_by('-start_time')
-
-    def fmt(td):
-        """Formatea timedelta a formato legible"""
-        if not td: return "0h 00m"
-        total_sec = int(td.total_seconds())
-        h, m = divmod(total_sec // 60, 60)
-        return f"{h}h {m:02d}m" if h else f"{m}m"
-
-    # 🔥 CÁLCULO EN TIEMPO REAL
-    # Obtener todas las sesiones completadas
-    completed_sessions = work_day.sessions.filter(end_time__isnull=False)
     
-    # Calcular tiempos de sesiones completadas
-    completed_work = timedelta(0)
-    completed_break = timedelta(0)
-    completed_lunch = timedelta(0)
-    break_count = 0
+    # Get or create work day for today
+    work_day, created = WorkDay.objects.get_or_create(
+        employee=employee,
+        date=today,
+        defaults={'status': 'regular_hours'}
+    )
     
-    for session in completed_sessions:
-        if session.duration:
-            if session.session_type == 'work':
-                completed_work += session.duration
-            elif session.session_type == 'break':
-                completed_break += session.duration
-                break_count += 1
-            elif session.session_type == 'lunch':
-                completed_lunch += session.duration
-
-    # 🔥 Si hay sesión activa, añadir su tiempo transcurrido
-    active_work_time = timedelta(0)
-    active_break_time = timedelta(0)
-    active_lunch_time = timedelta(0)
+    # Get current active session
+    current_session = work_day.get_active_session()
     
-    if current_session:
-        elapsed = now - current_session.start_time
-        if current_session.session_type == 'work':
-            active_work_time = elapsed
-        elif current_session.session_type == 'break':
-            active_break_time = elapsed
-        elif current_session.session_type == 'lunch':
-            active_lunch_time = elapsed
-
-    # Totales en tiempo real
-    total_work = completed_work + active_work_time
-    total_break = completed_break + active_break_time
-    total_lunch = completed_lunch + active_lunch_time
-    total_time = total_work + total_break + total_lunch
-
-    # 🔥 CÁLCULO DE GANANCIAS DINÁMICO
-    payable_hours = total_work.total_seconds() / 3600
+    # Get all sessions for today (history)
+    history = work_day.sessions.all().order_by('start_time')
     
-    # Obtener rate del campaign del empleado
-    rate = 0.0
-    if employee.current_campaign and employee.current_campaign.hour_rate:
-        rate = float(employee.current_campaign.hour_rate)
+    # 🔥 CRITICAL: Force calculate daily totals FIRST
+    calculate_daily_totals_manual(work_day)
+    work_day.refresh_from_db()  # ⬅️ Refresh to get updated values
     
-    estimated_earnings = payable_hours * rate
-
-    # Datos para el timer de sesión actual
-    current_duration = str(now - current_session.start_time).split('.')[0] if current_session else "0:00:00"
-    start_time_iso = current_session.start_time.isoformat() if current_session else None
-
-    # 🔥 Datos adicionales para cálculos dinámicos en frontend
-    check_in_iso = work_day.check_in.isoformat() if work_day.check_in else None
+    # Get campaign for break/lunch durations
+    campaign = employee.current_campaign
     
-    daily_stats = {
-        'total': fmt(total_time),
-        'payable': fmt(total_work),
-        'break': fmt(total_break),
-        'lunch': fmt(total_lunch),
-        'payable_hours': round(payable_hours, 2),
-        'money': f"${estimated_earnings:.2f}",
-        'break_count': break_count,
-        'hourly_rate': rate,
-        # 🔥 Datos en segundos para JavaScript
-        'total_work_seconds': int(total_work.total_seconds()),
-        'total_break_seconds': int(total_break.total_seconds()),
-        'total_lunch_seconds': int(total_lunch.total_seconds()),
-        'completed_work_seconds': int(completed_work.total_seconds()),
-        'completed_break_seconds': int(completed_break.total_seconds()),
-        'completed_lunch_seconds': int(completed_lunch.total_seconds()),
-    }
-
+    # Calculate all statistics
+    daily_stats = calculate_daily_stats(work_day, employee)
+    
     context = {
         'employee': employee,
         'work_day': work_day,
         'current_session': current_session,
-        'current_duration': current_duration,
-        'start_time_iso': start_time_iso,
-        'check_in_iso': check_in_iso,
-        'is_active_session': bool(current_session),
-        'daily_stats': daily_stats,
         'history': history,
         'today': today,
-        'current_session_type': current_session.session_type if current_session else '',
-        'form_create_occurrence': OccurrenceForm(),
+        'campaign': campaign,
+        'daily_stats': daily_stats,
     }
-
+    
     return render(request, 'attendance/agent_dashboard.html', context)
 
+
+def calculate_daily_totals_manual(work_day):
+    """
+    Manual calculation of daily totals to ensure it works
+    Includes ACTIVE sessions in calculation
+    """
+    # Get ALL sessions (including active ones)
+    all_sessions = work_day.sessions.all()
+    
+    total_work = timedelta(0)
+    total_break = timedelta(0)
+    total_lunch = timedelta(0)
+    break_count = 0
+    
+    now = timezone.now()
+    
+    for session in all_sessions:
+        # For active sessions (no end_time), calculate duration up to now
+        if session.end_time:
+            end_time = session.end_time
+        else:
+            # Active session - calculate duration up to current moment
+            end_time = now
+        
+        if session.start_time:
+            duration = end_time - session.start_time
+            
+            if session.session_type == 'work':
+                total_work += duration
+            elif session.session_type == 'break':
+                total_break += duration
+                break_count += 1
+            elif session.session_type == 'lunch':
+                total_lunch += duration
+    
+    # Update work_day fields
+    work_day.total_work_time = total_work
+    work_day.total_break_time = total_break
+    work_day.total_lunch_time = total_lunch
+    work_day.break_count = break_count
+    
+    # Calculate productive hours (total work time in hours)
+    if total_work:
+        productive_hours = total_work.total_seconds() / 3600
+        work_day.productive_hours = round(productive_hours, 2)
+    else:
+        work_day.productive_hours = 0.0
+    
+    work_day.save()
+
+
+def calculate_daily_stats(work_day, employee):
+    """
+    Calculate all daily statistics for the dashboard
+    """
+    # Calculate night hours manually
+    night_hours = calculate_night_hours_manual(work_day)
+    
+    # 🔥 SAFE ACCESS: Check if fields exist and have values
+    total_work_seconds = work_day.total_work_time.total_seconds() if work_day.total_work_time else 0
+    total_break_seconds = work_day.total_break_time.total_seconds() if work_day.total_break_time else 0
+    total_lunch_seconds = work_day.total_lunch_time.total_seconds() if work_day.total_lunch_time else 0
+    
+    total_work_minutes = int(total_work_seconds / 60)
+    total_break_minutes = int(total_break_seconds / 60)
+    total_lunch_minutes = int(total_lunch_seconds / 60)
+    
+    # 💰 PAYABLE TIME = Work time - Breaks - Lunch
+    payable_minutes = max(0, total_work_minutes - total_break_minutes - total_lunch_minutes)
+    payable_hours_decimal = decimal.Decimal(str(payable_minutes / 60))
+    
+    # 📅 WEEKLY HOURS = Sum of PAYABLE hours for the entire week
+    weekly_hours = calculate_weekly_payable_hours(work_day)
+    
+    # Calculate pay breakdown based on PAYABLE TIME
+    pay_breakdown = calculate_pay_breakdown_manual(
+        work_day, 
+        employee, 
+        weekly_hours, 
+        night_hours, 
+        payable_hours_decimal
+    )
+    
+    # Get hourly rate
+    hourly_rate = get_hourly_rate_manual(employee)
+    
+    # Format durations for display
+    total_work_time = f"{total_work_minutes // 60}h {total_work_minutes % 60:02d}m"
+    total_break_time = f"{total_break_minutes}m"
+    if total_break_minutes >= 60:
+        total_break_time = f"{total_break_minutes // 60}h {total_break_minutes % 60:02d}m"
+    
+    total_lunch_time = f"{total_lunch_minutes}m"
+    if total_lunch_minutes >= 60:
+        total_lunch_time = f"{total_lunch_minutes // 60}h {total_lunch_minutes % 60:02d}m"
+    
+    # Payable time formatted
+    payable_time = f"{payable_minutes // 60}h {payable_minutes % 60:02d}m"
+    
+    # Get productive hours (total work time)
+    productive_hours = float(work_day.productive_hours or 0.0)
+    
+    stats = {
+        # Time durations
+        'total': total_work_time,  # Total work time (including ongoing)
+        'payable': payable_time,    # Work minus breaks/lunch
+        'break': total_break_time,
+        'lunch': total_lunch_time,
+        
+        # Hours breakdown - based on PAYABLE hours
+        'weekly_hours': weekly_hours,  # Weekly PAYABLE hours
+        'regular_hours': pay_breakdown['regular_hours'],
+        'overtime_135_hours': pay_breakdown['overtime_135_hours'],
+        'overtime_200_hours': pay_breakdown['overtime_200_hours'],
+        'night_hours': night_hours,
+        
+        # Money calculations - based on PAYABLE hours
+        'hourly_rate': float(hourly_rate),
+        'regular_pay': f"${pay_breakdown['regular_pay']:.2f}",
+        'overtime_135_pay': f"${pay_breakdown['overtime_135_pay']:.2f}",
+        'overtime_200_pay': f"${pay_breakdown['overtime_200_pay']:.2f}",
+        'night_pay': f"${pay_breakdown['night_pay']:.2f}",
+        'total_pay': f"${pay_breakdown['total_pay']:.2f}",
+        
+        # Additional stats
+        'productive_hours': productive_hours,  # Total work hours (gross)
+        'payable_hours': float(payable_hours_decimal),  # Net hours paid (work - breaks - lunch)
+        'break_count': work_day.break_count,
+        'work_day_status': work_day.get_day_status() if hasattr(work_day, 'get_day_status') else 'Regular hours',
+        
+        # For debugging/display
+        'work_minutes': total_work_minutes,
+        'break_minutes': total_break_minutes,
+        'lunch_minutes': total_lunch_minutes,
+        'payable_minutes': payable_minutes,
+    }
+    
+    return stats
+
+
+def calculate_weekly_payable_hours(work_day):
+    """
+    Calculate PAYABLE hours for the entire week (work - breaks - lunch)
+    """
+    try:
+        # Get start of week (Monday)
+        date = work_day.date
+        start_of_week = date - timedelta(days=date.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        
+        # Get all work days this week
+        weekly_workdays = WorkDay.objects.filter(
+            employee=work_day.employee,
+            date__range=[start_of_week, end_of_week]
+        ).exclude(status__in=['absent', 'leave'])
+        
+        # Sum PAYABLE hours (not just productive hours)
+        total_payable_hours = 0.0
+        
+        for wd in weekly_workdays:
+            # Calculate payable time for each day
+            work_seconds = wd.total_work_time.total_seconds() if wd.total_work_time else 0
+            break_seconds = wd.total_break_time.total_seconds() if wd.total_break_time else 0
+            lunch_seconds = wd.total_lunch_time.total_seconds() if wd.total_lunch_time else 0
+            
+            # If this is TODAY's work_day, recalculate to include active sessions
+            if wd.date == work_day.date:
+                calculate_daily_totals_manual(wd)
+                wd.refresh_from_db()
+                work_seconds = wd.total_work_time.total_seconds() if wd.total_work_time else 0
+                break_seconds = wd.total_break_time.total_seconds() if wd.total_break_time else 0
+                lunch_seconds = wd.total_lunch_time.total_seconds() if wd.total_lunch_time else 0
+            
+            # Calculate payable seconds
+            payable_seconds = max(0, work_seconds - break_seconds - lunch_seconds)
+            payable_hours = payable_seconds / 3600
+            
+            total_payable_hours += payable_hours
+        
+        return round(total_payable_hours, 2)
+        
+    except Exception as e:
+        print(f"Error calculating weekly payable hours: {e}")
+        import traceback
+        traceback.print_exc()
+        # Fallback to current day's payable hours
+        work_seconds = work_day.total_work_time.total_seconds() if work_day.total_work_time else 0
+        break_seconds = work_day.total_break_time.total_seconds() if work_day.total_break_time else 0
+        lunch_seconds = work_day.total_lunch_time.total_seconds() if work_day.total_lunch_time else 0
+        payable_seconds = max(0, work_seconds - break_seconds - lunch_seconds)
+        return round(payable_seconds / 3600, 2)
+
+
+def calculate_night_hours_manual(work_day):
+    """
+    Calculate night hours manually (9 PM - 7 AM)
+    Includes ACTIVE sessions
+    """
+    try:
+        night_minutes = 0
+        # Get ALL sessions (including active ones)
+        sessions = work_day.sessions.filter(session_type='work')
+        
+        now = timezone.now()
+        
+        for session in sessions:
+            current_time = session.start_time
+            
+            # For active sessions, use current time as end
+            if session.end_time:
+                end_time = session.end_time
+            else:
+                end_time = now
+            
+            # Check each minute
+            while current_time < end_time:
+                # Check if it's night time (9 PM to 7 AM)
+                if current_time.hour >= 21 or current_time.hour < 7:
+                    night_minutes += 1
+                current_time += timedelta(minutes=1)
+        
+        return round(night_minutes / 60, 2)
+    except Exception as e:
+        print(f"Error calculating night hours: {e}")
+        return 0.0
+
+
+def get_hourly_rate_manual(employee):
+    """
+    Get hourly rate manually checking all possibilities
+    """
+    # Check fixed rate with custom salary
+    if (hasattr(employee, 'fixed_rate') and employee.fixed_rate and 
+        hasattr(employee, 'custom_base_salary') and employee.custom_base_salary):
+        custom_salary = decimal.Decimal(str(employee.custom_base_salary))
+        daily_rate = custom_salary / decimal.Decimal('30')
+        return daily_rate / decimal.Decimal('8')
+    
+    # Check position hour rate
+    if (hasattr(employee, 'position') and employee.position and 
+        hasattr(employee.position, 'hour_rate') and employee.position.hour_rate):
+        return decimal.Decimal(str(employee.position.hour_rate))
+    
+    # Check campaign hour rate
+    if (hasattr(employee, 'current_campaign') and employee.current_campaign and 
+        hasattr(employee.current_campaign, 'hour_rate') and employee.current_campaign.hour_rate):
+        return decimal.Decimal(str(employee.current_campaign.hour_rate))
+    
+    # Default
+    return decimal.Decimal('0.00')
+
+
+def calculate_pay_breakdown_manual(work_day, employee, weekly_hours, night_hours, payable_hours_decimal=None):
+    """
+    Calculate pay breakdown according to Dominican law based on PAYABLE HOURS
+    """
+    try:
+        # Get hourly rate
+        hourly_rate = get_hourly_rate_manual(employee)
+        
+        # Use payable_hours_decimal (already calculated as work - breaks - lunch)
+        if payable_hours_decimal is not None:
+            daily_hours = payable_hours_decimal
+        else:
+            # Fallback: calculate from work_day
+            work_seconds = work_day.total_work_time.total_seconds() if work_day.total_work_time else 0
+            break_seconds = work_day.total_break_time.total_seconds() if work_day.total_break_time else 0
+            lunch_seconds = work_day.total_lunch_time.total_seconds() if work_day.total_lunch_time else 0
+            payable_seconds = max(0, work_seconds - break_seconds - lunch_seconds)
+            daily_hours = decimal.Decimal(str(payable_seconds / 3600))
+        
+        weekly_hours_dec = decimal.Decimal(str(weekly_hours))
+        night_hours_dec = decimal.Decimal(str(night_hours))
+        
+        # Calculate regular and overtime hours according to Dominican law
+        regular_hours = decimal.Decimal('0')
+        overtime_135_hours = decimal.Decimal('0')
+        overtime_200_hours = decimal.Decimal('0')
+        
+        if weekly_hours_dec <= decimal.Decimal('44'):
+            # All hours are regular
+            regular_hours = daily_hours
+        elif weekly_hours_dec <= decimal.Decimal('68'):
+            # Some hours are overtime 135%
+            hours_before_today = weekly_hours_dec - daily_hours
+            
+            if hours_before_today >= decimal.Decimal('44'):
+                # All today's hours are overtime 135%
+                overtime_135_hours = daily_hours
+            else:
+                # Some regular, some overtime 135%
+                regular_hours = decimal.Decimal('44') - hours_before_today
+                overtime_135_hours = daily_hours - regular_hours
+        else:
+            # Some hours could be overtime 200%
+            hours_before_today = weekly_hours_dec - daily_hours
+            
+            if hours_before_today >= decimal.Decimal('68'):
+                # All today's hours are overtime 200%
+                overtime_200_hours = daily_hours
+            elif hours_before_today >= decimal.Decimal('44'):
+                # Some overtime 135%, some overtime 200%
+                overtime_135_hours = decimal.Decimal('68') - hours_before_today
+                overtime_200_hours = daily_hours - overtime_135_hours
+            else:
+                # Mix of regular, overtime 135%, and overtime 200%
+                regular_hours = decimal.Decimal('44') - hours_before_today
+                remaining = daily_hours - regular_hours
+                
+                if remaining <= (decimal.Decimal('68') - decimal.Decimal('44')):
+                    overtime_135_hours = remaining
+                else:
+                    overtime_135_hours = decimal.Decimal('68') - decimal.Decimal('44')
+                    overtime_200_hours = remaining - overtime_135_hours
+        
+        # Calculate proportional night hours from PAYABLE hours
+        # Night hours should be proportional to payable hours, not total work hours
+        work_seconds = work_day.total_work_time.total_seconds() if work_day.total_work_time else 0
+        break_seconds = work_day.total_break_time.total_seconds() if work_day.total_break_time else 0
+        lunch_seconds = work_day.total_lunch_time.total_seconds() if work_day.total_lunch_time else 0
+        
+        total_work_hours = decimal.Decimal(str(work_seconds / 3600)) if work_seconds > 0 else decimal.Decimal('0')
+        
+        if total_work_hours > 0:
+            # Calculate what percentage of work time is payable
+            payable_percentage = daily_hours / total_work_hours
+            # Apply same percentage to night hours
+            payable_night_hours = night_hours_dec * payable_percentage
+        else:
+            payable_night_hours = night_hours_dec
+        
+        # Cap night hours at payable hours
+        payable_night_hours = min(payable_night_hours, daily_hours)
+        
+        # Calculate rates
+        overtime_rate_135 = hourly_rate * decimal.Decimal('1.35')  # 35% extra
+        overtime_rate_200 = hourly_rate * decimal.Decimal('2.00')  # 100% extra
+        night_rate = hourly_rate * decimal.Decimal('1.15')        # 15% extra
+        
+        # Calculate payments
+        regular_pay = regular_hours * hourly_rate
+        overtime_135_pay = overtime_135_hours * overtime_rate_135
+        overtime_200_pay = overtime_200_hours * overtime_rate_200
+        night_pay = payable_night_hours * night_rate
+        
+        # Total pay
+        total_pay = regular_pay + overtime_135_pay + overtime_200_pay + night_pay
+        
+        return {
+            'regular_hours': float(regular_hours),
+            'overtime_135_hours': float(overtime_135_hours),
+            'overtime_200_hours': float(overtime_200_hours),
+            'night_hours': float(payable_night_hours),
+            'regular_pay': float(regular_pay),
+            'overtime_135_pay': float(overtime_135_pay),
+            'overtime_200_pay': float(overtime_200_pay),
+            'night_pay': float(night_pay),
+            'total_pay': float(total_pay),
+            'payable_hours': float(daily_hours),
+        }
+        
+    except Exception as e:
+        print(f"Error calculating pay breakdown: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'regular_hours': 0.0,
+            'overtime_135_hours': 0.0,
+            'overtime_200_hours': 0.0,
+            'night_hours': 0.0,
+            'regular_pay': 0.0,
+            'overtime_135_pay': 0.0,
+            'overtime_200_pay': 0.0,
+            'night_pay': 0.0,
+            'total_pay': 0.0,
+            'payable_hours': 0.0,
+        }
 
 
 @require_http_methods(["POST"])
 @login_required
 def start_activity(request):
     """
-    Iniciar una nueva actividad (HTMX endpoint)
-    Con protección contra race conditions y validación de estado duplicado
+    Handle status changes and update the dashboard
     """
     employee = get_object_or_404(Employee, user=request.user)
     today = timezone.now().date()
+    session_type = request.POST.get("session_type", "work")
+    notes = request.POST.get("notes", "")
 
     try:
         with transaction.atomic():
-            # ✅ Lock para prevenir race conditions
-            work_day = WorkDay.objects.select_for_update().get_or_create(
-                employee=employee, 
-                date=today
-            )[0]
-
-            session_type = request.POST.get('session_type', 'work')
-
-            # ✅ Si es "end_of_day", usar la función específica
-            if session_type == 'end_of_day':
-                return end_work_day(request)
-
-            # ✅ Verificar SI HAY sesión activa DENTRO de la transacción
-            active_session = work_day.get_active_session()
-            
-            # ✅ NUEVA VALIDACIÓN: Prevenir cambiar al mismo estado
-            if active_session and active_session.session_type == session_type:
-                messages.error(request, f"You are already in {active_session.get_session_type_display()} status. Please select a different status.")
-                return _render_attendance_dashboard(request, employee, work_day)
-            
-            # ✅ Iniciar nueva sesión (solo si no hay sesión activa y no es el mismo estado)
-            session = work_day.start_work_session(
-                session_type=session_type,
-                notes=request.POST.get('notes', '')
+            # 🔒 Lock WorkDay to avoid race conditions
+            work_day, _ = WorkDay.objects.select_for_update().get_or_create(
+                employee=employee,
+                date=today,
+                defaults={"status": "regular_hours"}
             )
 
-            messages.success(request, f"Status changed to {session.get_session_type_display()}")
+            # ⛔ End of day
+            if session_type == "end_of_day":
+                return end_work_day(request)
 
-            return _render_attendance_dashboard(request, employee, work_day)
+            # 🔍 Active session
+            active_session = work_day.get_active_session()
+
+            # 🚫 Avoid changing to same state
+            if active_session and active_session.session_type == session_type:
+                messages.info(
+                    request,
+                    f"You are already in {active_session.get_session_type_display()} status."
+                )
+                return agent_dashboard(request)
+
+            # 🔚 Close active session if exists
+            if active_session:
+                active_session.end_time = timezone.now()
+                active_session.save()
+
+            # ▶️ Start new session IMMEDIATELY (atomically)
+            session = _start_new_session(
+                work_day=work_day,
+                session_type=session_type,
+                notes=notes
+            )
+
+            # 📊 Calculate totals AFTER both operations
+            calculate_daily_totals_manual(work_day)
+
+            messages.success(
+                request,
+                f"Status changed to {session.get_session_type_display()}"
+            )
+
+            return agent_dashboard(request)
 
     except Exception as e:
-        messages.error(request, "System error. Please try again.")
-        return _render_attendance_dashboard(request, employee, work_day)
+        print(f"Error in start_activity: {e}")
+        import traceback
+        traceback.print_exc()
+        messages.error(request, f"System error: {str(e)}")
+        return agent_dashboard(request)
 
-def _render_attendance_dashboard(request, employee, work_day):
-    """Función helper para renderizar el dashboard"""
-    daily_stats = calculate_daily_stats(work_day)
-    history = work_day.sessions.all().order_by('start_time')
-    
-    context = {
-        'employee': employee,
-        'work_day': work_day,
-        'current_session': work_day.get_active_session(),
-        'daily_stats': daily_stats,
-        'history': history,
-        'today': timezone.now().date(),
-    }
-    return render(request, 'attendance/agent_dashboard.html', context)
+
+def _start_new_session(work_day, session_type, notes=""):
+    """
+    Start a new ActivitySession using WorkDay helper if available
+    """
+    try:
+        session = work_day.start_work_session(
+            session_type=session_type,
+            notes=notes
+        )
+    except Exception:
+        session = ActivitySession.objects.create(
+            work_day=work_day,
+            session_type=session_type,
+            start_time=timezone.now(),
+            notes=notes
+        )
+
+        # ⏱️ Check-in if first work session
+        if session_type == "work" and not work_day.check_in:
+            work_day.check_in = timezone.now()
+            work_day.save(update_fields=["check_in"])
+
+    return session
+
 
 @require_http_methods(["POST"])
 @login_required
 def end_work_day(request):
     """
-    Finalizar día completo (HTMX endpoint)
+    End complete work day
     """
     employee = get_object_or_404(Employee, user=request.user)
     today = timezone.now().date()
     
     try:
         work_day = WorkDay.objects.get(employee=employee, date=today)
-        work_day.end_work_day()
         
-        # Recalcular estadísticas finales
-        daily_stats = calculate_daily_stats(work_day)
-        history = work_day.sessions.all().order_by('start_time')
+        # End any active session
+        active_session = work_day.get_active_session()
+        if active_session:
+            active_session.end_time = timezone.now()
+            active_session.save()
         
-        context = {
-            'employee': employee,
-            'work_day': work_day,
-            'current_session': None,
-            'daily_stats': daily_stats,
-            'history': history,
-            'today': today,
-        }
+        # Update work day
+        work_day.check_out = timezone.now()
+        work_day.status = 'completed'
         
-        # Mensaje de éxito
+        # Calculate final totals
+        calculate_daily_totals_manual(work_day)
+        
         messages.success(request, "Work day ended successfully")
         
-        # Retornar todo el dashboard actualizado
-        return render(request, 'attendance/agent_dashboard.html', context)
+        return agent_dashboard(request)
         
     except WorkDay.DoesNotExist:
-        return JsonResponse({'error': 'No active work day found'}, status=400)
-
-def calculate_daily_stats(work_day):
-    """
-    Calcular estadísticas diarias - versión simple
-    """
-    employee = work_day.employee
-    current_campaign = employee.current_campaign
-    
-    # Tiempos
-    total_work_time = work_day.total_work_time or timedelta(0)
-    total_break_time = work_day.total_break_time or timedelta(0)
-    total_lunch_time = work_day.total_lunch_time or timedelta(0)
-    total_time = total_work_time + total_break_time + total_lunch_time
-    
-    def format_duration(duration):
-        """Formatear timedelta a formato legible: 1h 30m"""
-        if not duration:
-            return "0h 00m"
-        
-        total_seconds = int(duration.total_seconds())
-        hours = total_seconds // 3600
-        minutes = (total_seconds % 3600) // 60
-        
-        if hours > 0:
-            return f"{hours}h {minutes:02d}m"
-        else:
-            return f"{minutes}m"
-    
-    # Cálculo simple de ganancias
-    payable_hours = total_work_time.total_seconds() / 3600
-    
-    # Tomar el pay rate de la campaña o usar default
-    if current_campaign and current_campaign.hour_rate:
-        hourly_rate = float(current_campaign.hour_rate)
-    else:
-        hourly_rate = 1.00  # Default
-    
-    estimated_earnings = payable_hours * hourly_rate
-    
-    return {
-        'total': format_duration(total_time),
-        'payable': format_duration(total_work_time),
-        'break': format_duration(total_break_time),
-        'lunch': format_duration(total_lunch_time),
-        'payable_hours': round(payable_hours, 2),
-        'money': f"${estimated_earnings:.2f}",
-        'break_count': work_day.break_count or 0,
-        'hourly_rate': hourly_rate,
-    }
+        messages.error(request, "No active work day found")
+        return agent_dashboard(request)
+    except Exception as e:
+        print(f"Error ending work day: {e}")
+        import traceback
+        traceback.print_exc()
+        messages.error(request, f"Error ending work day: {str(e)}")
+        return agent_dashboard(request)
 
 
 
@@ -525,26 +827,45 @@ def day_detail(request, date_str):
         
         sessions = work_day.sessions.all().order_by('start_time')
         
-        # Calcular estadísticas del día con manejo de errores
-        try:
-            money_calculated = calculate_daily_stats(work_day)['money']
-        except (AttributeError, TypeError, KeyError):
-            money_calculated = "$0.00"
+        # Calculate all daily statistics using the same functions as dashboard
+        daily_stats = calculate_daily_stats(work_day, employee)
         
-        daily_stats = {
-            'work_time': format_duration_simple(work_day.total_work_time),
-            'break_time': format_duration_simple(work_day.total_break_time),
-            'lunch_time': format_duration_simple(work_day.total_lunch_time),
-            'money': money_calculated,
-            'break_count': work_day.break_count or 0,
+        # Calculate payable hours for this specific day
+        total_work_minutes = int(work_day.total_work_time.total_seconds() / 60) if work_day.total_work_time else 0
+        total_break_minutes = int(work_day.total_break_time.total_seconds() / 60) if work_day.total_break_time else 0
+        total_lunch_minutes = int(work_day.total_lunch_time.total_seconds() / 60) if work_day.total_lunch_time else 0
+        payable_minutes = max(0, total_work_minutes - total_break_minutes - total_lunch_minutes)
+        payable_hours_decimal = decimal.Decimal(str(payable_minutes / 60))
+        
+        # Calculate detailed pay breakdown for this specific day using PAYABLE HOURS
+        pay_breakdown = calculate_pay_breakdown_manual(work_day, employee, 
+                                                     daily_stats['weekly_hours'], 
+                                                     daily_stats['night_hours'],
+                                                     payable_hours_decimal)
+        
+        # Calculate daily hours breakdown for this specific day
+        daily_hours_breakdown = {
+            'regular_hours': pay_breakdown['regular_hours'],
+            'overtime_135_hours': pay_breakdown['overtime_135_hours'],
+            'overtime_200_hours': pay_breakdown['overtime_200_hours'],
+            'night_hours': pay_breakdown['night_hours'],  # Use payable night hours
+            'total_hours': float(work_day.productive_hours or 0.0),
+            'payable_hours': pay_breakdown['payable_hours'],
         }
+        
+        # Get campaign info if available
+        campaign = employee.current_campaign
         
         context = {
             'employee': employee,
             'work_day': work_day,
             'sessions': sessions,
             'daily_stats': daily_stats,
+            'pay_breakdown': pay_breakdown,
+            'daily_hours_breakdown': daily_hours_breakdown,
             'date': date_obj,
+            'campaign': campaign,
+            'today': date_obj,
         }
         
         return render(request, 'attendance/day_detail.html', context)
@@ -552,7 +873,6 @@ def day_detail(request, date_str):
     except (ValueError, WorkDay.DoesNotExist):
         messages.error(request, "Day not found or no data available.")
         return redirect('attendance_history')
-    
 
 
 @login_required
@@ -639,7 +959,6 @@ def edit_employee_profile(request, employee_id):
     }
     
     return render(request, 'core/edit_profile.html', context)
-
 
 
 
@@ -934,6 +1253,35 @@ def employee_attendance_detail(request, employee_id):
         messages.error(request, "Employee not found.")
         return redirect('employee_profile')
     
+    # Check if we're viewing a specific day
+    date_str = request.GET.get('day')
+    if date_str:
+        try:
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+            work_day = WorkDay.objects.get(employee=employee, date=date_obj)
+            
+            # Render day detail within this same view
+            sessions = work_day.sessions.all().order_by('start_time')
+            
+            # Calculate stats for this day
+            # ... your calculation code here ...
+            
+            context = {
+                'supervisor': supervisor,
+                'employee': employee,
+                'work_day': work_day,
+                'sessions': sessions,
+                'date': date_obj,
+                'daily_stats': calculate_daily_stats,
+                'daily_hours_breakdown': calculate_daily_totals_manual,
+                'is_day_detail': True,  # Flag to show day detail template
+            }
+            
+            return render(request, 'supervisor/employee_day_detail.html', context)
+            
+        except Exception as e:
+            messages.error(request, f"Error loading day details: {str(e)}")
+            # Fall through to show the list view
     
     # Parámetros de filtrado
     date_from = request.GET.get('date_from')
@@ -964,12 +1312,9 @@ def employee_attendance_detail(request, employee_id):
         'date_from': date_from,
         'date_to': date_to,
         'total_work_days': total_work_days,
-
-        # FIX: total_work_time está en segundos → usar seconds, NO minutes
         'total_work_time': format_duration_simple(timedelta(seconds=total_work_time)),
-
-        # FIX: avg_work_time también en segundos
         'avg_work_time': format_duration_simple(timedelta(seconds=avg_work_time)),
+        'is_day_detail': False,  # Flag to show list view
     }
     
     return render(request, 'supervisor/employee_attendance_detail.html', context)

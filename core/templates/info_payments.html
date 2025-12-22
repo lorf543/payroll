@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="container my-5">
+
+  <!-- Título principal -->
+  <div class="text-center mb-5">
+    <h1 class="fw-bold">Política Interna de Jornadas Nocturnas</h1>
+    <p class="text-muted">
+      Aplicable según el Código de Trabajo de la República Dominicana
+    </p>
+    <a href="https://docs.republica-dominicana.justia.com/nacionales/codigos/codigo-de-trabajo.pdf" target="_blank">Codigo de trabajo Dominicano</a> <br>
+    <small>Puedes ver toda esta informacion directamente en el codigo de trabajo de la <strong>Republica Dominicana</strong> en el Capitulo II articulo 146 en adelante/pagina 64 </small>
+  </div>
+
+
+
+  <!-- Definiciones -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h4 class="card-title">📘 Definiciones de Jornada</h4>
+
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item">
+          <strong>Jornada Diurna:</strong> 7:00 a. m. - 9:00 p. m.
+          <span class="badge bg-success ms-2">Pago 100%</span>
+        </li>
+        <li class="list-group-item">
+          <strong>Jornada Nocturna:</strong> 9:00 p. m. - 7:00 a. m.
+          <span class="badge bg-warning text-dark ms-2">Pago 115%</span>
+        </li>
+        <li class="list-group-item">
+          <strong>Jornada Mixta:</strong> Combina horas diurnas y nocturnas
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Regla clave -->
+  <div class="alert alert-info shadow-sm">
+    <h5 class="alert-heading">⚖️ Regla Legal Clave</h5>
+    <p class="mb-0">
+      Si un trabajador labora <strong>más de 3 horas nocturnas</strong> dentro
+      de una jornada mixta, <strong>toda la jornada se considera nocturna</strong>.
+    </p>
+  </div>
+
+  <!-- Casos prácticos -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h4 class="card-title">🕒 Casos Prácticos</h4>
+
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle mt-3">
+          <thead class="table-light">
+            <tr>
+              <th>Horario</th>
+              <th>Horas Nocturnas</th>
+              <th>Clasificación</th>
+              <th>Forma de Pago</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>3:30 p. m. – 12:00 a. m.</td>
+              <td>3 horas</td>
+              <td>Jornada Mixta</td>
+              <td>
+                Diurnas normales +<br>
+                Nocturnas con 15%
+              </td>
+            </tr>
+            <tr class="table-warning">
+              <td>3:30 p. m. – 1:00 a. m.</td>
+              <td>4 horas</td>
+              <td><strong>Jornada Nocturna Completa</strong></td>
+              <td>
+                Todas las horas con 15%<br>
+                + extras nocturnas
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Horas extra -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h4 class="card-title">⏱️ Horas Extra</h4>
+      <ul>
+        <li>Jornada nocturna máxima: <strong>7 horas diarias</strong></li>
+        <li>Horas adicionales se pagan como <strong>horas extra nocturnas</strong></li>
+        <li>
+          El pago incluye:
+          <ul>
+            <li>Recargo por hora extra (35%)</li>
+            <li>Recargo nocturno (15%)</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Ejemplo monetario -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h4 class="card-title">💰 Ejemplo de Pago</h4>
+
+      <p><strong>Salario base por hora:</strong> RD$200.00</p>
+
+      <ul>
+        <li>Hora nocturna: RD$200.00 * 1.15 = RD$230.00</li>
+        <li>Hora extra nocturna: RD$230.00 * 1.35 = RD$ 310.50 </li>
+      </ul>
+
+      <div class="alert alert-success">
+        <strong>Total jornada 3:30 p. m. - 1:00 a. m.:</strong> RD$2,484.00
+      </div>
+    </div>
+  </div>
+
+</section>
+{% endblock %}

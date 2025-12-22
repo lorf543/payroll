@@ -38,7 +38,7 @@
                 <div id="live-duration" class="fw-bold text-primary">
                     <small>Duration: <span id="duration-counter">Calculating...</span></small>
                 </div>
-                {% if current_session.session_type in "break lunch" %}
+                {% if current_session.session_type in "break,lunch" %}
                 <div id="time-remaining-container" class="fw-bold text-danger">
                     <small>Time remaining: <span id="countdownTimer">Calculating...</span></small>
                 </div>
@@ -90,12 +90,12 @@
 
 <script>
     // Get break and lunch duration from database
-    const BREAK_DURATION = {{ campaign.break_duraction }};
-    const LUNCH_DURATION = {{ campaign.lunch }};
+    const BREAK_DURATION = {{ campaign.break_duraction|default:15 }};
+    const LUNCH_DURATION = {{ campaign.lunch|default:60 }};
 
-    // Variables globales para almacenar datos temporales
+    // Variables globales
     let pendingSessionType = null;
-    let pendingFormData = null;
+    let confirmationModalInstance = null;
 
     // ✅ Cambiar color de fondo según estado
     function updateBodyColor(sessionType) {
@@ -112,14 +112,17 @@
         const statusSelect = document.getElementById('session_type');
         const form = document.getElementById('statusForm');
         const currentStatus = "{{ current_session.session_type|default:'' }}";
-        const confirmationModal = new bootstrap.Modal(document.getElementById('confirmationModal'));
         const confirmButton = document.getElementById('confirmStatusChange');
+        
+        // Inicializar modal
+        const modalElement = document.getElementById('confirmationModal');
+        confirmationModalInstance = new bootstrap.Modal(modalElement);
 
         updateBodyColor(currentStatus);
 
         // 🚫 Evitar seleccionar el mismo estado
         statusSelect.addEventListener('change', function() {
-            if (this.value === currentStatus) {
+            if (this.value === currentStatus && currentStatus !== '') {
                 Swal.fire({
                     icon: 'info',
                     title: 'No status change',
@@ -132,34 +135,42 @@
             }
         });
 
-        // ✅ Manejar submit - Nuevo flujo
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
+        // ✅ Manejar submit - Interceptar solo para break/lunch
+        form.addEventListener('submit', function(e) {
             const selected = statusSelect.value;
             
             // Validación: no permitir cambiar al mismo estado
-            if (selected === currentStatus) {
-                return;
+            if (selected === currentStatus && currentStatus !== '') {
+                e.preventDefault();
+                return false;
             }
 
-            // Preparar datos del formulario
-            pendingFormData = new FormData(form);
-            pendingSessionType = selected;
-
-            // Flujo diferente para break/lunch vs otros estados
+            // Solo interceptar para break/lunch
             if (selected === 'break' || selected === 'lunch') {
-                // Mostrar modal de confirmación con hora de retorno
+                e.preventDefault(); // Prevenir envío normal
+                pendingSessionType = selected;
                 showConfirmationModal(selected);
-            } else {
-                // Para otros estados, proceder directamente
-                await submitStatusChange();
             }
+            // Para otros estados, dejar que el form se envíe normalmente (no preventDefault)
         });
 
         // ✅ Confirmar cambio de estado (cuando el usuario presiona el botón Confirm)
-        confirmButton.addEventListener('click', async function() {
-            confirmationModal.hide();
-            await submitStatusChange();
+        confirmButton.addEventListener('click', function() {
+            confirmationModalInstance.hide();
+            // Pequeño delay para que el modal se cierre suavemente
+            setTimeout(() => {
+                // Mostrar loading
+                Swal.fire({
+                    title: 'Updating status...',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                // Enviar el formulario normalmente
+                form.submit();
+            }, 300);
         });
     });
 
@@ -169,12 +180,11 @@
         const returnTime = calculateReturnTime(minutes);
         
         // Actualizar texto del modal
-        document.getElementById('selectedStatusText').textContent = sessionType;
+        document.getElementById('selectedStatusText').textContent = sessionType.charAt(0).toUpperCase() + sessionType.slice(1);
         document.getElementById('returnTimeText').textContent = returnTime;
         
         // Mostrar modal
-        const confirmationModal = new bootstrap.Modal(document.getElementById('confirmationModal'));
-        confirmationModal.show();
+        confirmationModalInstance.show();
     }
 
     // ✅ Calcular hora de retorno
@@ -190,50 +200,6 @@
         return `${hours}:${mins} ${ampm}`;
     }
 
-    // ✅ Enviar cambio de estado al servidor
-    async function submitStatusChange() {
-        if (!pendingFormData) return;
-
-        try {
-            const response = await fetch("{% url 'start_activity' %}", {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: pendingFormData
-            });
-
-            if (response.ok) {
-                updateBodyColor(pendingSessionType);
-                Swal.fire({
-                    position: "top-end",
-                    icon: "success",
-                    title: `Status changed to "${pendingSessionType}" successfully!`,
-                    showConfirmButton: false,
-                    timer: 1200,
-                    didClose: () => {
-                        window.location.reload();
-                    }
-                });
-            } else {
-                Swal.fire({ 
-                    icon: 'error', 
-                    title: 'Error', 
-                    text: 'Error updating status.' 
-                });
-            }
-        } catch (err) {
-            console.error(err);
-            Swal.fire({ 
-                icon: 'error', 
-                title: 'Error', 
-                text: 'Error sending request.' 
-            });
-        } finally {
-            // Limpiar datos temporales
-            pendingFormData = null;
-            pendingSessionType = null;
-        }
-    }
-
     // ⏱️ Contador de duración + tiempo restante (solo break/lunch)
     function updateDurationCounter() {
         const currentType = "{{ current_session.session_type|default:'' }}";
@@ -246,6 +212,7 @@
         const counterEl = document.getElementById('duration-counter');
         const countdownEl = document.getElementById('countdownTimer');
         let endTime = null;
+        let alertShown = false;
 
         // Si es break/lunch, define el tiempo límite usando valores de la base de datos
         if (currentType === 'break' || currentType === 'lunch') {
@@ -274,14 +241,17 @@
                 if (diff <= 0) {
                     countdownEl.textContent = "Time's up!";
                     countdownEl.classList.add("text-danger");
-                    Swal.fire({
-                        icon: "warning",
-                        title: currentType === "break" ? "Break ended!" : "Lunch ended!",
-                        text: "Your time has ended. Please return to work.",
-                        timer: 5000,
-                        showConfirmButton: true
-                    });
-                    endTime = null; // Evita múltiples alertas
+                    
+                    if (!alertShown) {
+                        alertShown = true;
+                        Swal.fire({
+                            icon: "warning",
+                            title: currentType === "break" ? "Break ended!" : "Lunch ended!",
+                            text: "Your time has ended. Please return to work.",
+                            timer: 5000,
+                            showConfirmButton: true
+                        });
+                    }
                     return;
                 }
                 const minsLeft = Math.floor(diff / 60000);

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import class_view
 
 urlpatterns = [
     path('',views.home_view,name='home'),
@@ -8,8 +9,8 @@ urlpatterns = [
     path('log-all',views.logout_all_users,name='logout_all_users'),
 
 
-    path('management/dashboard/', views.ManagementDashboardView.as_view(), name='management_dashboard'),
+    path('management/dashboard/', class_view.ManagementDashboardView.as_view(), name='management_dashboard'),
     path('management/campaign/<int:campaign_id>/', views.campaign_detail_dashboard, name='campaign_detail'),
-    #path('management/export-campaign/<int:campaign_id>/', views.export_campaign_report, name='export_campaign_report'),
+    path('info-payment',views.info_payment,name='info_payment')
 
 ]

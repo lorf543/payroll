@@ -35,7 +35,7 @@
         </div>
     </div>
 
-    <!-- Executive KPIs -->
+    <!-- Executive KPIs Row 1 -->
     <div class="row mb-4">
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-start border-primary border-4 h-100">
@@ -47,7 +47,7 @@
                             <div class="mt-2">
                                 <span class="badge bg-success">{{ logged_in_today }} online</span>
                                 <small class="text-muted d-block mt-1">
-                                    {{ headcount_utilization_rate }}% utilized
+                                    {{ employees_with_schedules }} with schedules
                                 </small>
                             </div>
                         </div>
@@ -64,16 +64,16 @@
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col">
-                            <div class="text-success text-uppercase small fw-bold">Active Campaigns</div>
-                            <div class="number display-6 fw-bold text-success">{{ active_campaigns }}</div>
+                            <div class="text-success text-uppercase small fw-bold">Schedule Compliance</div>
+                            <div class="number display-6 fw-bold text-success">{{ schedule_compliance_rate }}%</div>
                             <div class="mt-2">
-                                <span class="badge {% if campaigns_over_budget > 0 %}bg-warning{% else %}bg-success{% endif %}">
-                                    {{ campaigns_over_budget }} need attention
-                                </span>
+                                <small class="text-muted">
+                                    {{ actual_attendance_today }} of {{ scheduled_today }} scheduled
+                                </small>
                             </div>
                         </div>
                         <div class="col-auto">
-                            <i class="bi bi-megaphone-fill text-success fs-1"></i>
+                            <i class="bi bi-calendar-check-fill text-success fs-1"></i>
                         </div>
                     </div>
                 </div>
@@ -104,23 +104,105 @@
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col">
-                            <div class="text-warning text-uppercase small fw-bold">Today's Attendance</div>
-                            <div class="number display-6 fw-bold text-warning">
-                                {% with last_trend=attendance_trends.0 %}
-                                    {{ last_trend.attendance_rate }}%
-                                {% endwith %}
-                            </div>
+                            <div class="text-warning text-uppercase small fw-bold">Active Shifts</div>
+                            <div class="number display-6 fw-bold text-warning">{{ active_shifts }}</div>
                             <div class="mt-2">
-                                <small class="text-muted">
-                                    {% with last_trend=attendance_trends.0 %}
-                                        {{ last_trend.present_count }}/{{ last_trend.workdays_count }} present
-                                    {% endwith %}
-                                </small>
+                                <span class="badge {% if campaigns_over_budget > 0 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ active_campaigns }} campaigns
+                                </span>
                             </div>
                         </div>
                         <div class="col-auto">
-                            <i class="bi bi-calendar-check text-warning fs-1"></i>
+                            <i class="bi bi-clock-fill text-warning fs-1"></i>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shift Coverage Today -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Shift Coverage - Today
+                    </h5>
+                    <span class="badge bg-secondary">{{ shift_coverage|length }} active shifts</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Shift</th>
+                                    <th>Time Range</th>
+                                    <th>Campaign</th>
+                                    <th>Scheduled</th>
+                                    <th>Checked In</th>
+                                    <th>Coverage Rate</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for shift_data in shift_coverage %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ shift_data.shift.name }}</strong>
+                                        <br>
+                                        <small class="text-muted">{{ shift_data.shift.shift_type|title }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge" style="background-color: {{ shift_data.shift.color_code }};">
+                                            {{ shift_data.shift.formatted_time_range }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if shift_data.shift.campaign %}
+                                            {{ shift_data.shift.campaign.name }}
+                                        {% else %}
+                                            <span class="text-muted">General</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold">{{ shift_data.scheduled_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{{ shift_data.checked_in_count }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                                <div class="progress-bar 
+                                                    {% if shift_data.coverage_rate >= 90 %}bg-success
+                                                    {% elif shift_data.coverage_rate >= 75 %}bg-warning
+                                                    {% else %}bg-danger{% endif %}" 
+                                                    style="width: {{ shift_data.coverage_rate }}%">
+                                                </div>
+                                            </div>
+                                            <small>{{ shift_data.coverage_rate }}%</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if shift_data.is_understaffed %}
+                                            <span class="badge bg-danger">Understaffed</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Good</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="bi bi-clock display-4 d-block mb-2"></i>
+                                        No active shifts configured
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -144,9 +226,6 @@
                         <i class="bi {{ alert.icon }} me-2 fs-5"></i>
                         <strong>{{ alert.campaign.name }}:</strong>
                         <span class="ms-1">{{ alert.message }}</span>
-                        {% comment %} <a href="{% url 'admin:tracking_campaign_change' alert.campaign.id %}" class="btn btn-sm btn-outline-{{ alert.type }} ms-auto">
-                            Review
-                        </a> {% endcomment %}
                     </div>
                     {% endfor %}
                 </div>
@@ -173,9 +252,9 @@
                                 <tr>
                                     <th>Campaign</th>
                                     <th>Employees</th>
-                                    <th>Headcount</th>
+                                    <th>Scheduled Today</th>
                                     <th>Online</th>
-                                    <th>Attendance Rate</th>
+                                    <th>Attendance</th>
                                     <th>Total Hours</th>
                                     <th>Avg Productivity</th>
                                     <th>Completion</th>
@@ -202,17 +281,7 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="progress flex-grow-1 me-2" style="height: 6px;">
-                                                <div class="progress-bar 
-                                                    {% if data.headcount_utilization >= 90 %}bg-success
-                                                    {% elif data.headcount_utilization >= 70 %}bg-warning
-                                                    {% else %}bg-danger{% endif %}" 
-                                                    style="width: {{ data.headcount_utilization }}%">
-                                                </div>
-                                            </div>
-                                            <small>{{ data.headcount_utilization|floatformat:0 }}%</small>
-                                        </div>
+                                        <span class="badge bg-info">{{ data.scheduled_today }}</span>
                                     </td>
                                     <td>
                                         <span class="badge bg-success">{{ data.logged_in_count }}</span>
@@ -285,10 +354,10 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>Department</th>
-                                    <th>Total Employees</th>
-                                    <th>Supervisors</th>
-                                    <th>Online Now</th>
-                                    <th>Attendance Rate</th>
+                                    <th>Total</th>
+                                    <th>Scheduled</th>
+                                    <th>Online</th>
+                                    <th>Attendance</th>
                                     <th>Avg Productivity</th>
                                 </tr>
                             </thead>
@@ -304,9 +373,10 @@
                                     </td>
                                     <td>
                                         <span class="badge bg-primary rounded-pill">{{ dept.employee_count }}</span>
+                                        <small class="text-muted d-block">{{ dept.supervisor_count }} supervisors</small>
                                     </td>
                                     <td>
-                                        <span class="badge bg-info">{{ dept.supervisor_count }}</span>
+                                        <span class="badge bg-info">{{ dept.scheduled_today }}</span>
                                     </td>
                                     <td>
                                         <span class="badge bg-success">{{ dept.logged_in_count }}</span>
@@ -362,7 +432,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span class="text-muted">Headcount Utilization</span>
                             <strong class="{% if headcount_utilization_rate > 95 %}text-warning{% elif headcount_utilization_rate > 85 %}text-info{% else %}text-success{% endif %}">
-                                {{ headcount_utilization_rate }}%
+                                {{ headcount_utilization_rate|naturaltime }}%
                             </strong>
                         </div>
                         <div class="progress" style="height: 8px;">
@@ -371,6 +441,23 @@
                                 {% elif headcount_utilization_rate > 85 %}bg-info
                                 {% else %}bg-success{% endif %}" 
                                 style="width: {{ headcount_utilization_rate }}%">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-muted">Schedule Compliance</span>
+                            <strong class="{% if schedule_compliance_rate >= 90 %}text-success{% elif schedule_compliance_rate >= 75 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ schedule_compliance_rate }}%
+                            </strong>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar 
+                                {% if schedule_compliance_rate >= 90 %}bg-success
+                                {% elif schedule_compliance_rate >= 75 %}bg-warning
+                                {% else %}bg-danger{% endif %}" 
+                                style="width: {{ schedule_compliance_rate }}%">
                             </div>
                         </div>
                     </div>
@@ -392,16 +479,16 @@
         </div>
     </div>
 
-    <!-- Attendance Trends -->
-    <div class="row">
+    <!-- Schedule Compliance Trends -->
+    <div class="row mb-4">
         <div class="col-12">
             <div class="card shadow-sm">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
                         <i class="bi bi-graph-up me-2"></i>
-                        Attendance Trends - {{ selected_period|title }}
+                        Schedule Compliance Trends - {{ selected_period|title }}
                     </h5>
-                    <span class="badge bg-secondary">{{ attendance_trends|length }} days</span>
+                    <span class="badge bg-secondary">{{ schedule_compliance_trends|length }} days</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -409,14 +496,14 @@
                             <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th>Total Workdays</th>
-                                    <th>Present</th>
-                                    <th>Attendance Rate</th>
-                                    <th>Trend</th>
+                                    <th>Scheduled</th>
+                                    <th>Actual</th>
+                                    <th>Compliance Rate</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for trend in attendance_trends %}
+                                {% for trend in schedule_compliance_trends %}
                                 <tr>
                                     <td>
                                         <strong>{{ trend.date|date:"M d, Y" }}</strong>
@@ -424,22 +511,34 @@
                                         <span class="badge bg-primary ms-1">Today</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ trend.workdays_count }}</td>
                                     <td>
-                                        <span class="fw-bold text-success">{{ trend.present_count }}</span>
+                                        <span class="badge bg-secondary">{{ trend.scheduled_count }}</span>
                                     </td>
                                     <td>
-                                        <span class="fw-bold {% if trend.attendance_rate >= 80 %}text-success{% elif trend.attendance_rate >= 60 %}text-warning{% else %}text-danger{% endif %}">
-                                            {{ trend.attendance_rate }}%
-                                        </span>
+                                        <span class="fw-bold text-success">{{ trend.actual_count }}</span>
                                     </td>
                                     <td>
-                                        {% if trend.trend_direction == 'up' %}
-                                            <i class="bi bi-arrow-up-circle text-success" title="Improving"></i>
-                                        {% elif trend.trend_direction == 'down' %}
-                                            <i class="bi bi-arrow-down-circle text-danger" title="Declining"></i>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 6px; width: 100px;">
+                                                <div class="progress-bar 
+                                                    {% if trend.compliance_rate >= 90 %}bg-success
+                                                    {% elif trend.compliance_rate >= 75 %}bg-warning
+                                                    {% else %}bg-danger{% endif %}" 
+                                                    style="width: {{ trend.compliance_rate }}%">
+                                                </div>
+                                            </div>
+                                            <span class="fw-bold {% if trend.compliance_rate >= 90 %}text-success{% elif trend.compliance_rate >= 75 %}text-warning{% else %}text-danger{% endif %}">
+                                                {{ trend.compliance_rate }}%
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if trend.compliance_rate >= 90 %}
+                                            <span class="badge bg-success">Excellent</span>
+                                        {% elif trend.compliance_rate >= 75 %}
+                                            <span class="badge bg-warning">Good</span>
                                         {% else %}
-                                            <i class="bi bi-dash-circle text-muted" title="Stable"></i>
+                                            <span class="badge bg-danger">Needs Improvement</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -464,8 +563,6 @@
 .number {
     font-size: 2.5rem;
 }
-
-
 
 .progress {
     background-color: #e9ecef;
