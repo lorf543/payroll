@@ -1,0 +1,16 @@
+
+<select 
+    name="employees" 
+    multiple 
+    class="w-full px-4 py-2 border rounded-lg"
+    required
+>
+    {% for employee in employees %}
+        <option value="{{ employee.id }}">
+            {{ employee.full_name }} - {{ employee.position.name|default:"No Position" }} - {{ employee.current_campaign.name|default:"No Campaign" }}
+        </option>
+    {% endfor %}
+</select>
+<p class="text-sm text-gray-500 mt-2">
+    {{ employees|length }} employee(s) available
+</p>

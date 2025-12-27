@@ -25,6 +25,7 @@ from django.template.loader import render_to_string
 from django.http import HttpResponse
 from .forms import EmailForm 
 from .forms import EmployeeInvitationForm, EmployeeEmailForm
+from django.conf import settings
 
 
 from core.models import Employee, BulkInvitation
@@ -149,7 +150,7 @@ class FirstTimeDeviceSetupView(View):
             device_uuid,
             max_age=60 * 60 * 24 * 365,  # 1 año
             httponly=True,
-            secure=True,  # Cambia a False si no usas HTTPS en desarrollo
+            secure=not settings.DEBUG,  
             samesite='Lax'
         )
         return response

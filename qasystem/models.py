@@ -199,7 +199,6 @@ class QuestionResponse(models.Model):
         ordering = ['question__order']
 
 class EvaluationTemplate(models.Model):
-    """Template for evaluations"""
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     questions = models.ManyToManyField(Question, related_name='templates')

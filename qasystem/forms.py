@@ -73,3 +73,22 @@ class QuestionForm(forms.ModelForm):
         if max_score <= 0:
             raise forms.ValidationError("Max score must be greater than 0")
         return max_score
+
+
+class ScorecardForm(forms.ModelForm):
+    class Meta:
+        model = EvaluationTemplate
+        fields = "__all__"
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 3}),
+            'questions': forms.CheckboxSelectMultiple(),
+        }
+
+    def clean_name(self):
+        name = self.cleaned_data['name']
+        qs = EvaluationTemplate.objects.filter(name=name)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("A scorecard with this name already exists.")
+        return name
