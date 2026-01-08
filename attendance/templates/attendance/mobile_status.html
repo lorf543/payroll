@@ -34,7 +34,6 @@
             .warning{color:#f59e0b}
             .danger{color:#ef4444;animation:pulse 1s infinite}
             @keyframes pulse{50%{opacity:.6}}
-            .progress{height:10px;border-radius:8px;background:#e5e7eb;margin:15px 0;overflow:hidden}
             .fill{height:100%;background:linear-gradient(90deg,#10b981,#3b82f6)}
             .alert{background:#fee2e2;border-left:4px solid #ef4444;padding:12px;border-radius:8px;margin-top:10px;color:#991b1b;font-size:14px}
             .btn{width:100%;padding:14px;border-radius:10px;border:none;margin-top:15px;font-weight:600;font-size:16px;cursor:pointer}
@@ -68,12 +67,10 @@
             {{ remaining_time.seconds|divisibleby:60 }}:{{ remaining_time.seconds|add:"-60"|divisibleby:1 }}
         </div>
 
-        <div class="progress">
-            <div class="fill" style="width:{{ progress_percent }}%"></div>
-        </div>
+            
 
         {% if is_overtime %}
-        <div class="alert">⚠️ You exceeded your {{ current_session.session_type }} time!</div>
+        <div class="alert">You exceeded your {{ current_session.session_type }} time!</div>
         {% endif %}
         {% endif %}
 

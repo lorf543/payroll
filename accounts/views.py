@@ -1,6 +1,7 @@
 from django_q.tasks import async_task
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.decorators.cache import cache_page
 from allauth.account.views import PasswordChangeView
 from django.contrib.messages.views import SuccessMessageMixin
 from django.contrib.auth.models import User
@@ -28,6 +29,7 @@ from .forms import EmployeeInvitationForm, EmployeeEmailForm
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+
 
 from core.models import Employee, BulkInvitation
 from django.utils import timezone
@@ -297,7 +299,7 @@ def bulk_employee_invitation(request):
     
 
 
-
+@cache_page(30)
 @login_required
 def mobile_status_view(request):
     """
@@ -314,7 +316,10 @@ def mobile_status_view(request):
         })
     
     # Obtener trabajo activo
-    work_day = get_or_create_active_work_day(employee)
+    work_day = WorkDay.objects.filter(
+        employee=employee,
+        date=timezone.now().date()
+    ).last()
     
     # Obtener sesión activa
     current_session = work_day.get_active_session()

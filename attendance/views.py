@@ -20,6 +20,7 @@ from django.core.files.storage import default_storage
 from django.http import FileResponse
 from django.core.files.base import ContentFile
 
+
 import os
 import decimal
 import openpyxl
@@ -278,12 +279,9 @@ def auto_close_forgotten_workday(work_day):
         # Close any active session
         active_session = work_day.get_active_session()
         if active_session:
-            # Use the last known activity time or end of day
-            # Set end_time to 8 hours after start (reasonable assumption)
-            # or to the end of the work day date
-            end_of_day = timezone.make_aware(
-                datetime.combine(work_day.date, time(23, 59, 59))
-            )
+            # Use NAIVE datetime (no timezone) since USE_TZ=False
+            # Set end_time to end of the work day date
+            end_of_day = datetime.combine(work_day.date, time(23, 59, 59))
             active_session.end_time = end_of_day
             active_session.notes = (active_session.notes or "") + " [Auto-closed by system]"
             active_session.save()
@@ -295,9 +293,8 @@ def auto_close_forgotten_workday(work_day):
             if last_session and last_session.end_time:
                 work_day.check_out = last_session.end_time
             else:
-                work_day.check_out = timezone.make_aware(
-                    datetime.combine(work_day.date, time(23, 59, 59))
-                )
+                # Use NAIVE datetime
+                work_day.check_out = datetime.combine(work_day.date, time(23, 59, 59))
         
         # Mark as completed
         work_day.status = 'completed'
@@ -306,7 +303,8 @@ def auto_close_forgotten_workday(work_day):
         calculate_daily_totals_manual(work_day)
         
         # Add audit note
-        work_day.notes = (work_day.notes or "") + f"\n[Auto-closed by system on {timezone.now()}. Employee forgot to end work day.]"
+        now_naive = datetime.now()  # ⬅️ NAIVE datetime
+        work_day.notes = (work_day.notes or "") + f"\n[Auto-closed by system on {now_naive}. Employee forgot to end work day.]"
         work_day.save()
         
         print(f"✅ Auto-closed forgotten work day: {work_day}")
@@ -695,7 +693,6 @@ def end_work_day(request):
         traceback.print_exc()
         messages.error(request, f"Error ending work day: {str(e)}")
         return agent_dashboard(request)
-
 
 @login_required
 def attendance_history(request):
