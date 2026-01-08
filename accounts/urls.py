@@ -14,6 +14,8 @@ urlpatterns = [
     path("add-email-field/", views.add_email_field, name="add_email_field"),
 
     path("test_view/", views.test_view, name="test_view"),
+    
+    path('account/mobile-status/', views.mobile_status_view, name='mobile_status_view'),
 
 
 ]

@@ -290,6 +290,34 @@ class PayPeriod(models.Model):
     frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES)
     is_closed = models.BooleanField(default=False)
     
+    period_type = models.CharField(max_length=20, choices=[
+            ('first_half', 'First Half of Month'),
+            ('second_half', 'Second Half of Month'),
+            ('monthly', 'Monthly'),
+        ],
+        default='monthly'
+    )
+    month = models.IntegerField(help_text="Month number (1-12)",blank=True, null=True)
+    year = models.IntegerField(help_text="Year",blank=True, null=True)
+    
+    
+    def is_first_half(self):
+        return self.period_type == 'first_half'
+    
+    def is_second_half(self):
+        return self.period_type == 'second_half'
+    
+    def get_monthly_total_period(self):
+        """Get the complete month period"""
+        if self.is_first_half() or self.is_second_half():
+            # Encontrar el período mensual correspondiente
+            return PayPeriod.objects.filter(
+                month=self.month,
+                year=self.year,
+                period_type='monthly'
+            ).first()
+        return self
+    
     def __str__(self):
         return f"{self.name} ({self.start_date} - {self.end_date})"
 
@@ -327,6 +355,11 @@ class Payment(models.Model):
     sfs = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    # ISR Mensual
+    monthly_gross_accumulated = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    monthly_isr_calculated = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    isr_to_apply = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='draft')
     comments = models.TextField(blank=True, null=True)
@@ -384,7 +417,7 @@ class Payment(models.Model):
         self.sfs = self.gross_salary * SFS_RATE
         
         # Calculate ISR
-        self.isr = self.calculate_isr()
+        self.isr = self.calculate_isr_for_period()
         
         # Get additional earnings/deductions from details
         additional_earnings = sum(
@@ -399,22 +432,111 @@ class Payment(models.Model):
         self.total_deductions = self.afp + self.sfs + self.isr + Decimal(str(additional_deductions))
         self.net_salary = self.total_earnings - self.total_deductions
     
-    def calculate_isr(self):
-        """Calculate ISR based on gross salary"""
+    def calculate_isr_for_period(self):
+        """Calculate ISR based on period type (first/second half)"""
         from decimal import Decimal
         
-        gross = Decimal(str(self.gross_salary))
-        exemption_limit = Decimal('416220.00')
-        bracket_limit = Decimal('624329.00')
-        
-        if gross <= exemption_limit:
+        if self.period.is_first_half():
+            # Primera quincena: NO aplicar ISR, solo acumular
+            self.monthly_gross_accumulated = self.gross_salary
+            self.monthly_isr_calculated = Decimal('0.00')
+            self.isr_to_apply = Decimal('0.00')
             return Decimal('0.00')
-        elif gross <= bracket_limit:
-            return (gross - exemption_limit) * Decimal('0.15')
+            
+        elif self.period.is_second_half():
+            # Segunda quincena: Calcular ISR sobre total mensual
+            # 1. Obtener pago de primera quincena
+            first_half_payment = Payment.objects.filter(
+                employee=self.employee,
+                period__month=self.period.month,
+                period__year=self.period.year,
+                period__period_type='first_half'
+            ).first()
+            
+            # 2. Calcular total mensual
+            first_half_gross = first_half_payment.gross_salary if first_half_payment else Decimal('0.00')
+            monthly_total = first_half_gross + self.gross_salary
+            
+            # 3. Calcular ISR mensual
+            monthly_isr = self.calculate_monthly_isr(monthly_total)
+            
+            # 4. Restar ISR ya retenido (si hubo en primera quincena)
+            first_half_isr = first_half_payment.isr_to_apply if first_half_payment else Decimal('0.00')
+            
+            # 5. ISR a aplicar en esta quincena
+            isr_this_period = monthly_isr - first_half_isr
+            
+            # Guardar acumulados
+            self.monthly_gross_accumulated = monthly_total
+            self.monthly_isr_calculated = monthly_isr
+            self.isr_to_apply = max(isr_this_period, Decimal('0.00'))  # No negativo
+            
+            return self.isr_to_apply
+        
         else:
-            excess = gross - bracket_limit
-            base_bracket = bracket_limit - exemption_limit
-            return (base_bracket * Decimal('0.15')) + (excess * Decimal('0.20'))
+            # Pago mensual: calcular ISR normal
+            monthly_isr = self.calculate_monthly_isr(self.gross_salary)
+            self.monthly_gross_accumulated = self.gross_salary
+            self.monthly_isr_calculated = monthly_isr
+            self.isr_to_apply = monthly_isr
+            return monthly_isr
+    
+    def calculate_monthly_isr(self, monthly_gross):
+        """Calculate ISR for a monthly gross salary"""
+        from decimal import Decimal
+        
+        # Convertir a Decimal si es necesario
+        if isinstance(monthly_gross, (int, float)):
+            gross = Decimal(str(monthly_gross))
+        else:
+            gross = monthly_gross
+        
+        # Escala de ISR 2024 RD (actualiza según año)
+        # Hasta RD$416,220.00 anual -> 0%
+        # De RD$416,220.01 a RD$624,329.00 anual -> 15% del excedente
+        # De RD$624,329.01 a RD$867,123.00 anual -> RD$31,216.00 + 20% del excedente
+        # Más de RD$867,123.01 anual -> RD$79,776.00 + 25% del excedente
+        
+        # Convertir a ANUAL para cálculo (asumiendo salario mensual)
+        annual_gross = gross * Decimal('12')
+        
+        # Límites ANUALES
+        LIMITE_EXENTO = Decimal('416220.00')
+        LIMITE_15 = Decimal('624329.00')
+        LIMITE_20 = Decimal('867123.00')
+        
+        if annual_gross <= LIMITE_EXENTO:
+            return Decimal('0.00')
+        
+        elif annual_gross <= LIMITE_15:
+            excedente = annual_gross - LIMITE_EXENTO
+            isr_anual = excedente * Decimal('0.15')
+            
+        elif annual_gross <= LIMITE_20:
+            excedente_15 = LIMITE_15 - LIMITE_EXENTO
+            isr_15 = excedente_15 * Decimal('0.15')
+            
+            excedente_20 = annual_gross - LIMITE_15
+            isr_20 = excedente_20 * Decimal('0.20')
+            
+            isr_anual = isr_15 + isr_20
+            
+        else:
+            excedente_15 = LIMITE_15 - LIMITE_EXENTO
+            isr_15 = excedente_15 * Decimal('0.15')
+            
+            excedente_20 = LIMITE_20 - LIMITE_15
+            isr_20 = excedente_20 * Decimal('0.20')
+            
+            excedente_25 = annual_gross - LIMITE_20
+            isr_25 = excedente_25 * Decimal('0.25')
+            
+            isr_anual = isr_15 + isr_20 + isr_25
+        
+        # Convertir a mensual
+        isr_mensual = isr_anual / Decimal('12')
+        
+        return isr_mensual.quantize(Decimal('0.01'))
     
     def approve_by_employee(self):
         """Employee approves their payment"""
@@ -472,13 +594,11 @@ def calculate_totals_signal(sender, instance, **kwargs):
     instance.afp = instance.gross_salary * AFP_RATE
     instance.sfs = instance.gross_salary * SFS_RATE
 
-    # No details → so no additional earnings/deductions
-    additional_earnings = Decimal('0')
-    additional_deductions = Decimal('0')
-
-    # Update totals
-    instance.total_earnings = additional_earnings
-    instance.total_deductions = instance.afp + instance.sfs + additional_deductions
-    instance.net_salary = instance.gross_salary + additional_earnings - instance.total_deductions
+    # Calculate ISR based on period type
+    instance.isr = instance.calculate_isr_for_period()
     
+    # Update totals
+    instance.total_earnings = Decimal('0')  # No additional earnings
+    instance.total_deductions = instance.afp + instance.sfs + instance.isr
+    instance.net_salary = instance.gross_salary - instance.total_deductions
 

@@ -12,6 +12,7 @@ from django.http import JsonResponse
 from collections import defaultdict
 from django.views.generic import ListView, DetailView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.decorators.http import require_POST
 
 from core.models import Employee, Payment, PaymentConcept,PaymentDetail, PayPeriod, Campaign
 from attendance.models import WorkDay
@@ -209,72 +210,135 @@ def create_pay_period(request):
     return render(request, 'nomina/create_period.html', context)
 
 
+@login_required
+@require_POST
+def confirm_isr(request, payment_id):
+    """Confirm or adjust ISR amount for a payment"""
+    payment = get_object_or_404(Payment, id=payment_id)
+    
+    isr_value = request.POST.get('isr_value')
+    
+    try:
+        isr_decimal = Decimal(isr_value)
+        if isr_decimal < 0:
+            raise ValueError("ISR cannot be negative")
+            
+        payment.isr_confirmed = isr_decimal
+        payment.isr_confirmed_by = request.user
+        payment.isr_confirmed_at = timezone.now()
+        payment.isr_locked = True
+        
+        # Recalculate totals with confirmed ISR
+        payment.calculate_totals()
+        payment.save()
+        
+        messages.success(request, f"ISR confirmed: ${isr_decimal:.2f}")
+        
+    except (ValueError, InvalidOperation) as e:
+        messages.error(request, f"Invalid ISR value: {str(e)}")
+    
+    # Redirect back to review period
+    return redirect('nomina:review_period', period_id=payment.period.id)
+
+@login_required
+@require_POST
+def unlock_isr(request, payment_id):
+    """Unlock ISR for editing"""
+    payment = get_object_or_404(Payment, id=payment_id)
+    
+    payment.isr_locked = False
+    payment.save()
+    
+    messages.warning(request, "ISR unlocked for editing")
+    return redirect('nomina:review_period', period_id=payment.period.id)
+
+
 
 @login_required
 def review_pay_period(request, period_id):
     """Review and manage a complete pay period"""
     period = get_object_or_404(PayPeriod, id=period_id)
     
-    # Get all active employees
+    # Verificar si hay período de primera quincena correspondiente
+    first_half_period = None
+    if period.is_second_half():
+        first_half_period = PayPeriod.objects.filter(
+            month=period.month,
+            year=period.year,
+            period_type='first_half'
+        ).first()
+    
+    # Get or create payments for employees
     active_employees = Employee.objects.filter(is_active=True)
     
-    # Prepare data for each employee
     employees_data = []
     total_gross = Decimal('0.00')
     total_net = Decimal('0.00')
+    total_isr = Decimal('0.00')
+    monthly_gross = Decimal('0.00')
     
     for employee in active_employees:
-        # Get employee workdays in the period
+        # Get or create payment for current period
+        payment, created = Payment.objects.get_or_create(
+            employee=employee,
+            period=period,
+            defaults={'gross_salary': Decimal('0.00')}
+        )
+        
+        # Get workdays
         workdays = WorkDay.objects.filter(
             employee=employee,
             date__range=[period.start_date, period.end_date]
         ).order_by('date')
         
-        # Calculate totals
-        workdays_data = []
-        employee_gross = Decimal('0.00')
-        employee_approved = True
-        
+        # Calculate gross from workdays
+        gross_total = Decimal('0.00')
         for workday in workdays:
-            # Calculate pay if not calculated
             if workday.total_pay == 0 and workday.productive_hours > 0:
                 workday.calculate_pay()
                 workday.save()
-            
-            workdays_data.append(workday)
-            employee_gross += Decimal(str(workday.total_pay))
-            
-            # Check if all are approved
-            if not workday.is_approved:
-                employee_approved = False
+            gross_total += Decimal(str(workday.total_pay))
         
-        # Calculate deductions and net
-        employee_net = calculate_employee_net_salary(employee, employee_gross)
+        # Update payment
+        payment.gross_salary = gross_total
+        payment.save()  # Esto disparará el cálculo automático
         
-        # Convert to float for template display
+        # Get first half payment if exists
+        first_half_payment = None
+        if period.is_second_half() and first_half_period:
+            first_half_payment = Payment.objects.filter(
+                employee=employee,
+                period=first_half_period
+            ).first()
+        
+        # Prepare employee data
+        employee_gross = float(gross_total)
+        employee_net = float(payment.net_salary)
+        employee_isr = float(payment.isr_to_apply)
+        
         employees_data.append({
             'employee': employee,
-            'workdays': workdays_data,
-            'workdays_count': len(workdays_data),
-            'approved_count': sum(1 for w in workdays_data if w.is_approved),
-            'total_gross': float(employee_gross),  # Convert to float for template
-            'total_net': float(employee_net),      # Convert to float for template
-            'fully_approved': employee_approved,
-            'has_workdays': len(workdays_data) > 0,
+            'payment': payment,
+            'first_half_payment': first_half_payment,
+            'workdays': list(workdays),
+            'workdays_count': workdays.count(),
+            'approved_count': workdays.filter(is_approved=True).count(),
+            'total_gross': employee_gross,
+            'total_net': employee_net,
+            'monthly_gross': float(payment.monthly_gross_accumulated),
+            'monthly_isr': float(payment.monthly_isr_calculated),
+            'isr_to_apply': employee_isr,
+            'fully_approved': all(w.is_approved for w in workdays),
+            'has_workdays': workdays.exists(),
         })
         
-        total_gross += employee_gross
-        total_net += employee_net
-    
-    # Period statistics
-    all_workdays = WorkDay.objects.filter(
-        date__range=[period.start_date, period.end_date],
-        employee__is_active=True
-    )
+        total_gross += Decimal(str(employee_gross))
+        total_net += Decimal(str(employee_net))
+        total_isr += Decimal(str(employee_isr))
+        monthly_gross += payment.monthly_gross_accumulated
     
     # Group employees by campaign
     grouped_employees = {}
-    
     for emp_data in employees_data:
         employee = emp_data["employee"]
         campaign_name = (
@@ -290,27 +354,35 @@ def review_pay_period(request, period_id):
     
     # Get all campaigns for the tabs
     campaigns = Campaign.objects.all()
-
+    
+    # All workdays in period
+    all_workdays = WorkDay.objects.filter(
+        date__range=[period.start_date, period.end_date],
+        employee__is_active=True
+    )
+    
     stats = {
         'total_employees': active_employees.count(),
         'employees_with_workdays': sum(1 for ed in employees_data if ed['has_workdays']),
         'total_workdays': all_workdays.count(),
         'approved_workdays': all_workdays.filter(is_approved=True).count(),
-        'total_gross': float(total_gross),  # Convert to float for template
-        'total_net': float(total_net),      # Convert to float for template
+        'total_gross': float(total_gross),
+        'total_net': float(total_net),
+        'total_isr': float(total_isr),
+        'monthly_gross': float(monthly_gross),
         'all_approved': all(ed['fully_approved'] for ed in employees_data if ed['has_workdays']),
     }
     
     context = {
         'period': period,
+        'first_half_period': first_half_period,
         'stats': stats,
         'campaigns': campaigns,
         'grouped_employees': grouped_employees,
-        'employees_data': employees_data,  # También pasamos esto por si acaso
+        'employees_data': employees_data,
     }
     
     return render(request, 'nomina/period_review.html', context)
-
 
 def calculate_employee_net_salary(employee, gross_salary):
     """Calculate net salary with deductions"""
@@ -503,11 +575,19 @@ class PaymentDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         payment = self.get_object()
+
+        employee = payment.employee
         
-        # Calculate detailed breakdown
+        # 🔥 Obtener WorkDays del período
+        workdays = WorkDay.objects.filter(
+            employee=employee,
+            date__range=[payment.period.start_date, payment.period.end_date]
+        ).order_by("date")
+
         context['earnings_breakdown'] = self.get_earnings_breakdown(payment)
         context['deductions_breakdown'] = self.get_deductions_breakdown(payment)
         context['can_approve'] = payment.status == 'pending_employee'
+        context['workdays'] = workdays 
         
         return context
     

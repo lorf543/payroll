@@ -26,10 +26,13 @@ from django.http import HttpResponse
 from .forms import EmailForm 
 from .forms import EmployeeInvitationForm, EmployeeEmailForm
 from django.conf import settings
-
+from django.utils import timezone
+from datetime import timedelta
 
 from core.models import Employee, BulkInvitation
 from django.utils import timezone
+
+from attendance.views import get_or_create_active_work_day,calculate_daily_totals_manual
 
 def test_view(request):
     return render(request,'emails/invitation.html')
@@ -290,3 +293,68 @@ def bulk_employee_invitation(request):
         'main_form': main_form,
         'email_forms': email_forms
     })
+    
+    
+
+
+
+@login_required
+def mobile_status_view(request):
+    """
+    Vista móvil limitada - Solo lectura
+    Muestra el estado actual del empleado (break/lunch timer)
+    """
+    from attendance.models import Employee, WorkDay
+    
+    try:
+        employee = Employee.objects.get(user=request.user)
+    except Employee.DoesNotExist:
+        return render(request, 'attendance/mobile_status.html', {
+            'error': 'Employee profile not found'
+        })
+    
+    # Obtener trabajo activo
+    work_day = get_or_create_active_work_day(employee)
+    
+    # Obtener sesión activa
+    current_session = work_day.get_active_session()
+    
+    # Calcular totales
+    calculate_daily_totals_manual(work_day)
+    work_day.refresh_from_db()
+    
+    # Preparar contexto
+    context = {
+        'employee': employee,
+        'work_day': work_day,
+        'current_session': current_session,
+        'now': timezone.now(),
+    }
+    
+    # Si hay sesión activa, calcular tiempo transcurrido y restante
+    if current_session:
+        elapsed_time = timezone.now() - current_session.start_time
+        
+        # Obtener duración esperada según campaña
+        campaign = employee.current_campaign
+        expected_duration = None
+        
+        if campaign:
+            if current_session.session_type == 'break':
+                expected_duration = timedelta(minutes=campaign.break_duraction or 15)
+            elif current_session.session_type == 'lunch':
+                expected_duration = timedelta(minutes=campaign.lunch_duration or 60)
+        
+        context['elapsed_time'] = elapsed_time
+        context['expected_duration'] = expected_duration
+        
+        if expected_duration:
+            remaining_time = expected_duration - elapsed_time
+            context['remaining_time'] = remaining_time
+            context['is_overtime'] = remaining_time < timedelta(0)
+            
+            # Calcular porcentaje
+            percent = (elapsed_time.total_seconds() / expected_duration.total_seconds()) * 100
+            context['progress_percent'] = min(percent, 100)
+    
+    return render(request, 'attendance/mobile_status.html', context)

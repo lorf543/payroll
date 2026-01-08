@@ -153,7 +153,7 @@ def agent_dashboard(request):
     """
     employee = get_object_or_404(Employee, user=request.user)
     
-    # 🔥 CRITICAL: Get or create active work day (not just today's date)
+    # 🔥 CRITICAL: Get or create active work day with auto-close logic
     work_day = get_or_create_active_work_day(employee)
     
     # Get current active session
@@ -177,7 +177,7 @@ def agent_dashboard(request):
         'work_day': work_day,
         'current_session': current_session,
         'history': history,
-        'today': work_day.date,  # Use work_day's date, not calendar date
+        'today': work_day.date,
         'campaign': campaign,
         'daily_stats': daily_stats,
     }
@@ -187,28 +187,73 @@ def agent_dashboard(request):
 
 def get_or_create_active_work_day(employee):
     """
-    Get or create active work day for employee.
+    Get or create active work day for employee with smart auto-close logic.
     
-    IMPORTANT: This allows work days to span past midnight.
-    A work day is "active" until the employee clicks "End of Day".
+    IMPORTANT: This allows work days to span past midnight BUT auto-closes
+    old days that were forgotten.
     
     Logic:
-    1. Check if there's an active/incomplete work day (status != 'completed')
-    2. If yes, return it (even if it's from yesterday)
-    3. If no, create a new work day for today
+    1. Find the most recent incomplete work day
+    2. If it exists AND is "recent" (within 12 hours), use it
+    3. If it's "old" (more than 12 hours), auto-close it and create new one
+    4. If no incomplete day exists, create a new one for today
+    
+    This prevents the bug where a forgotten day accumulates hours from future days.
     """
-    # Try to find an active work day (not completed)
+    from django.db.models import Max
+    
+    now = timezone.now()
+    today = now.date()
+    
+    # Find the most recent incomplete work day
     active_work_day = WorkDay.objects.filter(
         employee=employee,
         status__in=['active', 'regular_hours']  # Not completed
     ).order_by('-date').first()
     
-    # If there's an active work day, use it
     if active_work_day:
-        return active_work_day
+        # Check if this work day is "recent" or "old"
+        # We consider it "recent" if:
+        # 1. It's from today, OR
+        # 2. It has an active session (employee is currently working), OR
+        # 3. The last activity was within the last 12 hours
+        
+        is_today = active_work_day.date == today
+        has_active_session = active_work_day.get_active_session() is not None
+        
+        # Get the last activity time (most recent session end or start)
+        last_session = active_work_day.sessions.order_by('-start_time').first()
+        
+        if last_session:
+            # Check the most recent timestamp from this session
+            if last_session.end_time:
+                last_activity = last_session.end_time
+            else:
+                # Active session - use start time
+                last_activity = last_session.start_time
+            
+            # Calculate hours since last activity
+            hours_since_activity = (now - last_activity).total_seconds() / 3600
+            is_recent = hours_since_activity <= 12  # Within 12 hours
+        else:
+            # No sessions yet - check check_in time
+            if active_work_day.check_in:
+                hours_since_activity = (now - active_work_day.check_in).total_seconds() / 3600
+                is_recent = hours_since_activity <= 12
+            else:
+                # No check_in either - it's old
+                is_recent = False
+        
+        # Decision: Use this work day or auto-close it?
+        if is_today or has_active_session or is_recent:
+            # ✅ This is a valid active work day
+            return active_work_day
+        else:
+            # ❌ This work day is old and forgotten - auto-close it
+            auto_close_forgotten_workday(active_work_day)
+            # Continue to create a new work day below
     
-    # Otherwise, create a new work day for today
-    today = timezone.now().date()
+    # Create a new work day for today
     work_day, created = WorkDay.objects.get_or_create(
         employee=employee,
         date=today,
@@ -216,6 +261,60 @@ def get_or_create_active_work_day(employee):
     )
     
     return work_day
+
+
+def auto_close_forgotten_workday(work_day):
+    """
+    Auto-close a work day that was forgotten (employee didn't click End of Day)
+    
+    This function:
+    1. Closes any active sessions
+    2. Sets check_out time
+    3. Marks status as 'completed'
+    4. Calculates final totals
+    5. Adds an audit note
+    """
+    try:
+        # Close any active session
+        active_session = work_day.get_active_session()
+        if active_session:
+            # Use the last known activity time or end of day
+            # Set end_time to 8 hours after start (reasonable assumption)
+            # or to the end of the work day date
+            end_of_day = timezone.make_aware(
+                datetime.combine(work_day.date, time(23, 59, 59))
+            )
+            active_session.end_time = end_of_day
+            active_session.notes = (active_session.notes or "") + " [Auto-closed by system]"
+            active_session.save()
+        
+        # Set check_out if not set
+        if not work_day.check_out:
+            # Use the last session's end time or end of day
+            last_session = work_day.sessions.order_by('-start_time').first()
+            if last_session and last_session.end_time:
+                work_day.check_out = last_session.end_time
+            else:
+                work_day.check_out = timezone.make_aware(
+                    datetime.combine(work_day.date, time(23, 59, 59))
+                )
+        
+        # Mark as completed
+        work_day.status = 'completed'
+        
+        # Calculate final totals
+        calculate_daily_totals_manual(work_day)
+        
+        # Add audit note
+        work_day.notes = (work_day.notes or "") + f"\n[Auto-closed by system on {timezone.now()}. Employee forgot to end work day.]"
+        work_day.save()
+        
+        print(f"✅ Auto-closed forgotten work day: {work_day}")
+        
+    except Exception as e:
+        print(f"❌ Error auto-closing work day {work_day.id}: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def calculate_daily_totals_manual(work_day):
@@ -260,9 +359,9 @@ def calculate_daily_totals_manual(work_day):
                 total_lunch += duration
     
     # Update work_day fields
-    work_day.total_work_time = total_work  # ONLY work sessions
-    work_day.total_break_time = total_break  # ONLY break sessions
-    work_day.total_lunch_time = total_lunch  # ONLY lunch sessions
+    work_day.total_work_time = total_work
+    work_day.total_break_time = total_break
+    work_day.total_lunch_time = total_lunch
     work_day.break_count = break_count
     
     # productive_hours = ONLY work time (breaks/lunch already excluded)
@@ -297,8 +396,7 @@ def calculate_daily_stats(work_day, employee):
     total_lunch_minutes = int(total_lunch_seconds / 60)
     
     # 💰 PAYABLE TIME = total_work_time (breaks/lunch already NOT included!)
-    # No need to subtract because total_work_time ONLY contains work sessions
-    payable_minutes = total_work_minutes  # ✅ No subtraction!
+    payable_minutes = total_work_minutes
     payable_hours_decimal = decimal.Decimal(str(payable_minutes / 60))
     
     # 📅 WEEKLY HOURS = Sum of PAYABLE hours for the entire week
@@ -326,41 +424,29 @@ def calculate_daily_stats(work_day, employee):
     if total_lunch_minutes >= 60:
         total_lunch_time = f"{total_lunch_minutes // 60}h {total_lunch_minutes % 60:02d}m"
     
-    # Payable time formatted (same as work time since no double deduction)
     payable_time = f"{payable_minutes // 60}h {payable_minutes % 60:02d}m"
-    
-    # Get productive hours (total work time)
     productive_hours = float(work_day.productive_hours or 0.0)
     
     stats = {
-        # Time durations
-        'total': total_work_time,  # Total work time (ONLY work sessions)
-        'payable': payable_time,    # Same as work time (no double deduction)
+        'total': total_work_time,
+        'payable': payable_time,
         'break': total_break_time,
         'lunch': total_lunch_time,
-        
-        # Hours breakdown - based on PAYABLE hours
-        'weekly_hours': weekly_hours,  # Weekly PAYABLE hours
+        'weekly_hours': weekly_hours,
         'regular_hours': pay_breakdown['regular_hours'],
         'overtime_135_hours': pay_breakdown['overtime_135_hours'],
         'overtime_200_hours': pay_breakdown['overtime_200_hours'],
         'night_hours': night_hours,
-        
-        # Money calculations - based on PAYABLE hours
         'hourly_rate': float(hourly_rate),
         'regular_pay': f"${pay_breakdown['regular_pay']:.2f}",
         'overtime_135_pay': f"${pay_breakdown['overtime_135_pay']:.2f}",
         'overtime_200_pay': f"${pay_breakdown['overtime_200_pay']:.2f}",
         'night_pay': f"${pay_breakdown['night_pay']:.2f}",
         'total_pay': f"${pay_breakdown['total_pay']:.2f}",
-        
-        # Additional stats
-        'productive_hours': productive_hours,  # Total work hours (ONLY work sessions)
-        'payable_hours': float(payable_hours_decimal),  # Same as productive_hours
+        'productive_hours': productive_hours,
+        'payable_hours': float(payable_hours_decimal),
         'break_count': work_day.break_count,
         'work_day_status': work_day.get_day_status() if hasattr(work_day, 'get_day_status') else 'Regular hours',
-        
-        # For debugging/display
         'work_minutes': total_work_minutes,
         'break_minutes': total_break_minutes,
         'lunch_minutes': total_lunch_minutes,
@@ -371,37 +457,25 @@ def calculate_daily_stats(work_day, employee):
 
 
 def calculate_weekly_payable_hours(work_day):
-    """
-    Calculate PAYABLE hours for the entire week
-    
-    IMPORTANT: total_work_time already EXCLUDES breaks/lunch
-    So we just sum total_work_time, no subtraction needed
-    """
+    """Calculate PAYABLE hours for the entire week"""
     try:
-        # Get start of week (Monday) for the work_day's date
         date = work_day.date
         start_of_week = date - timedelta(days=date.weekday())
         end_of_week = start_of_week + timedelta(days=6)
         
-        # Get all work days this week
         weekly_workdays = WorkDay.objects.filter(
             employee=work_day.employee,
             date__range=[start_of_week, end_of_week]
         ).exclude(status__in=['absent', 'leave'])
         
-        # Sum PAYABLE hours (total_work_time already excludes breaks/lunch)
         total_payable_hours = 0.0
         
         for wd in weekly_workdays:
-            # If this is the CURRENT active work_day, recalculate to include active sessions
             if wd.id == work_day.id:
                 calculate_daily_totals_manual(wd)
                 wd.refresh_from_db()
             
-            # Get work time (already excludes breaks/lunch)
             work_seconds = wd.total_work_time.total_seconds() if wd.total_work_time else 0
-            
-            # ✅ NO SUBTRACTION! total_work_time is already ONLY work sessions
             payable_hours = work_seconds / 3600
             total_payable_hours += payable_hours
         
@@ -409,38 +483,22 @@ def calculate_weekly_payable_hours(work_day):
         
     except Exception as e:
         print(f"Error calculating weekly payable hours: {e}")
-        import traceback
-        traceback.print_exc()
-        # Fallback to current day's payable hours
         work_seconds = work_day.total_work_time.total_seconds() if work_day.total_work_time else 0
         return round(work_seconds / 3600, 2)
 
 
 def calculate_night_hours_manual(work_day):
-    """
-    Calculate night hours manually (9 PM - 7 AM)
-    Includes ACTIVE sessions
-    ONLY counts work sessions (not breaks/lunch)
-    """
+    """Calculate night hours manually (9 PM - 7 AM)"""
     try:
         night_minutes = 0
-        # Get ONLY work sessions (including active ones)
         sessions = work_day.sessions.filter(session_type='work')
-        
         now = timezone.now()
         
         for session in sessions:
             current_time = session.start_time
+            end_time = session.end_time if session.end_time else now
             
-            # For active sessions, use current time as end
-            if session.end_time:
-                end_time = session.end_time
-            else:
-                end_time = now
-            
-            # Check each minute
             while current_time < end_time:
-                # Check if it's night time (9 PM to 7 AM)
                 if current_time.hour >= 21 or current_time.hour < 7:
                     night_minutes += 1
                 current_time += timedelta(minutes=1)
@@ -452,108 +510,77 @@ def calculate_night_hours_manual(work_day):
 
 
 def get_hourly_rate_manual(employee):
-    """
-    Get hourly rate manually checking all possibilities
-    """
-    # Check fixed rate with custom salary
+    """Get hourly rate manually checking all possibilities"""
     if (hasattr(employee, 'fixed_rate') and employee.fixed_rate and 
         hasattr(employee, 'custom_base_salary') and employee.custom_base_salary):
         custom_salary = decimal.Decimal(str(employee.custom_base_salary))
         daily_rate = custom_salary / decimal.Decimal('30')
         return daily_rate / decimal.Decimal('8')
     
-    # Check position hour rate
     if (hasattr(employee, 'position') and employee.position and 
         hasattr(employee.position, 'hour_rate') and employee.position.hour_rate):
         return decimal.Decimal(str(employee.position.hour_rate))
     
-    # Check campaign hour rate
     if (hasattr(employee, 'current_campaign') and employee.current_campaign and 
         hasattr(employee.current_campaign, 'hour_rate') and employee.current_campaign.hour_rate):
         return decimal.Decimal(str(employee.current_campaign.hour_rate))
     
-    # Default
     return decimal.Decimal('0.00')
 
 
 def calculate_pay_breakdown_manual(work_day, employee, weekly_hours, night_hours, payable_hours_decimal=None):
-    """
-    Calculate pay breakdown according to Dominican law based on PAYABLE HOURS
-    
-    IMPORTANT: payable_hours_decimal is already ONLY work time (no breaks/lunch)
-    """
+    """Calculate pay breakdown according to Dominican law"""
     try:
-        # Get hourly rate
         hourly_rate = get_hourly_rate_manual(employee)
         
-        # Use payable_hours_decimal (already ONLY work time)
         if payable_hours_decimal is not None:
             daily_hours = payable_hours_decimal
         else:
-            # Fallback: use productive_hours (which is ONLY work time)
             work_seconds = work_day.total_work_time.total_seconds() if work_day.total_work_time else 0
             daily_hours = decimal.Decimal(str(work_seconds / 3600))
         
         weekly_hours_dec = decimal.Decimal(str(weekly_hours))
         night_hours_dec = decimal.Decimal(str(night_hours))
         
-        # Calculate regular and overtime hours according to Dominican law
         regular_hours = decimal.Decimal('0')
         overtime_135_hours = decimal.Decimal('0')
         overtime_200_hours = decimal.Decimal('0')
         
         if weekly_hours_dec <= decimal.Decimal('44'):
-            # All hours are regular
             regular_hours = daily_hours
         elif weekly_hours_dec <= decimal.Decimal('68'):
-            # Some hours are overtime 135%
             hours_before_today = weekly_hours_dec - daily_hours
-            
             if hours_before_today >= decimal.Decimal('44'):
-                # All today's hours are overtime 135%
                 overtime_135_hours = daily_hours
             else:
-                # Some regular, some overtime 135%
                 regular_hours = decimal.Decimal('44') - hours_before_today
                 overtime_135_hours = daily_hours - regular_hours
         else:
-            # Some hours could be overtime 200%
             hours_before_today = weekly_hours_dec - daily_hours
-            
             if hours_before_today >= decimal.Decimal('68'):
-                # All today's hours are overtime 200%
                 overtime_200_hours = daily_hours
             elif hours_before_today >= decimal.Decimal('44'):
-                # Some overtime 135%, some overtime 200%
                 overtime_135_hours = decimal.Decimal('68') - hours_before_today
                 overtime_200_hours = daily_hours - overtime_135_hours
             else:
-                # Mix of regular, overtime 135%, and overtime 200%
                 regular_hours = decimal.Decimal('44') - hours_before_today
                 remaining = daily_hours - regular_hours
-                
                 if remaining <= (decimal.Decimal('68') - decimal.Decimal('44')):
                     overtime_135_hours = remaining
                 else:
                     overtime_135_hours = decimal.Decimal('68') - decimal.Decimal('44')
                     overtime_200_hours = remaining - overtime_135_hours
         
-        # Night hours are already calculated from work sessions only
-        # Cap night hours at daily hours
         payable_night_hours = min(night_hours_dec, daily_hours)
         
-        # Calculate rates
-        overtime_rate_135 = hourly_rate * decimal.Decimal('1.35')  # 35% extra
-        overtime_rate_200 = hourly_rate * decimal.Decimal('2.00')  # 100% extra
-        night_rate = hourly_rate * decimal.Decimal('1.15')        # 15% extra
+        overtime_rate_135 = hourly_rate * decimal.Decimal('1.35')
+        overtime_rate_200 = hourly_rate * decimal.Decimal('2.00')
+        night_rate = hourly_rate * decimal.Decimal('1.15')
         
-        # Calculate payments
         regular_pay = regular_hours * hourly_rate
         overtime_135_pay = overtime_135_hours * overtime_rate_135
         overtime_200_pay = overtime_200_hours * overtime_rate_200
         night_pay = payable_night_hours * night_rate
-        
-        # Total pay
         total_pay = regular_pay + overtime_135_pay + overtime_200_pay + night_pay
         
         return {
@@ -568,11 +595,8 @@ def calculate_pay_breakdown_manual(work_day, employee, weekly_hours, night_hours
             'total_pay': float(total_pay),
             'payable_hours': float(daily_hours),
         }
-        
     except Exception as e:
         print(f"Error calculating pay breakdown: {e}")
-        import traceback
-        traceback.print_exc()
         return {
             'regular_hours': 0.0,
             'overtime_135_hours': 0.0,
@@ -590,57 +614,33 @@ def calculate_pay_breakdown_manual(work_day, employee, weekly_hours, night_hours
 @require_http_methods(["POST"])
 @login_required
 def start_activity(request):
-    """
-    Handle status changes and update the dashboard
-    Uses active work day logic instead of calendar day
-    """
+    """Handle status changes and update the dashboard"""
     employee = get_object_or_404(Employee, user=request.user)
     session_type = request.POST.get("session_type", "work")
     notes = request.POST.get("notes", "")
 
     try:
         with transaction.atomic():
-            # 🔒 Get the ACTIVE work day (not just today's date)
             work_day = get_or_create_active_work_day(employee)
-            
-            # Lock it to avoid race conditions
             work_day = WorkDay.objects.select_for_update().get(pk=work_day.pk)
 
-            # ⛔ End of day
             if session_type == "end_of_day":
                 return end_work_day(request)
 
-            # 🔍 Active session
             active_session = work_day.get_active_session()
 
-            # 🚫 Avoid changing to same state
             if active_session and active_session.session_type == session_type:
-                messages.info(
-                    request,
-                    f"You are already in {active_session.get_session_type_display()} status."
-                )
+                messages.info(request, f"You are already in {active_session.get_session_type_display()} status.")
                 return agent_dashboard(request)
 
-            # 🔚 Close active session if exists
             if active_session:
                 active_session.end_time = timezone.now()
                 active_session.save()
 
-            # ▶️ Start new session IMMEDIATELY (atomically)
-            session = _start_new_session(
-                work_day=work_day,
-                session_type=session_type,
-                notes=notes
-            )
-
-            # 📊 Calculate totals AFTER both operations
+            session = _start_new_session(work_day=work_day, session_type=session_type, notes=notes)
             calculate_daily_totals_manual(work_day)
 
-            messages.success(
-                request,
-                f"Status changed to {session.get_session_type_display()}"
-            )
-
+            messages.success(request, f"Status changed to {session.get_session_type_display()}")
             return agent_dashboard(request)
 
     except Exception as e:
@@ -652,14 +652,9 @@ def start_activity(request):
 
 
 def _start_new_session(work_day, session_type, notes=""):
-    """
-    Start a new ActivitySession using WorkDay helper if available
-    """
+    """Start a new ActivitySession"""
     try:
-        session = work_day.start_work_session(
-            session_type=session_type,
-            notes=notes
-        )
+        session = work_day.start_work_session(session_type=session_type, notes=notes)
     except Exception:
         session = ActivitySession.objects.create(
             work_day=work_day,
@@ -667,43 +662,31 @@ def _start_new_session(work_day, session_type, notes=""):
             start_time=timezone.now(),
             notes=notes
         )
-
-        # ⏱️ Check-in if first work session
         if session_type == "work" and not work_day.check_in:
             work_day.check_in = timezone.now()
             work_day.save(update_fields=["check_in"])
-
     return session
 
 
 @require_http_methods(["POST"])
 @login_required
 def end_work_day(request):
-    """
-    End complete work day
-    This is the ONLY way a work day should be completed
-    """
+    """End complete work day - This is the ONLY way a work day should be completed"""
     employee = get_object_or_404(Employee, user=request.user)
     
     try:
-        # Get the ACTIVE work day (not just today's date)
         work_day = get_or_create_active_work_day(employee)
         
-        # End any active session
         active_session = work_day.get_active_session()
         if active_session:
             active_session.end_time = timezone.now()
             active_session.save()
         
-        # Update work day - mark as COMPLETED
         work_day.check_out = timezone.now()
-        work_day.status = 'completed'  # ⬅️ This marks it as finished
-        
-        # Calculate final totals
+        work_day.status = 'completed'
         calculate_daily_totals_manual(work_day)
         
         messages.success(request, "Work day ended successfully")
-        
         return agent_dashboard(request)
         
     except Exception as e:
@@ -712,7 +695,6 @@ def end_work_day(request):
         traceback.print_exc()
         messages.error(request, f"Error ending work day: {str(e)}")
         return agent_dashboard(request)
-
 
 
 @login_required
@@ -1257,26 +1239,41 @@ def team_attendance_history(request):
 def employee_attendance_detail(request, employee_id):
     """
     Vista detallada de asistencia de un empleado específico
+    Muestra lista de días o detalle de un día específico
     """
     try:
         employee = Employee.objects.get(id=employee_id, is_active=True)
-        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+        
+        # Verificar permisos
+        if not (request.user.is_superuser or 
+                Employee.objects.filter(user=request.user, is_supervisor=True).exists()):
+            messages.error(request, "You don't have permission to view this page.")
+            return redirect('agent_dashboard')
+            
+        supervisor = Employee.objects.filter(user=request.user, is_supervisor=True).first()
+        
     except Employee.DoesNotExist:
         messages.error(request, "Employee not found.")
-        return redirect('employee_profile')
+        return redirect('supervisor_dashboard')
     
-    # Check if we're viewing a specific day
+    # ============================================================================
+    # DAY DETAIL VIEW - Si se solicita un día específico
+    # ============================================================================
     date_str = request.GET.get('day')
     if date_str:
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
             work_day = WorkDay.objects.get(employee=employee, date=date_obj)
             
-            # Render day detail within this same view
+            # Forzar recalculo de totales
+            calculate_daily_totals_manual(work_day)
+            work_day.refresh_from_db()
+            
+            # Obtener sesiones
             sessions = work_day.sessions.all().order_by('start_time')
             
-            # Calculate stats for this day
-            # ... your calculation code here ...
+            # Calcular estadísticas del día
+            daily_stats = calculate_daily_stats(work_day, employee)
             
             context = {
                 'supervisor': supervisor,
@@ -1284,38 +1281,75 @@ def employee_attendance_detail(request, employee_id):
                 'work_day': work_day,
                 'sessions': sessions,
                 'date': date_obj,
-                'daily_stats': calculate_daily_stats,
-                'daily_hours_breakdown': calculate_daily_totals_manual,
-                'is_day_detail': True,  # Flag to show day detail template
+                'daily_stats': daily_stats,
+                'is_day_detail': True,
             }
             
             return render(request, 'supervisor/employee_day_detail.html', context)
-            
+        
+        except WorkDay.DoesNotExist:
+            messages.error(request, f"No work day found for {date_obj}")
         except Exception as e:
             messages.error(request, f"Error loading day details: {str(e)}")
-            # Fall through to show the list view
+            import traceback
+            traceback.print_exc()
+    
+    # ============================================================================
+    # LIST VIEW - Mostrar lista de días
+    # ============================================================================
     
     # Parámetros de filtrado
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     
     # Obtener WorkDays del empleado
-    work_days = WorkDay.objects.filter(employee=employee).order_by('-date')
+    work_days = WorkDay.objects.filter(
+        employee=employee
+    ).select_related(
+        'employee__position', 
+        'employee__department',
+        'employee__current_campaign'
+    ).prefetch_related(
+        'sessions'
+    ).order_by('-date')
     
+    # Aplicar filtros
     if date_from:
-        work_days = work_days.filter(date__gte=date_from)
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            work_days = work_days.filter(date__gte=date_from_obj)
+        except ValueError:
+            messages.warning(request, "Invalid 'from' date format")
+    
     if date_to:
-        work_days = work_days.filter(date__lte=date_to)
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            work_days = work_days.filter(date__lte=date_to_obj)
+        except ValueError:
+            messages.warning(request, "Invalid 'to' date format")
     
     # Paginación
     paginator = Paginator(work_days, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    # Estadísticas del empleado
+    # ============================================================================
+    # Calcular estadísticas del empleado (solo para días filtrados)
+    # ============================================================================
     total_work_days = work_days.count()
-    total_work_time = sum((wd.total_work_time.total_seconds() for wd in work_days if wd.total_work_time), 0)
-    avg_work_time = total_work_time / total_work_days if total_work_days > 0 else 0
+    
+    # Calcular tiempo total de trabajo
+    total_work_seconds = 0
+    for wd in work_days:
+        if wd.total_work_time:
+            total_work_seconds += wd.total_work_time.total_seconds()
+    
+    # Calcular promedio
+    avg_work_seconds = total_work_seconds / total_work_days if total_work_days > 0 else 0
+    
+    # Formatear tiempos
+    total_work_time_formatted = format_duration_hours(timedelta(seconds=total_work_seconds))
+    avg_work_time_formatted = format_duration_hours(timedelta(seconds=avg_work_seconds))
     
     context = {
         'supervisor': supervisor,
@@ -1324,12 +1358,34 @@ def employee_attendance_detail(request, employee_id):
         'date_from': date_from,
         'date_to': date_to,
         'total_work_days': total_work_days,
-        'total_work_time': format_duration_simple(timedelta(seconds=total_work_time)),
-        'avg_work_time': format_duration_simple(timedelta(seconds=avg_work_time)),
-        'is_day_detail': False,  # Flag to show list view
+        'total_work_time': total_work_time_formatted,
+        'avg_work_time': avg_work_time_formatted,
+        'is_day_detail': False,
     }
     
     return render(request, 'supervisor/employee_attendance_detail.html', context)
+
+
+def format_duration_hours(duration):
+    """
+    Formato: "8h 30m"
+    """
+    if not duration:
+        return "0h 0m"
+    
+    total_seconds = int(duration.total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    
+    return f"{hours}h {minutes}m"
+
+
+def format_duration_simple(duration):
+    """
+    Alias para compatibilidad
+    """
+    return format_duration_hours(duration)
+
 
 @login_required
 def export_employee_attendance_excel(request, employee_id):
@@ -1491,61 +1547,138 @@ def export_employee_attendance_excel(request, employee_id):
 
 @login_required
 def supervisor_day_detail(request, employee_id, date_str):
+    """
+    Vista detallada de un día específico
+    Acceso: Cualquier supervisor o admin puede ver cualquier empleado
+    """
+    
+    # ============================================================================
+    # VERIFICAR PERMISOS - Simple: ¿Eres supervisor o admin?
+    # ============================================================================
+    is_supervisor = False
+    user_employee = None
+    
     try:
-        supervisor = Employee.objects.get(user=request.user, is_supervisor=True)
+        user_employee = Employee.objects.get(user=request.user)
+        is_supervisor = user_employee.is_supervisor
     except Employee.DoesNotExist:
-        messages.error(request, "You don't have supervisor privileges.")
-        return redirect('employee_profile')
-
-    employee = get_object_or_404(Employee, id=employee_id, supervisor=supervisor)
-
+        pass
+    
+    # Permitir acceso si es:
+    # 1. Superuser/Admin
+    # 2. Staff
+    # 3. Supervisor (cualquier supervisor)
+    has_access = (
+        request.user.is_superuser or 
+        request.user.is_staff or 
+        is_supervisor or
+        request.user.groups.filter(name__in=['Supervisors', 'HR', 'Managers']).exists()
+    )
+    
+    if not has_access:
+        messages.error(request, "You don't have permission to view attendance details.")
+        return redirect('agent_dashboard')
+    
+    # ============================================================================
+    # CARGAR DATOS DEL DÍA
+    # ============================================================================
+    
+    # Obtener empleado (sin restricciones de supervisor)
+    employee = get_object_or_404(Employee, id=employee_id)
+    
     try:
+        # Parse fecha
         date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-        work_day = WorkDay.objects.get(employee=employee, date=date_obj)
+        
+        # Obtener WorkDay
+        work_day = get_object_or_404(WorkDay, employee=employee, date=date_obj)
+        
+        # 🔥 IMPORTANTE: Forzar recalculo usando las funciones centralizadas
+        calculate_daily_totals_manual(work_day)
+        work_day.refresh_from_db()
+        
+        # Obtener sesiones
         sessions = work_day.sessions.all().order_by('start_time')
-
-        if not sessions.exists():
-            messages.warning(request, "No sessions found for this day.")
-            return redirect('employee_attendance_detail', employee_id=employee.id)
-
-        # Calcular hora de inicio y fin del día
-        day_start = sessions.first().start_time
-        day_end = sessions.last().end_time or datetime.now()
-        total_day_duration = day_end - day_start
-
-        # Totales por tipo de sesión
-        def total_duration_for(session_type):
-            total = timedelta()
-            for s in sessions.filter(session_type=session_type, end_time__isnull=False):
-                total += (s.end_time - s.start_time)
-            return total
-
-        total_work = total_duration_for('work')
-        total_break = total_duration_for('break')
-        total_lunch = total_duration_for('lunch')
-
-        # Horas pagables (solo 'work')
+        
+        # 📊 Calcular estadísticas (misma función que agent_dashboard)
+        daily_stats = calculate_daily_stats(work_day, employee)
+        
+        # ============================================================================
+        # Calcular tiempos adicionales para el template
+        # ============================================================================
+        
+        # Tiempo total del día (check_in a check_out)
+        total_day_duration = timedelta(0)
+        if work_day.check_in:
+            if work_day.check_out:
+                total_day_duration = work_day.check_out - work_day.check_in
+            else:
+                # Si no hay check_out, calcular hasta ahora
+                last_session = sessions.order_by('-start_time').first()
+                if last_session:
+                    end_time = last_session.end_time or timezone.now()
+                    total_day_duration = end_time - work_day.check_in
+                else:
+                    total_day_duration = timezone.now() - work_day.check_in
+        
+        # Tiempos ya calculados en work_day
+        total_work = work_day.total_work_time or timedelta(0)
+        total_break = work_day.total_break_time or timedelta(0)
+        total_lunch = work_day.total_lunch_time or timedelta(0)
+        
+        # Payable hours = total_work (ya excluye breaks/lunch)
         payable_hours = total_work
-
+        
+        # Timestamps
+        day_start = work_day.check_in
+        day_end = work_day.check_out
+        
+        # ============================================================================
+        # Permisos para acciones en el template
+        # ============================================================================
+        can_edit = request.user.is_superuser or is_supervisor or request.user.is_staff
+        can_delete = request.user.is_superuser
+        
         context = {
-            'supervisor': supervisor,
+            'supervisor': user_employee,
             'employee': employee,
             'work_day': work_day,
             'sessions': sessions,
             'date': date_obj,
+            
+            # Duraciones
             'total_day_duration': total_day_duration,
             'total_work': total_work,
             'total_break': total_break,
             'total_lunch': total_lunch,
             'payable_hours': payable_hours,
+            
+            # Timestamps
             'day_start': day_start,
             'day_end': day_end,
+            
+            # Estadísticas completas
+            'daily_stats': daily_stats,
+            
+            # Permisos
+            'can_edit': can_edit,
+            'can_delete': can_delete,
         }
 
         return render(request, 'supervisor/supervisor_day_detail.html', context)
 
-    except (ValueError, WorkDay.DoesNotExist):
-        messages.error(request, "Day not found or no data available.")
+    except ValueError:
+        messages.error(request, "Invalid date format. Use YYYY-MM-DD.")
+        return redirect('employee_attendance_detail', employee_id=employee_id)
+        
+    except WorkDay.DoesNotExist:
+        messages.error(request, f"No work day found for {employee.user.get_full_name()} on {date_str}.")
+        return redirect('employee_attendance_detail', employee_id=employee_id)
+        
+    except Exception as e:
+        messages.error(request, f"Error loading day details: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return redirect('employee_attendance_detail', employee_id=employee_id)
     
 

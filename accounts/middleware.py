@@ -1,13 +1,17 @@
 import hashlib
 import uuid
-from django.shortcuts import redirect, get_object_or_404, render
+from django.shortcuts import redirect
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.views import View
-from .models import DeviceToken
+from django.http import HttpResponseForbidden
+
 
 
 class DeviceAuthenticationMiddleware:
+    """
+    Middleware para autenticación por dispositivo
+    Ahora permite acceso móvil limitado para ver estado
+    """
+    
     def __init__(self, get_response):
         self.get_response = get_response
 
@@ -16,20 +20,43 @@ class DeviceAuthenticationMiddleware:
         return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):
+        # Rutas excluidas de verificación
         excluded_paths = [
             '/admin/',
             '/static/',
+            '/media/',
             '/accounts/logout/',
+            '/accounts/login/',
             '/account/first-time-setup/',
             '/account/device-not-authorized/',
             '/it-admin/device-management/',
+            '/account/account/mobile-status/',
         ]
 
         if any(request.path.startswith(path) for path in excluded_paths):
             return None
 
         if request.user.is_authenticated:
+            # Detectar si es dispositivo móvil
+            is_mobile = self.is_mobile_device(request)
+            
+            # Si es móvil, solo permitir acceso a vista de estado
+            if is_mobile:
+                # ⬅️ CRITICAL: Primero verificar si YA está en mobile-status
+                if request.path.startswith('/account/mobile-status/'):
+                    # Ya está en la vista correcta, permitir acceso
+                    return None
+                
+                # Si está en accounts/logout, permitir
+                if request.path.startswith('/accounts/logout/'):
+                    return None
+                
+                # Si está en cualquier otra ruta, redirigir a mobile-status
+                return redirect('mobile_status_view')
+            
+            # Para desktop, verificar dispositivo autorizado
             try:
+                from .models import DeviceToken
                 device_token = DeviceToken.objects.get(user=request.user)
 
                 if device_token.is_active:
@@ -48,13 +75,22 @@ class DeviceAuthenticationMiddleware:
 
         return None
 
+    def is_mobile_device(self, request):
+        """Detecta si el dispositivo es móvil o tablet"""
+        user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
+        
+        mobile_keywords = [
+            'mobile', 'android', 'iphone', 'ipad', 
+            'tablet', 'phone', 'ipod'
+        ]
+        
+        return any(keyword in user_agent for keyword in mobile_keywords)
+
     def get_device_fingerprint(self, request):
-        """Genera un fingerprint estable combinando User-Agent y cookie persistente"""
+        """Genera un fingerprint del dispositivo"""
         user_agent = request.META.get('HTTP_USER_AGENT', '')
         device_uuid = request.COOKIES.get('device_uuid')
 
-        # Si no existe la cookie, se genera un nuevo UUID temporal
-        # (solo se usará para crear el token en el primer registro)
         if not device_uuid:
             device_uuid = 'temp-' + str(uuid.uuid4())
 

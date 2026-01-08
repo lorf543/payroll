@@ -9,10 +9,21 @@
         <div class="col-lg-8">
             <div class="card shadow-sm">
                 <div class="card-header bg-primary text-white">
-                    <h2 class="h4 mb-0">Bulk Create Work Days</h2>
+                    <h2 class="h4 mb-0">
+                        <i class="bi bi-calendar-plus me-2"></i>
+                        Bulk Create Work Days
+                    </h2>
                 </div>
                 
                 <div class="card-body">
+                    <!-- Info Alert -->
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> This creates simple work days with continuous work sessions.
+                        Break and lunch times are NOT included - only total work time is recorded.
+                        Use this for system issues or forgotten check-ins.
+                    </div>
+                    
                     {% if messages %}
                         {% for message in messages %}
                             <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -26,7 +37,7 @@
                         {% csrf_token %}
                         
                         <!-- Date and Time Section -->
-                        <div class="mb-5">
+                        <div class="mb-4">
                             <h5 class="text-primary mb-3">
                                 <i class="bi bi-calendar-date me-2"></i>Work Day Details
                             </h5>
@@ -68,65 +79,37 @@
                                     >
                                 </div>
                             </div>
-                        </div>
-                        
-                        <!-- Break Sessions -->
-                        <div class="mb-5">
-                            <h5 class="text-primary mb-3">
-                                Break Sessions
-                            </h5>
-                            <div id="breakSessions" class="mb-3"></div>
-                            <button 
-                                type="button"
-                                class="btn btn-outline-primary btn-sm"
-                                hx-get="{% url 'add_break_session' %}"
-                                hx-target="#breakSessions"
-                                hx-swap="beforeend"
-                                hx-vals='js:{index: document.querySelectorAll("#breakSessions .session-row").length}'
-                            >
-                                <i class="bi bi-plus-circle me-1"></i>Add Break
-                            </button>
-                        </div>
-                        
-                        <!-- Lunch Sessions -->
-                        <div class="mb-5">
-                            <h5 class="text-primary mb-3">
-                                Lunch Sessions
-                            </h5>
-                            <div id="lunchSessions" class="mb-3"></div>
-                            <button 
-                                type="button"
-                                class="btn btn-outline-primary btn-sm"
-                                hx-get="{% url 'add_lunch_session' %}"
-                                hx-target="#lunchSessions"
-                                hx-swap="beforeend"
-                                hx-vals='js:{index: document.querySelectorAll("#lunchSessions .session-row").length}'
-                            >
-                                <i class="bi bi-plus-circle me-1"></i>Add Lunch
-                            </button>
+                            <div class="form-text mt-2">
+                                <i class="bi bi-clock me-1"></i>
+                                Total work time will be calculated from check-in to check-out.
+                                Breaks and lunch are NOT included.
+                            </div>
                         </div>
                         
                         <!-- Reason -->
-                        <div class="mb-5">
+                        <div class="mb-4">
                             <h5 class="text-primary mb-3">
-                                <i class="bi bi-chat-text me-2"></i>Reason
+                                <i class="bi bi-chat-text me-2"></i>Reason *
                             </h5>
                             <textarea 
                                 name="reason" 
                                 rows="3" 
                                 class="form-control"
-                                placeholder="e.g., System issue, Forgot to check in, Training session..."
+                                placeholder="e.g., System outage - employees worked but couldn't log in&#10;Forgot to check in - confirmed worked full shift&#10;Training session - no break logging available"
                                 required
                             ></textarea>
+                            <div class="form-text">
+                                This reason will be permanently attached to the work day for audit purposes.
+                            </div>
                         </div>
                         
                         <!-- Employee Selection -->
-                        <div class="mb-5">
+                        <div class="mb-4">
                             <h5 class="text-primary mb-3">
                                 <i class="bi bi-people me-2"></i>Select Employees
                             </h5>
                             
-                            <div class="row mb-4">
+                            <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">
                                         Filter by Campaign (optional)
@@ -155,110 +138,67 @@
                                     name="employees" 
                                     multiple 
                                     class="form-select"
-                                    size="8"
+                                    size="10"
                                     required
+                                    onchange="updateEmployeeCount()"
                                 >
-                                    <option value="" disabled>Select a campaign first or choose from all employees</option>
+                                    <option value="" disabled>Loading employees...</option>
                                 </select>
                                 <div class="form-text mt-2">
-                                    <span id="employeeCount">0</span> employee(s) selected
+                                    <i class="bi bi-hand-index me-1"></i>
+                                    Hold <kbd>Ctrl</kbd> (Windows) or <kbd>Cmd</kbd> (Mac) to select multiple employees.
+                                    <span id="employeeCount" class="badge bg-primary ms-2">0 selected</span>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- Submit -->
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="bi bi-check-circle me-2"></i>Create Work Days
+                                <i class="bi bi-check-circle me-2"></i>
+                                Create Work Days
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+            
+            <!-- Help Section -->
+            <div class="card mt-4 border-info">
+                <div class="card-body">
+                    <h6 class="card-title text-info">
+                        <i class="bi bi-question-circle me-2"></i>
+                        When to use this feature?
+                    </h6>
+                    <ul class="mb-0">
+                        <li><strong>System Issues:</strong> Server was down, employees couldn't log in</li>
+                        <li><strong>Forgotten Check-ins:</strong> Employee forgot to check in but did work</li>
+                        <li><strong>Special Events:</strong> Training, meetings, or events without normal tracking</li>
+                        <li><strong>Manual Corrections:</strong> Fixing historical data</li>
+                    </ul>
+                    <hr>
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <strong>Important:</strong> Created work days will have ONE continuous work session.
+                        Breaks and lunch are not logged. For payroll purposes.
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Templates para las sesiones -->
-<template id="breakSessionTemplate">
-    <div class="session-row row g-3 align-items-center mb-3 p-3 bg-light rounded">
-        <div class="col-md-4">
-            <label class="form-label small">Start Time *</label>
-            <input 
-                type="time" 
-                name="break_{{ index }}_start" 
-                class="form-control form-control-sm"
-                required
-            >
-        </div>
-        <div class="col-md-4">
-            <label class="form-label small">End Time *</label>
-            <input 
-                type="time" 
-                name="break_{{ index }}_end" 
-                class="form-control form-control-sm"
-                required
-            >
-        </div>
-        <div class="col-md-4">
-            <button 
-                type="button" 
-                onclick="this.closest('.session-row').remove(); updateEmployeeCount();" 
-                class="btn btn-outline-danger btn-sm"
-            >
-                <i class="bi bi-trash me-1"></i>Remove
-            </button>
-        </div>
-    </div>
-</template>
-
-<template id="lunchSessionTemplate">
-    <div class="session-row row g-3 align-items-center mb-3 p-3 bg-light rounded">
-        <div class="col-md-4">
-            <label class="form-label small">Start Time *</label>
-            <input 
-                type="time" 
-                name="lunch_{{ index }}_start" 
-                class="form-control form-control-sm"
-                required
-            >
-        </div>
-        <div class="col-md-4">
-            <label class="form-label small">End Time *</label>
-            <input 
-                type="time" 
-                name="lunch_{{ index }}_end" 
-                class="form-control form-control-sm"
-                required
-            >
-        </div>
-        <div class="col-md-4">
-            <button 
-                type="button" 
-                onclick="this.closest('.session-row').remove(); updateEmployeeCount();" 
-                class="btn btn-outline-danger btn-sm"
-            >
-                <i class="bi bi-trash me-1"></i>Remove
-            </button>
-        </div>
-    </div>
-</template>
-
 <script>
-    // Auto-load all employees on page load
+    // Auto-load employees on page load
     document.addEventListener('DOMContentLoaded', function() {
         htmx.trigger('#campaignFilter', 'change');
-        
-        // Actualizar contador de empleados
-        document.querySelector('select[name="employees"]')?.addEventListener('change', updateEmployeeCount);
     });
     
-    // Actualizar contador de empleados seleccionados
+    // Update employee count
     function updateEmployeeCount() {
         const select = document.querySelector('select[name="employees"]');
         if (select) {
             const selected = Array.from(select.selectedOptions).filter(opt => opt.value);
-            document.getElementById('employeeCount').textContent = selected.length;
+            document.getElementById('employeeCount').textContent = `${selected.length} selected`;
         }
     }
     
@@ -269,44 +209,40 @@
         
         if (selected.length === 0) {
             e.preventDefault();
-            showAlert('Please select at least one employee', 'warning');
+            alert('Please select at least one employee');
             return false;
         }
         
-        const confirmMessage = `Create work days for ${selected.length} employee(s)?`;
-        if (!confirm(confirmMessage)) {
-            e.preventDefault();
-            return false;
+        // Calculate hours
+        const checkIn = document.querySelector('[name="check_in_time"]').value;
+        const checkOut = document.querySelector('[name="check_out_time"]').value;
+        
+        if (checkIn && checkOut) {
+            const [inH, inM] = checkIn.split(':').map(Number);
+            const [outH, outM] = checkOut.split(':').map(Number);
+            
+            let hours = outH - inH;
+            let minutes = outM - inM;
+            
+            if (hours < 0) hours += 24; // Handle midnight crossover
+            if (minutes < 0) {
+                hours -= 1;
+                minutes += 60;
+            }
+            
+            const totalHours = hours + (minutes / 60);
+            
+            const confirmMsg = `Create work days for ${selected.length} employee(s)?
+
+Total work time: ${totalHours.toFixed(1)} hours
+(No breaks/lunch included)
+
+Continue?`;
+            
+            return confirm(confirmMsg);
         }
         
         return true;
-    });
-    
-    // Función para mostrar alertas
-    function showAlert(message, type = 'info') {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        const cardBody = document.querySelector('.card-body');
-        cardBody.insertBefore(alertDiv, cardBody.firstChild);
-        
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            const bsAlert = new bootstrap.Alert(alertDiv);
-            bsAlert.close();
-        }, 5000);
-    }
-    
-    // Inicializar tooltips de Bootstrap
-    document.addEventListener('DOMContentLoaded', function() {
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
     });
 </script>
 {% endblock %}

@@ -48,9 +48,8 @@ urlpatterns = [
 
     # Bulk WorkDay Creation
     path('bulk-create-workday/', views.bulk_create_workday, name='bulk_create_workday'),
-    path('load-employees-dropdown/', views.load_employees_dropdown, name='load_employees_dropdown'),
-    path('add-break-session/', views.add_break_session, name='add_break_session'),
-    path('add-lunch-session/', views.add_lunch_session, name='add_lunch_session'),
+    
+    path('load-employees-dropdown/', views.load_employees_dropdown, name='load_employees_dropdown')
 ]
 
 

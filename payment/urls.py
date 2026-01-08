@@ -16,4 +16,7 @@ urlpatterns = [
     path('payment/<int:pk>/', views.PaymentDetailView.as_view(), name='payment_detail'),
     path('payment/<int:pk>/approve/', views.PaymentApprovalView.as_view(), name='payment_approve'),
     path('payment/<int:pk>/reject/', views.PaymentRejectionView.as_view(), name='payment_reject'),
+    
+    path('payment/<int:payment_id>/confirm-isr/', views.confirm_isr, name='confirm_isr'),
+    path('payment/<int:payment_id>/unlock-isr/', views.unlock_isr, name='unlock_isr'),
 ]

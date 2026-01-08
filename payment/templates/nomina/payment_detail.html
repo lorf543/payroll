@@ -225,5 +225,58 @@
             </div>
         </div>
     </div>
+    <!-- Work Days Section -->
+<div class="card shadow-sm mt-4">
+    <div class="card-header bg-dark text-white">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-calendar-check me-2"></i>
+            Work Days Detail ({{ payment.period.start_date|date:"M d" }} - {{ payment.period.end_date|date:"M d, Y" }})
+        </h5>
+    </div>
+
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Hours</th>
+                        <th>Regular</th>
+                        <th>Overtime</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for workday in workdays %}
+                    <tr>
+                        <td>{{ workday.date }}</td>
+                        <td>{{ workday.productive_hours|floatformat:2 }}h</td>
+                        <td>${{ workday.regular_pay|floatformat:2 }}</td>
+                        <td>${{ workday.overtime_pay|floatformat:2 }}</td>
+                        <td><strong>${{ workday.total_pay|floatformat:2 }}</strong></td>
+                        <td>
+                            {% if workday.is_approved %}
+                                <span class="badge bg-success">Approved</span>
+                            {% else %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-3">
+                            No work days in this payment period.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+            </table>
+        </div>
+    </div>
+</div>
 </div>
 {% endblock %}

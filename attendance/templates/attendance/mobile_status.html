@@ -1,0 +1,164 @@
+{% load static %}
+{% load pwa %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Status - {{ employee.user.get_full_name }}</title>
+
+    <!-- PWA Configuration -->
+    {% progressive_web_app_meta %}
+    <meta name="theme-color" content="#2c3e50"/>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Employee Portal">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="{% static 'images/icon-160x160.png' %}">
+
+    <style>
+            body {
+                font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto;
+                background:linear-gradient(135deg,#667eea,#764ba2);
+                min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px;
+            }
+            .card{background:#fff;border-radius:20px;padding:25px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+            h1{text-align:center;font-size:22px;margin-bottom:5px}
+            p{text-align:center;color:#666;margin-bottom:20px}
+            .badge{padding:8px 18px;border-radius:40px;font-size:14px;font-weight:600}
+            .work{background:#10b981;color:#fff}
+            .break{background:#f59e0b;color:#fff}
+            .lunch{background:#6366f1;color:#fff}
+            .inactive{background:#6b7280;color:#fff}
+            .timer{text-align:center;font-size:46px;font-weight:700;margin-top:15px}
+            .warning{color:#f59e0b}
+            .danger{color:#ef4444;animation:pulse 1s infinite}
+            @keyframes pulse{50%{opacity:.6}}
+            .progress{height:10px;border-radius:8px;background:#e5e7eb;margin:15px 0;overflow:hidden}
+            .fill{height:100%;background:linear-gradient(90deg,#10b981,#3b82f6)}
+            .alert{background:#fee2e2;border-left:4px solid #ef4444;padding:12px;border-radius:8px;margin-top:10px;color:#991b1b;font-size:14px}
+            .btn{width:100%;padding:14px;border-radius:10px;border:none;margin-top:15px;font-weight:600;font-size:16px;cursor:pointer}
+            .refresh{background:#667eea;color:#fff}
+            .logout{background:#fff;border:1px solid #ccc}
+            .footer{text-align:center;color:#999;font-size:12px;margin-top:15px}
+    </style>
+  </head>
+
+
+
+</head>
+
+<body>
+<div class="card">
+    <h1>{{ employee.user.get_full_name }}</h1>
+    <p>{{ employee.position.name|default:"Employee" }}</p>
+
+    {% if error %}
+        <div class="alert">{{ error }}</div>
+
+    {% elif current_session %}
+        <div style="text-align:center">
+            <span class="badge {% if current_session.session_type == 'break' %}break{% elif current_session.session_type == 'lunch' %}lunch{% else %}work{% endif %}">
+                {{ current_session.get_session_type_display }}
+            </span>
+        </div>
+
+        {% if remaining_time %}
+        <div class="timer" id="timer">
+            {{ remaining_time.seconds|divisibleby:60 }}:{{ remaining_time.seconds|add:"-60"|divisibleby:1 }}
+        </div>
+
+        <div class="progress">
+            <div class="fill" style="width:{{ progress_percent }}%"></div>
+        </div>
+
+        {% if is_overtime %}
+        <div class="alert">⚠️ You exceeded your {{ current_session.session_type }} time!</div>
+        {% endif %}
+        {% endif %}
+
+    {% else %}
+        <div style="text-align:center">
+            <span class="badge inactive">Not Active</span>
+        </div>
+        <div class="timer">--:--</div>
+    {% endif %}
+
+    <button class="btn refresh" onclick="location.reload()">🔄 Refresh</button>
+
+    <form method="post">{% csrf_token %}
+        <button class="btn logout">Logout</button>
+    </form>
+
+    <div class="footer">
+        Mobile Read-Only • Use desktop to change status
+    </div>
+</div>
+
+<script>
+// =========================
+// NOTIFICATION PERMISSION
+// =========================
+if ("Notification" in window && Notification.permission !== "granted") {
+    Notification.requestPermission();
+}
+
+// =========================
+// SEND EVENT TO SERVICE WORKER
+// =========================
+function notifyWorker(data){
+    if("serviceWorker" in navigator && navigator.serviceWorker.controller){
+        navigator.serviceWorker.controller.postMessage(data);
+    }
+}
+
+// =========================
+// STATUS NOTIFICATIONS
+// =========================
+{% if current_session %}
+
+    {% if current_session.session_type == "break" %}
+        notifyWorker({
+        type:"STATUS_ALERT",
+        title:"⏸ Break Started",
+        message:"You're on break. Watch your time!",
+        });
+
+        {% elif current_session.session_type == "lunch" %}
+        notifyWorker({
+        type:"STATUS_ALERT",
+        title:"🍽 Lunch Started",
+        message:"Enjoy your lunch!",
+        });
+    {% endif %}
+
+{% endif %}
+
+// =========================
+// COUNTDOWN + 5 MIN WARNING
+// =========================
+{% if remaining_time and not is_overtime %}
+let seconds = {{ remaining_time.seconds }};
+
+setInterval(()=>{
+ seconds--;
+
+ if(seconds === 300){
+    notifyWorker({
+        type:"STATUS_ALERT",
+        title:"⏰ 5 minutes left",
+        message:"Break/Lunch ending soon!",
+    });
+ }
+
+ if(seconds <= 0) location.reload();
+
+ const m=Math.floor(seconds/60);
+ const s=(seconds%60).toString().padStart(2,"0");
+ document.getElementById("timer").innerText = `${m}:${s}`;
+},1000);
+{% endif %}
+</script>
+
+</body>
+</html>
